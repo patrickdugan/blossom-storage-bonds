@@ -1,0 +1,198 @@
+{
+  "bond_sats": 100000000,
+  "checks": [
+    {
+      "check": "fund Bond_0",
+      "expect": "accept",
+      "node": null,
+      "pass": true
+    },
+    {
+      "check": "Challenge_0 with the wrong r",
+      "expect": "reject containing \"script-verify\"",
+      "node": "transaction failed: mempool-script-verify-flag-failed (Script evaluated without error but finished with a false/empty top stack element), input 0 of 00dbc355705e915247ae17cb2caf7862f80da72bbcb2bf7de4163f8827c50bd0 (wtxid b64f5a4ba35ab97700d1cd6046d1ea71e8744308c0b07e96ef2012d1ce784b55), spending 3d4852b191726acac2e629328f95a70e6962febc1f899591670f60cb3fc134fc:0; bad-txns-inputs-missingorspent",
+      "pass": true
+    },
+    {
+      "check": "Challenge_0 without the client's signature",
+      "expect": "reject containing \"script-verify\"",
+      "node": "transaction failed: bad-txns-inputs-missingorspent; mempool-script-verify-flag-failed (Script failed an OP_CHECKSIGVERIFY operation), input 0 of 00dbc355705e915247ae17cb2caf7862f80da72bbcb2bf7de4163f8827c50bd0 (wtxid 7fa39b37a04ca88c703b76021515e5dd5313a07e562815854bdc21ff817f24b9), spending 3d4852b191726acac2e629328f95a70e6962febc1f899591670f60cb3fc134fc:0",
+      "pass": true
+    },
+    {
+      "check": "Challenge_0 with Challenge_1's provider presignature",
+      "expect": "reject containing \"script-verify\"",
+      "node": "transaction failed: mempool-script-verify-flag-failed (Invalid Schnorr signature), input 0 of 00dbc355705e915247ae17cb2caf7862f80da72bbcb2bf7de4163f8827c50bd0 (wtxid 54827203068b66753f9e5047099c0bc040a5ff5ef511003890dc4e834529acfe), spending 3d4852b191726acac2e629328f95a70e6962febc1f899591670f60cb3fc134fc:0; bad-txns-inputs-missingorspent",
+      "pass": true
+    },
+    {
+      "check": "Challenge_0 (reveals r_0)",
+      "expect": "accept",
+      "node": null,
+      "pass": true
+    },
+    {
+      "check": "Respond_0 with the same window of the next chunk",
+      "expect": "reject containing \"script-verify\"",
+      "node": "transaction failed: mempool-script-verify-flag-failed (Script evaluated without error but finished with a false/empty top stack element), input 0 of 812e345aa2381f06fd115d65f069924d674227de691d2ac6658260c73f1c9e81 (wtxid 0a2d8ca081f35cf3b87fbf7211c371b05a604c25b96e6b1f748fff93ee18b516), spending 00dbc355705e915247ae17cb2caf7862f80da72bbcb2bf7de4163f8827c50bd0:0; bad-txns-inputs-missingorspent",
+      "pass": true
+    },
+    {
+      "check": "Respond_0 with an 81-byte item",
+      "expect": "reject containing \"bad-witness-nonstandard\"",
+      "node": "transaction failed: bad-witness-nonstandard; bad-txns-inputs-missingorspent",
+      "pass": true
+    },
+    {
+      "check": "Respond_0 (r_0 ‖ window, bond re-armed as Bond_1)",
+      "expect": "accept",
+      "node": null,
+      "pass": true
+    },
+    {
+      "check": "Challenge_1 from Bond_1",
+      "expect": "accept",
+      "node": null,
+      "pass": true
+    },
+    {
+      "check": "Forfeit_1 one block early",
+      "expect": "reject containing \"non-BIP68-final\"",
+      "node": "non-BIP68-final",
+      "pass": true
+    },
+    {
+      "check": "Forfeit_1 after Δ blocks of silence",
+      "expect": "accept",
+      "node": null,
+      "pass": true
+    },
+    {
+      "check": "fund Bond_0 (term ends at 380)",
+      "expect": "accept",
+      "node": null,
+      "pass": true
+    },
+    {
+      "check": "Refund one block before the term ends",
+      "expect": "reject containing \"non-final\"",
+      "node": "non-final",
+      "pass": true
+    },
+    {
+      "check": "Refund at the term's end",
+      "expect": "accept",
+      "node": null,
+      "pass": true
+    },
+    {
+      "check": "fund Bond_0",
+      "expect": "accept",
+      "node": null,
+      "pass": true
+    },
+    {
+      "check": "Cooperative close by MuSig2 keypath",
+      "expect": "accept",
+      "node": null,
+      "pass": true
+    },
+    {
+      "check": "fund Bond_0 (one wide sentinel)",
+      "expect": "accept",
+      "node": null,
+      "pass": true
+    },
+    {
+      "check": "Challenge_0 with a 32-byte r",
+      "expect": "accept",
+      "node": null,
+      "pass": true
+    },
+    {
+      "check": "Respond_0 with one 520-byte item, through the mempool",
+      "expect": "reject containing \"bad-witness-nonstandard\"",
+      "node": "transaction failed: bad-witness-nonstandard; bad-txns-inputs-missingorspent",
+      "pass": true
+    },
+    {
+      "check": "Respond_0 with a 521-byte item, mined directly",
+      "expect": "reject containing \"Push value size limit\"",
+      "node": "TestBlockValidity failed: block-script-verify-flag-failed (Push value size limit exceeded), input 0 of bd24231c604f5b4d9c80c02b3d6222182d95b1298f95c2eafee7ded2cb634d5c (wtxid 7c28451dfc7da10580262e73f89647dceaf6af437b38d1ecd843b52ec90f693d), spending ab79af38420dfaaba60a3dd1bd8871f6f7e63115134ca057b7fdd362f59bd7ea:0",
+      "pass": true
+    },
+    {
+      "check": "Respond_0 with one 520-byte item, mined directly",
+      "expect": "accept",
+      "node": null,
+      "pass": true
+    }
+  ],
+  "delta": 144,
+  "failed": 0,
+  "k": 3,
+  "leaf_bytes": {
+    "challenge": 103,
+    "forfeit": 39,
+    "refund": 39,
+    "respond": 103
+  },
+  "node": "/Satoshi:31.1.0/",
+  "sizes": [
+    {
+      "model": 154,
+      "tx": "fund",
+      "txid": "3d4852b191726acac2e629328f95a70e6962febc1f899591670f60cb3fc134fc",
+      "vsize": 154
+    },
+    {
+      "model": 187,
+      "tx": "Challenge_i",
+      "txid": "00dbc355705e915247ae17cb2caf7862f80da72bbcb2bf7de4163f8827c50bd0",
+      "vsize": 187
+    },
+    {
+      "model": 153,
+      "tx": "CPFP child",
+      "txid": "f09e2f2e61c4c3760b76ebc1765c8ca2f6490afdbb9b38b84428ea9b8b44dc46",
+      "vsize": 153
+    },
+    {
+      "model": 203,
+      "tx": "Respond_i",
+      "txid": "812e345aa2381f06fd115d65f069924d674227de691d2ac6658260c73f1c9e81",
+      "vsize": 203
+    },
+    {
+      "model": null,
+      "tx": "Forfeit_i",
+      "txid": "d2be65f0a7d5027609c2cc12e6d0d6a3e6dddbc4ed7518b68e6af0e1c3e87f6e",
+      "vsize": 138
+    },
+    {
+      "model": null,
+      "tx": "Refund",
+      "txid": "01d07b8c2026feee96d5b28d25d7bebfad54ca9c4b4720ea0ee37c762124ae7b",
+      "vsize": 138
+    },
+    {
+      "model": 154,
+      "tx": "Cooperative close",
+      "txid": "fc3f23de27bdaffac9b5f1efae34f0b4735df18ccebc55c6a95bfb74a674b1d9",
+      "vsize": 154
+    },
+    {
+      "model": 191,
+      "tx": "Challenge_i (32-byte r)",
+      "txid": "ab79af38420dfaaba60a3dd1bd8871f6f7e63115134ca057b7fdd362f59bd7ea",
+      "vsize": 191
+    },
+    {
+      "model": 314,
+      "tx": "Respond_i (520-byte item)",
+      "txid": "bd24231c604f5b4d9c80c02b3d6222182d95b1298f95c2eafee7ded2cb634d5c",
+      "vsize": 314
+    }
+  ],
+  "wide_leaf_bytes": 103
+}

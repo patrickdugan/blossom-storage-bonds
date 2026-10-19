@@ -1,0 +1,13 @@
+[package]
+name = "bsb-regtest"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Blossom storage bonds, phase 1: the sentinel bond chain as real transactions on Bitcoin Core regtest"
+
+[dependencies]
+bitcoin = { version = "=0.32.7", features = ["rand-std"] }
+musig2 = { version = "=0.4.1", default-features = false, features = ["k256"] }
+ureq = { version = "2.12", default-features = false, features = ["json"] }
+serde_json = "1"
+base64 = "0.22"
