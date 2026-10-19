@@ -2,8 +2,9 @@
 
 *The client is the verifier, so most of what Filecoin needs a chain for, this design does not.*
 
-Design note, 2026-10-19; phase 1 results added 2026-10-20. The model is `model/storage_bonds.ts`
-(`node --test model/*.test.ts`, 15 passing). The regtest harness in `regtest/` runs the same bond chain as
+Design note, 2026-10-19; phase 1 and 1b results added 2026-10-20. The model is `model/storage_bonds.ts`
+(`node --test model/*.test.ts`, 15 passing). Layer 1 runs end to end on localhost in `layer1/` (12 more
+tests, Lightning stubbed; see the README). The regtest harness in `regtest/` runs the same bond chain as
 real transactions against Bitcoin Core 31.1 (21 checks passing, results in `results/regtest.json`). It
 starts from a
 pasted sketch that proposes Nostr for coordination, Blossom for bytes, zk-SNARK storage proofs, and BitVM
@@ -245,7 +246,10 @@ limit of this design.
   Answers can be large (q × (4096 + 32·log n) bytes), so the provider can serve them from a Blossom
   sidecar endpoint and send only a hash over Nostr.
 - **Receipt**: the client signs a per-epoch "proved and paid". It feeds reputation and costs nothing to
-  publish.
+  publish. Layer 1 uses kind 8242 as a placeholder, with tags `p` (provider), `x` (replica), `root`,
+  `n`, `epoch`, `nonce`, `q` and `result` (`proved-paid`, `proved-unpaid`, `failed` or `unreachable`).
+  A paid receipt adds `amount`, `invoice` and `preimage`, so a reader can check the payment against
+  the hash without trusting either party. A reader cannot check the proof itself without the chunks.
 
 Blossom servers already authorize uploads with kind 24242 events, and users list their servers in kind
 10063. Neither needs to change. The PDP answer is a new endpoint beside them.
@@ -256,7 +260,7 @@ Blossom servers already authorize uploads with kind 24242 events, and users list
 | --- | --- | --- |
 | 0 | This model: replica encryption, chunk tree, epoch PDP, sentinel leaves, cut and choose, sizes | Done, 15 tests |
 | 1 | Regtest with real transactions: BIP341 sighashes, MuSig2 internal key, TRUC + P2A, the full presigned chain, challenge/respond/forfeit/refund/close all broadcast (rust-bitcoin 0.32.7, musig2 0.4.1, Core 31.1) | Done, 21 checks; found the 80-byte limit (finding 4a) |
-| 1b | Blossom sidecar: `/pdp?nonce=` answering from stored replicas, plus a client that runs epochs and pays an LN invoice | Next, in parallel |
+| 1b | Blossom sidecar: `/pdp/<sha256>?nonce=` answering from stored replicas, plus a client that runs epochs, pays an invoice and publishes a receipt | Done on localhost, 12 tests; Lightning is an in-memory hash-lock stub behind an interface, and the nonce goes over HTTP rather than NIP-44 |
 | 2 | zk setup proof for sentinels (SHA-256 + Merkle path, CPU prover), replacing cut and choose | After 1 |
 | 3 | BitVM2-shaped pooled bond: registry, header-seeded challenges, aggregated proof; measure cost per deal against phase 1 | Research |
 
@@ -271,6 +275,9 @@ What neither covers yet:
   untested.
 - Fee spikes during Δ.
 - The cut-and-choose exchange itself, which is modelled as a probability rather than run.
-- Anything in layer 1 beyond the model: no Blossom server, Nostr relay or Lightning payment has been run.
+- Lightning. Layer 1 runs a real Blossom server, PDP sidecar and Nostr relay on localhost (`layer1/`),
+  but payment is an in-memory stub with hash locks, not a Lightning node.
+- NIP-17/NIP-44 delivery of the nonce, offer and deal events, and any relay other than the bundled
+  minimal one.
 
 The fixed keys and MuSig2 nonce seeds in `regtest/` are test values. Never use them for real funds.

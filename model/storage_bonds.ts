@@ -72,13 +72,18 @@ export function chunk(data: Uint8Array): Buffer[] {
 // a chunk tree at upload and both sides sign R in the deal. Leaves and nodes are domain-separated and
 // the root binds n, so duplicating the last node at odd levels cannot be used to forge a second tree.
 
-const leafHash = (c: Uint8Array): Buffer => sha256(Buffer.from([0]), c);
+export const leafHash = (c: Uint8Array): Buffer => sha256(Buffer.from([0]), c);
 const nodeHash = (l: Uint8Array, r: Uint8Array): Buffer => sha256(Buffer.from([1]), l, r);
 
 export interface Tree { readonly n: number; readonly levels: Buffer[][]; readonly root: Buffer }
 
-export function buildTree(chunks: Buffer[]): Tree {
-  const levels: Buffer[][] = [chunks.map(leafHash)];
+export const buildTree = (chunks: Buffer[]): Tree => treeFromLeaves(chunks.map(leafHash));
+
+/** The same tree from its leaf hashes alone (32 bytes per 4 KiB chunk). A provider that keeps these
+ *  can still produce every Merkle path after it deletes chunks, which is the strongest deleter. */
+export function treeFromLeaves(leaves: Buffer[]): Tree {
+  const chunksN = leaves.length;
+  const levels: Buffer[][] = [leaves];
   while (levels[levels.length - 1].length > 1) {
     const prev = levels[levels.length - 1];
     const next: Buffer[] = [];
@@ -86,7 +91,7 @@ export function buildTree(chunks: Buffer[]): Tree {
     levels.push(next);
   }
   const top = levels[levels.length - 1][0];
-  return { n: chunks.length, levels, root: sha256(Buffer.from([2]), u64(chunks.length), top) };
+  return { n: chunksN, levels, root: sha256(Buffer.from([2]), u64(chunksN), top) };
 }
 
 export function merkleProof(t: Tree, idx: number): Buffer[] {

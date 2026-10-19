@@ -1,0 +1,326 @@
+{
+  "generated": "2026-10-19T22:51:57.373Z",
+  "note": "Lightning is the in-memory stub (layer1/lightning.ts), not a Lightning node. Nonces are seeded unless random is true.",
+  "params": {
+    "epochs": 10,
+    "q": 8,
+    "misbehaviourFrom": 4,
+    "random": false,
+    "blobBytes": 1048576,
+    "chunks": 256,
+    "msatPerEpoch": 256
+  },
+  "summary": [
+    {
+      "role": "honest",
+      "url": "http://127.0.0.1:51986",
+      "replica": "4d2f3970ee086298a0e1fcbae432b4ceb4621363c3d3c97136753331b38c5b2f",
+      "root": "c1d3d2843504ff5a6222d6384ec05fc040eeefbf61de3769aaf83791009f61f7",
+      "passedBefore": "3/3",
+      "passedAfter": "7/7",
+      "expectedPassAfter": 1,
+      "earnedMsat": 2560,
+      "balanceMsat": 2560
+    },
+    {
+      "role": "deletes 10%",
+      "url": "http://127.0.0.1:51987",
+      "replica": "0cc1909a88a449edf34f04b899d42ab810bba58ce046028db436fdd83a0faadd",
+      "root": "3d0ee3c93a5f60872d19a8d96410e4bd3d8920966c9bf8a447939c2309879de6",
+      "passedBefore": "3/3",
+      "passedAfter": "2/7",
+      "expectedPassAfter": 0.4304672100000001,
+      "earnedMsat": 1280,
+      "balanceMsat": 1280
+    },
+    {
+      "role": "deletes 50%",
+      "url": "http://127.0.0.1:51988",
+      "replica": "ff5dc660323d5b9b81aba3fac9575d8a0ca53bcc17f80fabbbdce164bcae5abc",
+      "root": "38645fe9cc9d8c648256eafc48cef2478879fbd4c730893fcca49835111140c0",
+      "passedBefore": "3/3",
+      "passedAfter": "0/7",
+      "expectedPassAfter": 0.00390625,
+      "earnedMsat": 768,
+      "balanceMsat": 768
+    },
+    {
+      "role": "outsources",
+      "url": "http://127.0.0.1:51989",
+      "replica": "e18a729efe5528bfaa6298fd0b0634cc22b653b5e35663b4a7b185f65cb608da",
+      "root": "6c432a0b55cfacf758e0e4d8c20b1fd84240ef78a007543c108b2103293b58ab",
+      "passedBefore": "3/3",
+      "passedAfter": "0/7",
+      "expectedPassAfter": 0,
+      "earnedMsat": 768,
+      "balanceMsat": 768
+    }
+  ],
+  "epochs": [
+    {
+      "role": "honest",
+      "outcomes": [
+        {
+          "epoch": 1,
+          "outcome": "proved-paid",
+          "nonce": "d63b5642027457d8c1721d3b30f5c3dade1873c92cad7ffc587474dd806bbdd4",
+          "receipt": "98716418295f7cf1da653f8c52a74c84c7b9d41b467ce9b98ee71c4263151d1a"
+        },
+        {
+          "epoch": 2,
+          "outcome": "proved-paid",
+          "nonce": "ef3a5a698d8dbfa8c74491816f53b5eb3e4d7f4013b8a3f751871bc108da1a09",
+          "receipt": "73b1b512456dc11bbb550ffed164a6bd2b1f146f96c8f019b57802fcd5e22976"
+        },
+        {
+          "epoch": 3,
+          "outcome": "proved-paid",
+          "nonce": "6d1db745fe907b2964077d436bd6fda5b56045dad690617789932eba9e0bb3f9",
+          "receipt": "5b06dbe73ad3c7c4ca0f74edcd529547b0d5c1bdb94ae2da5abcde36fa853a5e"
+        },
+        {
+          "epoch": 4,
+          "outcome": "proved-paid",
+          "nonce": "b12eb231931708b09665e50fb8f3810b32e2e9e41d91b41c5085c23338451289",
+          "receipt": "aa41dda063d37dc9569d2b10db720f4153616287e3f8b3f66fa03e417a52300d"
+        },
+        {
+          "epoch": 5,
+          "outcome": "proved-paid",
+          "nonce": "1bbad15862188fd50deee9068fe29142d6b0856ba4ac60c7958151865b35fc4c",
+          "receipt": "3278d9e73b85054dea67051006f84c037dce0c3a8f3330f10ad7633683747377"
+        },
+        {
+          "epoch": 6,
+          "outcome": "proved-paid",
+          "nonce": "b242af518e948a1378d458f3271aa1691a7ad2ca85b54188580dd48c9d426412",
+          "receipt": "047ca7689fdf95f1254b9933efeecd3a416c1b290937ec5583c08c316e4c75e2"
+        },
+        {
+          "epoch": 7,
+          "outcome": "proved-paid",
+          "nonce": "34e609e58df242b90435090710ac426da57471814c986ac6ac12a6c5ceb479a0",
+          "receipt": "94b6211f35357e69fe1a0679573154a0f43f9fbd36861787ecd6b68d82eab9d1"
+        },
+        {
+          "epoch": 8,
+          "outcome": "proved-paid",
+          "nonce": "e71961e59c81364036aeaa3dd20fa5c9872ed38a9cf5e3ef4415ec2d75cada54",
+          "receipt": "ebc0ccd39ed417ba672c228d5ca2478a65442b6561626d8414de136e72b630f8"
+        },
+        {
+          "epoch": 9,
+          "outcome": "proved-paid",
+          "nonce": "d878032c0ca00ca3ab60241665d695a1f0079db44b9bcbc5bdfb79a753353853",
+          "receipt": "9626a83adf4a79b4e02dc41d1f016dc422e55344b454a07826f35d71e8286e96"
+        },
+        {
+          "epoch": 10,
+          "outcome": "proved-paid",
+          "nonce": "20ee6f2446ea49f02d7f704ea083b420dc833a96d27ed2cd0b263ffb2461d247",
+          "receipt": "9c3b27b21dfe77c9d187348d42da30f09aa28846b44014e7fc992d3bba16f9e9"
+        }
+      ]
+    },
+    {
+      "role": "deletes 10%",
+      "outcomes": [
+        {
+          "epoch": 1,
+          "outcome": "proved-paid",
+          "nonce": "cde1f930e2bb3e79a99edf6bd7ecc65505d6069812ed4e725cfaa344c0015d87",
+          "receipt": "c351ed1fc8ea638718f1e974fcdd1da068e235b874bbf013b161f0506fa9248a"
+        },
+        {
+          "epoch": 2,
+          "outcome": "proved-paid",
+          "nonce": "f7ee115e45d7550694a993c24bce3096a9c4e1e0853fb46fa430b4f90feb3dae",
+          "receipt": "d32ceb1c1741aef72331504f84eb221f3e21ae5c13fdb73e17aa9d820003f3eb"
+        },
+        {
+          "epoch": 3,
+          "outcome": "proved-paid",
+          "nonce": "416a6fd2f442ea3ce12f6d5b2f079097074376101d664e037111c90921bb16d9",
+          "receipt": "0a7dc9e4b4d78b3beb2fdd75375dcbc66b06ef3d2e002f75dfaa9c7549583201"
+        },
+        {
+          "epoch": 4,
+          "outcome": "failed",
+          "nonce": "1a09b2d893e0a63c735eba71c4a05e18fed45ce21c5d84273374dd6e4650263d",
+          "receipt": "567f67f2d0ea8f11f9a5f57fd36a841052f759fa7c41dd520b6d58fe62540613"
+        },
+        {
+          "epoch": 5,
+          "outcome": "failed",
+          "nonce": "38daaeba5f5774b217f1ba73c93bae9a210e5fcb6803a228d28fadae69b9475c",
+          "receipt": "c17904375bcda90a13de371531043a256323dd0af145b1cd64669bd0afe9d3a8"
+        },
+        {
+          "epoch": 6,
+          "outcome": "failed",
+          "nonce": "3639ae7d3a17e1e69230172dd76f36634e6dea3fd5b77661de3e35829e8aeeaa",
+          "receipt": "fce50776b8b383dde8d3e7b245bda04da89773be1fb633aa17490fba645b69d7"
+        },
+        {
+          "epoch": 7,
+          "outcome": "proved-paid",
+          "nonce": "098b2381eafdebc70f59fd86ab882cc7e27c7ec0860c8686442ab1faf40b4b41",
+          "receipt": "811ae442925111f3f702c5da2f5d336657119f3467d8c899d3ffafb87263ad5a"
+        },
+        {
+          "epoch": 8,
+          "outcome": "failed",
+          "nonce": "8356b6e87cbad83af04b5bafbe665dc3690a0e7976aaf3481c071105f69eaa6d",
+          "receipt": "16c208a861470163c1c1c7793834f7af3b36c31b8bfb5ff2b0ae50999bd3d337"
+        },
+        {
+          "epoch": 9,
+          "outcome": "proved-paid",
+          "nonce": "07055fcceef3bf90771d9fd07790b7db6b56c5af224d313245c11ed02628983a",
+          "receipt": "3d2a8440e1978fdc5381f33d781ab5b6ade430fe48a3bbf0260a544162a83394"
+        },
+        {
+          "epoch": 10,
+          "outcome": "failed",
+          "nonce": "faf621267e8e144b4aa9c44de8365cbfb6549c6611c3155ccb31b35017c45292",
+          "receipt": "31fa5480fa1df0bc335a1f9f74656a5082e146f45e2d2fbc16ac9a47c0dfd3ef"
+        }
+      ]
+    },
+    {
+      "role": "deletes 50%",
+      "outcomes": [
+        {
+          "epoch": 1,
+          "outcome": "proved-paid",
+          "nonce": "fb4ed393ac401ececacf251d21956a7529fd52fab7b630f8d69e6debf281c897",
+          "receipt": "d62ffab2108060c704a9cbc8755f7b70ea34ffdbbcc19f72e9a7adf5a565b1e9"
+        },
+        {
+          "epoch": 2,
+          "outcome": "proved-paid",
+          "nonce": "50b47169fb80a57caa653407b534f8047d395cb6a20c1a929f6758099f57e2d6",
+          "receipt": "0a35fd22387bdd61f47bf9380079c8094a79a3ab68c1b89e35be04fba44944a3"
+        },
+        {
+          "epoch": 3,
+          "outcome": "proved-paid",
+          "nonce": "9875f7c342ca75c796b7b47816f7c1408ede57eb255bf86fff223483e6c9460e",
+          "receipt": "e3cd4b357367a12f93aff440c384b8106103da015a3221f3c721383e2636693f"
+        },
+        {
+          "epoch": 4,
+          "outcome": "failed",
+          "nonce": "16ded6339fd99c6074aabd10ccfffb47c5238722f31125ce6c2fa3766caae0e3",
+          "receipt": "6d5bdfc72f5130c1a84fc5be713143ccb95b88122ae6e57f19034ebde1859d63"
+        },
+        {
+          "epoch": 5,
+          "outcome": "failed",
+          "nonce": "c3d043d08d26144870110a4fad425bc9e4c1b8600b331a6cc439b60c5717c455",
+          "receipt": "e0118840926e2176cf433886360c2c7ead28a3d7bc9c856140d2c9a24da30d00"
+        },
+        {
+          "epoch": 6,
+          "outcome": "failed",
+          "nonce": "72b9ca109ce2ebc1343be9a98bdb02f320e13cbd6db12609e4f401af4b910d7f",
+          "receipt": "e6c35d5ed0740285c791945cea50271cdbd1e60c66986cc528b7d362add85c55"
+        },
+        {
+          "epoch": 7,
+          "outcome": "failed",
+          "nonce": "4dffaa2e8cf1d54800418d26d58dff1e43cec6d6a88cb63b01cac7328a17fc03",
+          "receipt": "6e897798c26f488923806fa98bc93425491be63d0e84a36b695443869e6bd304"
+        },
+        {
+          "epoch": 8,
+          "outcome": "failed",
+          "nonce": "4b51195a5dceab8248cc7a4cc181f54a716ce14108fbabc0ac9b475f8c115f35",
+          "receipt": "5df262acd31c2e88425f5e90694b68edd2475a7eb3f9b3451d83853e2f57fdf2"
+        },
+        {
+          "epoch": 9,
+          "outcome": "failed",
+          "nonce": "1f533fbb71c7a9183ad4131529dbd4672284087b4734538f1ba31418cf645eab",
+          "receipt": "19905817dcde92f29535e97c5095ea00d4bc65f580af18e2dd8533c3b62e301d"
+        },
+        {
+          "epoch": 10,
+          "outcome": "failed",
+          "nonce": "6ffdb9faf3f0545fdc46bbf75ec32e6439966891815d7037cb4e896b6e67d3fd",
+          "receipt": "93ca8be75b45e9dbb3a98ebac1fd9ffb89ef3915cd516b7c2098de74910eea7b"
+        }
+      ]
+    },
+    {
+      "role": "outsources",
+      "outcomes": [
+        {
+          "epoch": 1,
+          "outcome": "proved-paid",
+          "nonce": "3d96001687a934f3578d1b2a8f048ab692f838a7ba97f7ecc1056db02afb4dfa",
+          "receipt": "2f93541695e33d949abac2a7ba40d55c281c932390fa12e7b5e74f0f3f8e67cb"
+        },
+        {
+          "epoch": 2,
+          "outcome": "proved-paid",
+          "nonce": "5b006f8ce22f63fa9f66433d98072803ee9372b927a47846054d1c83dbf5a11f",
+          "receipt": "9f618358a4a95fe7d221f410ecf658323d39d2e2a1f1e6d3dd1a51eb114389a0"
+        },
+        {
+          "epoch": 3,
+          "outcome": "proved-paid",
+          "nonce": "3924a249b0044fef50a20e01e1959f471386d7374fd2297b9da472fd33222745",
+          "receipt": "bfe913036b1454837285fdf02b9058d62a624c59e041178c7811fcfb1689b3fd"
+        },
+        {
+          "epoch": 4,
+          "outcome": "failed",
+          "nonce": "a8885e96562c06e074bd420c7913c5c46b9ef640af811e7cac059ff70d2903a5",
+          "receipt": "99d9957b13e69fe866efdb3dc33594868be713c4dacf0e23f0c0a90e3f9e65ef"
+        },
+        {
+          "epoch": 5,
+          "outcome": "failed",
+          "nonce": "1b74c3b4958330604fda1659053d5bdc74267a28ee9871c3b8a242bfcc4d65a1",
+          "receipt": "eabf6dcdb1e828c52affdc244384d1cc8e4227ce386c45a0d4276efe4ecce311"
+        },
+        {
+          "epoch": 6,
+          "outcome": "failed",
+          "nonce": "fe33dba0184c14ed6829f665bdb658322cb778616aa0466012c3190a9d2a12f6",
+          "receipt": "47fa8f28c1e8aa1b2d411f59d49a847a5434001f0f32f71e184cc82d27b2e56c"
+        },
+        {
+          "epoch": 7,
+          "outcome": "failed",
+          "nonce": "bbf28f365295601c868bba402f7121efb91e4d6edf213e76b1e742074b41e3f7",
+          "receipt": "510f4d9eedcfb64afd54fa169af01c140a0c588cdebff93f242f3e50ff02ed9a"
+        },
+        {
+          "epoch": 8,
+          "outcome": "failed",
+          "nonce": "9e7a8a1d7bc7fa8aadb953809bd516798b0afb6bcc39433b89aa36374d61ec9a",
+          "receipt": "ea78ef4b546461f1432d4c60868330e6ee9037cbd732472e2a194870768a161c"
+        },
+        {
+          "epoch": 9,
+          "outcome": "failed",
+          "nonce": "1b7fc8074551c02d94475d09e6bfb925add0479b22ff09e202ab22f287872f50",
+          "receipt": "8b91a82206e225b5c7ccffbefb557068fde8d7727bb93af38b9a77c410bb1be4"
+        },
+        {
+          "epoch": 10,
+          "outcome": "failed",
+          "nonce": "fad167bfdddaedcccbcba15a3d943c9d27c3b295f0a6d91cce58757485137e69",
+          "receipt": "5b1d012c93ea9faa01326cc3580738866665a421616c9006d301c7875a6279db"
+        }
+      ]
+    }
+  ],
+  "receipts": {
+    "onRelay": 40,
+    "verified": 40,
+    "paidWithPreimage": 21
+  }
+}

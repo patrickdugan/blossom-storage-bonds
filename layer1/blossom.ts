@@ -1,0 +1,277 @@
+// A minimal Blossom server (BUD-01 GET/HEAD /<sha256>, BUD-02 PUT /upload with BUD-11 kind-24242 auth)
+// plus the pay-per-proof sidecar, GET /pdp/<sha256>?nonce=&q=&epoch=. The sidecar answers from the stored
+// bytes with the chunks the nonce selects and their Merkle paths, and attaches a Lightning invoice for the
+// epoch. The client pays only if the answer checks against the root it computed itself.
+//
+// Storage, per blob: <sha>.blob (the bytes as uploaded), <sha>.leaves (32 bytes per 4 KiB chunk, computed
+// at upload) and <sha>.json (descriptor plus root). Keeping the leaves lets a provider answer with paths
+// even for chunks it no longer has, so the only thing a deleter loses is the chunk bytes themselves.
+//
+// Not implemented: BUD-04 mirror, BUD-06 HEAD /upload, BUD-12 list/delete, quotas, rate limits. Two
+// misbehaviours exist for the demo and tests, set through methods on the returned object, never over HTTP.
+
+import { createHash } from "node:crypto";
+import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { closeSync, existsSync, mkdirSync, openSync, readFileSync, readSync, renameSync, rmSync, writeFileSync, writeSync } from "node:fs";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+import type { Key } from "../model/schnorr.ts";
+import { CHUNK, epochIndices, leafHash, merkleProof, treeFromLeaves, type Tree } from "../model/storage_bonds.ts";
+import { checkBlossomAuth, newKey } from "./nostr.ts";
+import { StubNetwork, type Payee } from "./lightning.ts";
+
+export const MAX_Q = 256;
+
+export interface ProviderConfig {
+  dir: string;
+  key: Key;                      // the provider's Nostr identity; replica keys and receipts name it
+  payee: Payee;
+  priceMsatPerChunkEpoch: number;
+  port?: number;
+  host?: string;
+  maxUploadBytes?: number;
+  uploaders?: string[];          // pubkeys allowed to upload; omitted means anyone with a valid token
+}
+
+export interface Descriptor {
+  url: string; sha256: string; size: number; type: string; uploaded: number;
+  /** Extension field: the chunk-tree commitment the provider recomputed from the bytes it received. */
+  bsb: { root: string; n: number; chunk: number };
+}
+
+export interface PdpAnswer {
+  sha256: string; n: number; root: string; nonce: string; q: number; epoch: number;
+  indices: number[]; chunks: string[]; paths: string[][];
+  invoice: string;
+}
+
+export interface Provider {
+  readonly url: string;
+  readonly pubkey: string;
+  readonly config: ProviderConfig;
+  /** Overwrite these chunks with zeros on disk. The provider keeps its leaves, so it still sends paths. */
+  deleteChunks(sha: string, indices: number[]): void;
+  /** Delete the replica's bytes and answer PDP by fetching the same chunk indices from another server's
+   *  blob (outsourcing, design finding 3). The leaves of the provider's own replica are kept. */
+  outsource(sha: string, from: { url: string; sha256: string }): void;
+  close(): Promise<void>;
+}
+
+const SHA_PATH = /^\/([0-9a-f]{64})(\.[A-Za-z0-9]{1,10})?$/;
+const extFor = (type: string): string =>
+  ({ "application/octet-stream": ".bin", "text/plain": ".txt", "image/png": ".png", "image/jpeg": ".jpg", "application/pdf": ".pdf" } as Record<string, string>)[type] ?? ".bin";
+
+const CORS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "Authorization, *",
+  "Access-Control-Allow-Methods": "GET, HEAD, PUT, DELETE",
+  "Access-Control-Max-Age": "86400",
+};
+
+function fail(res: ServerResponse, status: number, reason: string) {
+  res.writeHead(status, { ...CORS, "X-Reason": reason, "Content-Type": "text/plain" });
+  res.end(reason + "\n");
+}
+function json(res: ServerResponse, status: number, body: unknown) {
+  res.writeHead(status, { ...CORS, "Content-Type": "application/json" });
+  res.end(JSON.stringify(body));
+}
+
+function readBody(req: IncomingMessage, max: number): Promise<Buffer | null> {
+  return new Promise((ok, bad) => {
+    const parts: Buffer[] = [];
+    let n = 0;
+    req.on("data", (d: Buffer) => { n += d.length; if (n > max) { req.destroy(); ok(null); } else parts.push(d); });
+    req.on("end", () => ok(Buffer.concat(parts)));
+    req.on("error", bad);
+  });
+}
+
+/** Leaf hashes of the chunk tree, computed the same way as model chunk() + buildTree(). */
+export function leavesOf(data: Buffer): Buffer[] {
+  const n = Math.max(1, Math.ceil(data.length / CHUNK));
+  const out: Buffer[] = [];
+  for (let i = 0; i < n; i++) {
+    const c = Buffer.alloc(CHUNK);
+    data.copy(c, 0, i * CHUNK, Math.min((i + 1) * CHUNK, data.length));
+    out.push(leafHash(c));
+  }
+  return out;
+}
+
+export async function startProvider(cfg: ProviderConfig): Promise<Provider> {
+  mkdirSync(cfg.dir, { recursive: true });
+  const host = cfg.host ?? "127.0.0.1";
+  const maxUpload = cfg.maxUploadBytes ?? 64 << 20;
+  const trees = new Map<string, Tree>();
+  const outsourced = new Map<string, { url: string; sha256: string }>();
+  let base = "";
+
+  const metaPath = (sha: string) => join(cfg.dir, `${sha}.json`);
+  const blobPath = (sha: string) => join(cfg.dir, `${sha}.blob`);
+  const leavesPath = (sha: string) => join(cfg.dir, `${sha}.leaves`);
+  const meta = (sha: string): Omit<Descriptor, "url"> | null =>
+    existsSync(metaPath(sha)) ? JSON.parse(readFileSync(metaPath(sha), "utf8")) : null;
+  const descriptor = (m: Omit<Descriptor, "url">): Descriptor => ({ url: `${base}/${m.sha256}${extFor(m.type)}`, ...m });
+
+  function tree(sha: string): Tree {
+    let t = trees.get(sha);
+    if (!t) {
+      const raw = readFileSync(leavesPath(sha));
+      const leaves: Buffer[] = [];
+      for (let o = 0; o < raw.length; o += 32) leaves.push(raw.subarray(o, o + 32));
+      t = treeFromLeaves(leaves);
+      trees.set(sha, t);
+    }
+    return t;
+  }
+
+  /** One chunk, zero-padded to CHUNK, from whatever this provider still has; empty if it has nothing. */
+  async function readChunk(sha: string, size: number, i: number): Promise<Buffer> {
+    const src = outsourced.get(sha);
+    const start = i * CHUNK, end = Math.min(start + CHUNK, size);
+    if (src) {
+      const r = await fetch(`${src.url}/${src.sha256}`, { headers: { Range: `bytes=${start}-${end - 1}` } });
+      if (r.status !== 206 && r.status !== 200) return Buffer.alloc(0);
+      const got = Buffer.from(await r.arrayBuffer());
+      const body = r.status === 200 ? got.subarray(start, end) : got;
+      const c = Buffer.alloc(CHUNK); body.copy(c); return c;
+    }
+    if (!existsSync(blobPath(sha))) return Buffer.alloc(0);
+    const c = Buffer.alloc(CHUNK);
+    if (end > start) {
+      const fd = openSync(blobPath(sha), "r");
+      try { readSync(fd, c, 0, end - start, start); } finally { closeSync(fd); }
+    }
+    return c;
+  }
+
+  async function onUpload(req: IncomingMessage, res: ServerResponse) {
+    const want = String(req.headers["x-sha-256"] ?? "").toLowerCase();
+    if (!/^[0-9a-f]{64}$/.test(want)) return fail(res, 400, "X-SHA-256 header required (BUD-11 x tag source)");
+    const auth = checkBlossomAuth(req.headers.authorization, { verb: "upload", x: want, xRequired: true, domain: hostname(req) });
+    if (!auth.ok) return fail(res, 401, auth.why);
+    if (cfg.uploaders && !cfg.uploaders.includes(auth.event.pubkey)) return fail(res, 403, "pubkey not allowed to upload");
+    const len = req.headers["content-length"];
+    if (len === undefined) return fail(res, 411, "Content-Length required");
+    if (Number(len) > maxUpload) return fail(res, 413, `blob over ${maxUpload} bytes`);
+    const body = await readBody(req, maxUpload);
+    if (!body) return fail(res, 413, `blob over ${maxUpload} bytes`);
+    const sha = createHash("sha256").update(body).digest("hex");
+    if (sha !== want) return fail(res, 409, "X-SHA-256 does not match the body");
+    const have = meta(sha);
+    if (have) return json(res, 200, descriptor(have));
+    const leaves = leavesOf(body);
+    const t = treeFromLeaves(leaves);
+    const m = {
+      sha256: sha, size: body.length, type: String(req.headers["content-type"] ?? "application/octet-stream").split(";")[0],
+      uploaded: Math.floor(Date.now() / 1000), bsb: { root: t.root.toString("hex"), n: t.n, chunk: CHUNK },
+    };
+    writeFileSync(blobPath(sha) + ".tmp", body); renameSync(blobPath(sha) + ".tmp", blobPath(sha));
+    writeFileSync(leavesPath(sha), Buffer.concat(leaves));
+    writeFileSync(metaPath(sha), JSON.stringify(m));
+    trees.set(sha, t);
+    json(res, 201, descriptor(m));
+  }
+
+  function onGet(req: IncomingMessage, res: ServerResponse, sha: string) {
+    const m = meta(sha);
+    if (!m || !existsSync(blobPath(sha))) return fail(res, 404, "blob not found");
+    const head = req.method === "HEAD";
+    const headers = { ...CORS, "Content-Type": m.type, "Accept-Ranges": "bytes" };
+    const range = /^bytes=(\d*)-(\d*)$/.exec(String(req.headers.range ?? ""));
+    if (range && (range[1] !== "" || range[2] !== "")) {
+      let a = range[1] === "" ? Math.max(0, m.size - Number(range[2])) : Number(range[1]);
+      let b = range[1] === "" || range[2] === "" ? m.size - 1 : Math.min(Number(range[2]), m.size - 1);
+      if (a > b || a >= m.size) {
+        res.writeHead(416, { ...headers, "Content-Range": `bytes */${m.size}` }); return res.end();
+      }
+      const out = Buffer.alloc(b - a + 1);
+      const fd = openSync(blobPath(sha), "r");
+      try { readSync(fd, out, 0, out.length, a); } finally { closeSync(fd); }
+      res.writeHead(206, { ...headers, "Content-Length": out.length, "Content-Range": `bytes ${a}-${b}/${m.size}` });
+      return res.end(head ? undefined : out);
+    }
+    res.writeHead(200, { ...headers, "Content-Length": m.size });
+    res.end(head ? undefined : readFileSync(blobPath(sha)));
+  }
+
+  async function onPdp(res: ServerResponse, sha: string, params: URLSearchParams) {
+    const m = meta(sha);
+    if (!m) return fail(res, 404, "blob not found");
+    const nonce = params.get("nonce") ?? "";
+    const q = Number(params.get("q"));
+    const epoch = Number(params.get("epoch") ?? 0);
+    if (!/^[0-9a-f]{64}$/.test(nonce)) return fail(res, 400, "nonce must be 32 bytes of lowercase hex");
+    if (!Number.isSafeInteger(q) || q < 1 || q > MAX_Q) return fail(res, 400, `q must be an integer in 1..${MAX_Q}`);
+    if (!Number.isSafeInteger(epoch) || epoch < 0) return fail(res, 400, "epoch must be a non-negative integer");
+    const t = tree(sha);
+    const indices = epochIndices(Buffer.from(nonce, "hex"), t.n, q);
+    const chunks = await Promise.all(indices.map((i) => readChunk(sha, m.size, i)));
+    const invoice = await cfg.payee.createInvoice(cfg.priceMsatPerChunkEpoch * t.n, `bsb epoch ${epoch} ${sha}`);
+    const answer: PdpAnswer = {
+      sha256: sha, n: t.n, root: t.root.toString("hex"), nonce, q, epoch, indices,
+      chunks: chunks.map((c) => c.toString("base64")),
+      paths: indices.map((i) => merkleProof(t, i).map((p) => p.toString("hex"))),
+      invoice: invoice.paymentRequest,
+    };
+    json(res, 200, answer);
+  }
+
+  const hostname = (req: IncomingMessage) => String(req.headers.host ?? "").replace(/:\d+$/, "").toLowerCase();
+
+  const server = createServer((req, res) => {
+    const u = new URL(req.url ?? "/", "http://x");
+    const run = async () => {
+      if (req.method === "OPTIONS") { res.writeHead(204, CORS); return res.end(); }
+      if (req.method === "PUT" && u.pathname === "/upload") return onUpload(req, res);
+      const pdp = /^\/pdp\/([0-9a-f]{64})$/.exec(u.pathname);
+      if (req.method === "GET" && pdp) return onPdp(res, pdp[1], u.searchParams);
+      const g = SHA_PATH.exec(u.pathname);
+      if ((req.method === "GET" || req.method === "HEAD") && g) return onGet(req, res, g[1]);
+      if (req.method === "GET" && u.pathname === "/") {
+        return json(res, 200, { software: "blossom-storage-bonds/layer1", pubkey: cfg.key.x, pdp: { chunk: CHUNK, maxQ: MAX_Q, priceMsatPerChunkEpoch: cfg.priceMsatPerChunkEpoch, lightning: cfg.payee.nodeId } });
+      }
+      fail(res, 404, "not found");
+    };
+    run().catch((e) => { if (!res.headersSent) fail(res, 500, String(e?.message ?? e)); else res.destroy(); });
+  });
+
+  await new Promise<void>((r) => server.listen(cfg.port ?? 0, host, r));
+  const addr = server.address();
+  if (!addr || typeof addr === "string") throw new Error("server did not bind");
+  base = `http://${host}:${addr.port}`;
+
+  return {
+    url: base,
+    pubkey: cfg.key.x,
+    config: cfg,
+    deleteChunks(sha, indices) {
+      const m = meta(sha);
+      if (!m) throw new Error("no such blob");
+      const fd = openSync(blobPath(sha), "r+");
+      try {
+        for (const i of indices) {
+          const start = i * CHUNK, end = Math.min(start + CHUNK, m.size);
+          if (end > start) writeSync(fd, Buffer.alloc(end - start), 0, end - start, start);
+        }
+      } finally { closeSync(fd); }
+    },
+    outsource(sha, from) {
+      if (!meta(sha)) throw new Error("no such blob");
+      rmSync(blobPath(sha), { force: true });
+      outsourced.set(sha, from);
+    },
+    close: () => new Promise<void>((r) => { server.closeAllConnections(); server.close(() => r()); }),
+  };
+}
+
+// Standalone: node layer1/blossom.ts [port] [dir]. A Blossom-compatible server any client can upload to.
+// Its invoices come from a private stub ledger, so nothing outside this process can pay them.
+if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+  const port = Number(process.argv[2] ?? 3000);
+  const dir = process.argv[3] ?? join(process.cwd(), ".bsb-blobs");
+  const key = newKey();
+  const p = await startProvider({ dir, key, port, payee: new StubNetwork().node("standalone"), priceMsatPerChunkEpoch: 1 });
+  console.log(`blossom + pdp on ${p.url}, data in ${dir}, provider pubkey ${p.pubkey}`);
+}
