@@ -1,0 +1,423 @@
+{
+  "generated": "2026-10-20T10:11:48.274Z",
+  "note": "Every party is a separate process. Seeds are regtest block hashes. Proofs are Stwo STARKs of the holdings-mode Cairo program (Blake2s tree), proved in WSL. Payment is a one-way Bitcoin channel per provider.",
+  "params": {
+    "epochs": 3,
+    "misbehaviourFromEpoch": 2,
+    "q": 8,
+    "epochBlocks": 10,
+    "deadline": 6,
+    "firstBoundary": 130,
+    "dealsPerProvider": 3,
+    "chunks": [
+      256,
+      128,
+      64
+    ],
+    "priceSatsPerEpoch": 512
+  },
+  "epochs": [
+    {
+      "role": "honest",
+      "epochs": [
+        {
+          "epoch": 1,
+          "height": 130,
+          "providerSays": "proved in 232 s",
+          "proof": "c3219969c64ba92be95bf0d636cc7f08ac6e6f85e08f53b4109479d7af592156",
+          "client": "verified",
+          "paid": 512,
+          "tower": "valid"
+        },
+        {
+          "epoch": 2,
+          "height": 140,
+          "proof": "9ea093458b1d69b6cfe031c96b9f47a4f4a927ba22a82a307bc7827ce642658e",
+          "providerSays": "proved in 68 s",
+          "tower": "valid",
+          "client": "verified",
+          "paid": 512
+        },
+        {
+          "epoch": 3,
+          "height": 150,
+          "proof": "f4b772c936212afa2b9c44eee46a1ca92fd0aeb0510d84354c6ceb63b6584084",
+          "providerSays": "proved in 57 s",
+          "tower": "valid",
+          "client": "verified",
+          "paid": 512
+        }
+      ]
+    },
+    {
+      "role": "deletes 10%",
+      "epochs": [
+        {
+          "epoch": 1,
+          "height": 130,
+          "proof": "b6fcfeb5850d837efbb6011548aca669d45a458c965c811cc15d9f68b5aff02b",
+          "client": "verified",
+          "paid": 512,
+          "providerSays": "proved in 106 s",
+          "tower": "valid"
+        },
+        {
+          "epoch": 2,
+          "height": 140,
+          "providerSays": "proved in 103 s",
+          "proof": "7b4fa654986ca64181092c1b8f060969009e1abd871670b7f5d4c6c00fbcd19f",
+          "tower": "valid",
+          "client": "verified",
+          "paid": 512
+        },
+        {
+          "epoch": 3,
+          "height": 150,
+          "providerSays": "could not prove",
+          "tower": "missing (no proof 6 blocks after the boundary)"
+        }
+      ]
+    },
+    {
+      "role": "outsources",
+      "epochs": [
+        {
+          "epoch": 1,
+          "height": 130,
+          "proof": "8abfd0c4c8eb640338b58da787233118171c5ce799082061b47ad295f1144a5e",
+          "providerSays": "proved in 164 s",
+          "client": "verified",
+          "paid": 512,
+          "tower": "valid"
+        },
+        {
+          "epoch": 2,
+          "height": 140,
+          "providerSays": "could not prove",
+          "tower": "missing (no proof 6 blocks after the boundary)"
+        },
+        {
+          "epoch": 3,
+          "height": 150,
+          "providerSays": "could not prove",
+          "tower": "missing (no proof 6 blocks after the boundary)"
+        }
+      ]
+    }
+  ],
+  "settlement": [
+    {
+      "role": "honest",
+      "paidSats": 1536,
+      "close": "b1417b23c4781662d5a56d274a8b688d85c85ae8316ae1554d0f71abb0a8dbe2",
+      "paidOnChainSats": 1536
+    },
+    {
+      "role": "deletes 10%",
+      "paidSats": 1024,
+      "close": "cdf0252b3271deb20aa7aa5c60470432fef25c341d57361372bff87a57acf6e8",
+      "paidOnChainSats": 1024
+    },
+    {
+      "role": "outsources",
+      "paidSats": 512,
+      "close": "511936c7340ae0690e87e888b054ccf4ad696390e659140b83470ceae191e31b",
+      "paidOnChainSats": 512
+    }
+  ],
+  "providerLogs": [
+    {
+      "role": "honest",
+      "zk": [
+        {
+          "t": 1792490660512,
+          "provider": "honest",
+          "event": "zk-proving",
+          "height": 130,
+          "deals": 3,
+          "q": 8
+        },
+        {
+          "t": 1792490894168,
+          "provider": "honest",
+          "event": "zk-epoch",
+          "height": 130,
+          "proved": true,
+          "proof": "c3219969c64ba92be95bf0d636cc7f08ac6e6f85e08f53b4109479d7af592156",
+          "bytes": 11250496,
+          "seconds": 232.286,
+          "published": true,
+          "id": "88752def9168e2a89ebe2573337f5c7ea4d384923b7953e8edcfc85a7a11a689"
+        },
+        {
+          "t": 1792490919994,
+          "provider": "honest",
+          "event": "zk-proving",
+          "height": 140,
+          "deals": 3,
+          "q": 8
+        },
+        {
+          "t": 1792490989898,
+          "provider": "honest",
+          "event": "zk-epoch",
+          "height": 140,
+          "proved": true,
+          "proof": "9ea093458b1d69b6cfe031c96b9f47a4f4a927ba22a82a307bc7827ce642658e",
+          "bytes": 11344509,
+          "seconds": 68.282,
+          "published": true,
+          "id": "151e26893cc1bf094f8018d7aa3962b26430aa55d25a5ed4286b656cdfc26f1b"
+        },
+        {
+          "t": 1792491039609,
+          "provider": "honest",
+          "event": "zk-proving",
+          "height": 150,
+          "deals": 3,
+          "q": 8
+        },
+        {
+          "t": 1792491097849,
+          "provider": "honest",
+          "event": "zk-epoch",
+          "height": 150,
+          "proved": true,
+          "proof": "f4b772c936212afa2b9c44eee46a1ca92fd0aeb0510d84354c6ceb63b6584084",
+          "bytes": 11405376,
+          "seconds": 56.832,
+          "published": true,
+          "id": "d5a87de15e3d515c485803aa00843a592c88de9fafdedb334200c894499f164d"
+        }
+      ]
+    },
+    {
+      "role": "deletes 10%",
+      "zk": [
+        {
+          "t": 1792490660445,
+          "provider": "deletes10",
+          "event": "zk-proving",
+          "height": 130,
+          "deals": 3,
+          "q": 8
+        },
+        {
+          "t": 1792490768178,
+          "provider": "deletes10",
+          "event": "zk-epoch",
+          "height": 130,
+          "proved": true,
+          "proof": "b6fcfeb5850d837efbb6011548aca669d45a458c965c811cc15d9f68b5aff02b",
+          "bytes": 11358848,
+          "seconds": 106.272,
+          "published": true,
+          "id": "e4d8ec9df716fcf499fa7ed8acb63ea6d41739cf05dd880b9ffac2806862beaf"
+        },
+        {
+          "t": 1792490920019,
+          "provider": "deletes10",
+          "event": "zk-proving",
+          "height": 140,
+          "deals": 3,
+          "q": 8
+        },
+        {
+          "t": 1792491024977,
+          "provider": "deletes10",
+          "event": "zk-epoch",
+          "height": 140,
+          "proved": true,
+          "proof": "7b4fa654986ca64181092c1b8f060969009e1abd871670b7f5d4c6c00fbcd19f",
+          "bytes": 11405401,
+          "seconds": 103.279,
+          "published": true,
+          "id": "88eef6fc230623947a0293a689c473ff44786ce088fe4fe8776d1ff5fb36ae8d"
+        },
+        {
+          "t": 1792491039545,
+          "provider": "deletes10",
+          "event": "zk-proving",
+          "height": 150,
+          "deals": 3,
+          "q": 8
+        },
+        {
+          "t": 1792491098321,
+          "provider": "deletes10",
+          "event": "zk-epoch",
+          "height": 150,
+          "proved": false,
+          "why": "program rejected the witness: Error at pc=0:15:",
+          "seconds": 58.776
+        }
+      ]
+    },
+    {
+      "role": "outsources",
+      "zk": [
+        {
+          "t": 1792490660636,
+          "provider": "outsources",
+          "event": "zk-proving",
+          "height": 130,
+          "deals": 3,
+          "q": 8
+        },
+        {
+          "t": 1792490825650,
+          "provider": "outsources",
+          "event": "zk-epoch",
+          "height": 130,
+          "proved": true,
+          "proof": "8abfd0c4c8eb640338b58da787233118171c5ce799082061b47ad295f1144a5e",
+          "bytes": 11458562,
+          "seconds": 163.67,
+          "published": true,
+          "id": "30afd2f5ebd27bb627bff5fe14d1fc968adaca5140753cfbe772b7c4df38d7df"
+        },
+        {
+          "t": 1792490920103,
+          "provider": "outsources",
+          "event": "zk-proving",
+          "height": 140,
+          "deals": 3,
+          "q": 8
+        },
+        {
+          "t": 1792490989551,
+          "provider": "outsources",
+          "event": "zk-epoch",
+          "height": 140,
+          "proved": false,
+          "why": "program rejected the witness: Error at pc=0:15:",
+          "seconds": 69.448
+        },
+        {
+          "t": 1792491039530,
+          "provider": "outsources",
+          "event": "zk-proving",
+          "height": 150,
+          "deals": 3,
+          "q": 8
+        },
+        {
+          "t": 1792491040382,
+          "provider": "outsources",
+          "event": "zk-epoch",
+          "height": 150,
+          "proved": false,
+          "why": "program rejected the witness: Error at pc=0:15:",
+          "seconds": 0.852
+        }
+      ]
+    }
+  ],
+  "watchtower": [
+    {
+      "t": 1792490903642,
+      "watchtower": true,
+      "event": "attest",
+      "provider": "35c2c7abd16e",
+      "height": 130,
+      "result": "valid",
+      "proofEvent": "e4d8ec9df716fcf499fa7ed8acb63ea6d41739cf05dd880b9ffac2806862beaf",
+      "proof": "b6fcfeb5850d837efbb6011548aca669d45a458c965c811cc15d9f68b5aff02b",
+      "deals": 3,
+      "q": 8,
+      "verify_s": 135.024
+    },
+    {
+      "t": 1792490913866,
+      "watchtower": true,
+      "event": "attest",
+      "provider": "6fa6c8436d33",
+      "height": 130,
+      "result": "valid",
+      "proofEvent": "30afd2f5ebd27bb627bff5fe14d1fc968adaca5140753cfbe772b7c4df38d7df",
+      "proof": "8abfd0c4c8eb640338b58da787233118171c5ce799082061b47ad295f1144a5e",
+      "deals": 3,
+      "q": 8,
+      "verify_s": 9.829
+    },
+    {
+      "t": 1792490919416,
+      "watchtower": true,
+      "event": "attest",
+      "provider": "9b9eecc0eab2",
+      "height": 130,
+      "result": "valid",
+      "proofEvent": "88752def9168e2a89ebe2573337f5c7ea4d384923b7953e8edcfc85a7a11a689",
+      "proof": "c3219969c64ba92be95bf0d636cc7f08ac6e6f85e08f53b4109479d7af592156",
+      "deals": 3,
+      "q": 8,
+      "verify_s": 5.156
+    },
+    {
+      "t": 1792491027658,
+      "watchtower": true,
+      "event": "attest",
+      "provider": "9b9eecc0eab2",
+      "height": 140,
+      "result": "valid",
+      "proofEvent": "151e26893cc1bf094f8018d7aa3962b26430aa55d25a5ed4286b656cdfc26f1b",
+      "proof": "9ea093458b1d69b6cfe031c96b9f47a4f4a927ba22a82a307bc7827ce642658e",
+      "deals": 3,
+      "q": 8,
+      "verify_s": 37.254
+    },
+    {
+      "t": 1792491035656,
+      "watchtower": true,
+      "event": "attest",
+      "provider": "35c2c7abd16e",
+      "height": 140,
+      "result": "valid",
+      "proofEvent": "88eef6fc230623947a0293a689c473ff44786ce088fe4fe8776d1ff5fb36ae8d",
+      "proof": "7b4fa654986ca64181092c1b8f060969009e1abd871670b7f5d4c6c00fbcd19f",
+      "deals": 3,
+      "q": 8,
+      "verify_s": 7.651
+    },
+    {
+      "t": 1792491035891,
+      "watchtower": true,
+      "event": "attest",
+      "provider": "6fa6c8436d33",
+      "height": 140,
+      "result": "missing",
+      "why": "no proof 6 blocks after the boundary"
+    },
+    {
+      "t": 1792491103402,
+      "watchtower": true,
+      "event": "attest",
+      "provider": "9b9eecc0eab2",
+      "height": 150,
+      "result": "valid",
+      "proofEvent": "d5a87de15e3d515c485803aa00843a592c88de9fafdedb334200c894499f164d",
+      "proof": "f4b772c936212afa2b9c44eee46a1ca92fd0aeb0510d84354c6ceb63b6584084",
+      "deals": 3,
+      "q": 8,
+      "verify_s": 5.103
+    },
+    {
+      "t": 1792491103778,
+      "watchtower": true,
+      "event": "attest",
+      "provider": "35c2c7abd16e",
+      "height": 150,
+      "result": "missing",
+      "why": "no proof 6 blocks after the boundary"
+    },
+    {
+      "t": 1792491103998,
+      "watchtower": true,
+      "event": "attest",
+      "provider": "6fa6c8436d33",
+      "height": 150,
+      "result": "missing",
+      "why": "no proof 6 blocks after the boundary"
+    }
+  ]
+}

@@ -22,6 +22,7 @@ import { BondTool, rpc } from "./bondtool.ts";
 import { ChannelPayee } from "./channel.ts";
 import { servePdpOverNostr } from "./nostr-pdp.ts";
 import { RelayClient } from "./relay.ts";
+import { startZkEpochs } from "./zk-provider.ts";
 
 const arg = (name: string, dflt?: string) => {
   const i = process.argv.indexOf(`--${name}`);
@@ -32,6 +33,10 @@ const arg = (name: string, dflt?: string) => {
 const NAME = arg("name"), SEED = arg("seed"), DIR = arg("dir"), RELAY = arg("relay"), TOKEN = arg("admin-token");
 const PRICE = Number(arg("price", "2000"));
 const RPC = arg("rpc", process.env.BSB_RPC ?? "http://127.0.0.1:18543");
+// --zk: prove holdings every --epoch-blocks blocks from --zk-from on, with --zk-q challenges.
+const ZK = process.argv.includes("--zk");
+const ZK_EPOCH = Number(arg("epoch-blocks", "10")), ZK_Q = Number(arg("zk-q", "8")), ZK_FROM = Number(arg("zk-from", "0"));
+const ZK_PRICE = Number(arg("zk-price", "512000"));
 mkdirSync(DIR, { recursive: true });
 
 const log = (ev: Record<string, unknown>) => process.stdout.write(JSON.stringify({ t: Date.now(), provider: NAME, ...ev }) + "\n");
@@ -43,8 +48,11 @@ const me = await tool.run("info");
 const payee = new ChannelPayee(me.x, tool, DIR);
 const bonds = new Map<string, { path: string; next: number; k: number; last?: string }>();
 
+let zk: ReturnType<typeof startZkEpochs> | undefined;
+
 async function bondRoute(req: Parameters<typeof payee.route>[0], res: Parameters<typeof payee.route>[1], url: URL): Promise<boolean> {
   if (await payee.route(req, res, url)) return true;
+  if (zk && (await zk.route(req, res, url))) return true;
   const m = /^\/bond\/([0-9a-f]{64})\/(fund|presigs)$/.exec(url.pathname);
   if (req.method !== "POST" || !m) return false;
   const sha = m[1];
@@ -85,6 +93,7 @@ const provider = await startProvider({
 payee.setBaseUrl(provider.url);
 const rc = await RelayClient.connect(RELAY);
 servePdpOverNostr(rc, nostrKey, provider.pdpAnswer, log, provider.stash);
+if (ZK) zk = startZkEpochs(provider, rc, nostrKey, payee, { epochBlocks: ZK_EPOCH, q: ZK_Q, fromHeight: ZK_FROM, priceMsat: ZK_PRICE, rpcUrl: RPC, workDir: join(DIR, "zk"), log });
 
 // The on-chain agent: for each live bond, try the next sentinel. bsb-bond answers only once the challenge
 // is confirmed, and reads r from it.
@@ -137,5 +146,5 @@ await new Promise<void>((r) => admin.listen(0, "127.0.0.1", r));
 const adminAddr = admin.address();
 if (!adminAddr || typeof adminAddr === "string") throw new Error("admin did not bind");
 
-process.on("SIGTERM", async () => { stopping = true; rc.close(); admin.close(); await provider.close(); process.exit(0); });
+process.on("SIGTERM", async () => { stopping = true; zk?.stop(); rc.close(); admin.close(); await provider.close(); process.exit(0); });
 log({ ready: true, url: provider.url, admin: `http://127.0.0.1:${adminAddr.port}`, nostr: nostrKey.x, bond_x: me.x, fee_address: me.fee_address, pid: process.pid });

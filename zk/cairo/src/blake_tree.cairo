@@ -1,6 +1,6 @@
 //! The same tree and challenge derivation with Blake2s-256 (`--features blake`), which stwo-cairo
 //! proves with a native opcode. Domain separation is by Blake2s personalization (8 bytes:
-//! "bsb-leaf", "bsb-node", "bsb-root", "bsb-deal", "bsb-chal", "bsb-dset") instead of prefix
+//! "bsb-leaf", "bsb-node", "bsb-root", "bsb-deal", "bsb-chal", "bsb-dset", "bsb-hold") instead of prefix
 //! bytes, so every preimage is word-aligned:
 //!
 //!     leaf = B_leaf(chunk)                      (64 blocks)
@@ -31,6 +31,9 @@ const IV_DEAL: [u32; 8] = [
 ];
 const IV_CHAL: [u32; 8] = [
     0x6b08e647, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x32e1aac9, 0x3781a57a,
+];
+const IV_HOLD: [u32; 8] = [
+    0x6b08e647, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x32e1aac9, 0x3f8ca271,
 ];
 const IV_DSET: [u32; 8] = [
     0x6b08e647, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x32e1aac9, 0x2f85be7d,
@@ -77,6 +80,13 @@ pub fn deal_nonce(seed: Digest, root: Digest) -> Digest {
     let mut m: Array<u32> = seed.span().into();
     m.append_span(root.span());
     hash_words(IV_DEAL, m.span())
+}
+
+/// Holdings mode: nonce = B_hold(seed ‖ D).
+pub fn holdings_nonce(seed: Digest, deals_digest: Digest) -> Digest {
+    let mut m: Array<u32> = seed.span().into();
+    m.append_span(deals_digest.span());
+    hash_words(IV_HOLD, m.span())
 }
 
 pub fn challenge_index(nonce: Digest, j: u32, n: u32) -> u32 {

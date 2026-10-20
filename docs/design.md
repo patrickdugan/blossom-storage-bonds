@@ -465,6 +465,77 @@ Two limits remain. The proof shows knowledge of the chunks, not where they are s
 are served (§3, §5). And per-epoch proving costs the provider real compute, about 0.2 s per
 challenged chunk on 8 cores with a Blake2s tree, which it will price in.
 
+### 4.3 Phase 3b: holdings mode, and public proofs in the running market (`layer1/public-pdp.ts`)
+
+**Holdings mode.** Phase 3a gave every deal its own q, so cost grew with the number of deals: 1,024
+small deals at q = 8 were 8,192 challenged chunks and about 31 minutes of proving per epoch. Mode 1
+draws the q challenges across all of the provider's chunks at once:
+
+    nonce = H_hold(seed ‖ D),   g_j = challenge_index(nonce, j, N),   N = Σ n_i
+
+Here g_j falls in deal k at index g_j − (n_0 + … + n_(k-1)). Each opening names its deal, the program
+checks that it is the deal g_j falls in, and the output carries the mode, so neither kind of proof can
+pass as the other. Measured on the laptop (Blake2s, q = 8, 256-chunk deals, bounded prover):
+
+| deals | Cairo steps | prove | peak RSS |
+| --- | --- | --- | --- |
+| 1 | 203 k | 74 s | 2.3 GB |
+| 64 | 241 k | 70 s | 2.3 GB |
+
+Sixty-four times the deals cost 19% more steps, all of it hashing the longer deal list into D. In
+per-deal mode the same 64 deals at q = 8 would be 512 challenged chunks, which took 116 s and 27 GB
+on the 8-core box (§4.1). The times here include writing the witness over /mnt/c; proving is about
+20–25 s of each. The same checks as phase 3a hold. A missing challenged chunk gives no proof, since
+the program aborts. A mode-1 proof checked against a mode-0 statement for the same deals and seed is
+rejected, the outputs differing exactly at the mode felt. Fourteen model tests cover the statement,
+the witness layout and the sampling.
+
+The trade-off is per-deal coverage. A provider that dropped a fraction f of all its chunks passes an
+epoch with probability (1 − f)^q, exactly as in one large deal. A small deal, though, is now sampled
+only in proportion to its size: a 1 MiB deal among 1 TiB of holdings is touched about once in 125,000
+challenges. Each client should therefore watch for its own deals being sampled over time, or pay a
+provider for a small per-deal q on top. That is a pricing question, not a soundness one.
+
+**Public proofs in the market.** Every party runs in its own process. The client never sends a
+challenge:
+
+1. Every 10 blocks, each provider (`layer1/provider.ts --zk`, `layer1/zk-provider.ts`) proves on its
+   own. The seed is the boundary block's hash from its own bitcoind, and q = 8 challenges are drawn
+   across all its deals. The proof (11.3–11.5 MB) goes onto its own Blossom server as a
+   content-addressed blob, and a Nostr event (kind 4245, placeholder) announces the boundary height,
+   q, the deal list and the proof's SHA-256 and URL. A provider that cannot prove publishes nothing.
+2. The client checks that each of its deals is in the announced list with its own Blake2s root. It
+   fetches the proof and checks its hash, rebuilds the statement from its own node's block hash, and
+   verifies. It then asks for that epoch's invoice and pays it over its payment channel, and it pays
+   nothing otherwise.
+3. A watchtower (`layer1/watchtower.ts`), a separate party with its own node and key, verifies the
+   same proofs from scratch and publishes signed attestations (kind 4246, placeholder): valid,
+   invalid with a reason, or missing six blocks after the boundary. Anyone can act on them, and
+   anyone who does not trust it can re-check them from public data.
+
+On a fresh regtest chain, with three deals (1 MiB, 512 KiB and 256 KiB) per provider, three epochs,
+and misbehaviour from epoch 2 (`results/public-pdp.json`):
+
+| provider | epoch 1 | epoch 2 | epoch 3 | paid on chain |
+| --- | --- | --- | --- | --- |
+| honest | proved; client verified; tower valid | proved, verified, valid | proved, verified, valid | 1,536 sats |
+| deletes 10% | proved, verified, valid | proved, verified, valid | could not prove; tower missing | 1,024 sats |
+| outsources | proved, verified, valid | could not prove; tower missing | could not prove; tower missing | 512 sats |
+
+The 10% deleter proving epoch 2 is the sampling working as designed. It holds 90% of its chunks, so
+it passes an epoch with probability 0.9^8 ≈ 0.43, and that seed's eight challenges all missed its
+gaps. In epoch 3 one did not. Each failed proof was the program rejecting the witness, not a crash.
+Each provider closed its channel on chain, and each close pays exactly the total the client signed
+for the epochs it verified. Verification itself takes about 5 s, most of it WSL start-up. Some
+verify times in the log are longer because the client and the watchtower queued behind proving
+under the single-prover lock.
+
+What this run does not show. The seed is a regtest block hash, and nothing stops a miner from
+grinding it, which on mainnet costs a block reward per try. Proofs are verified off chain; the
+sentinel bonds of §2 remain the on-chain stick, and §4.2 is what a proof-based bond needs. Nostr
+relays could withhold events, so a provider would publish to several relays and a watchtower read
+from several. And one machine proved for all three providers, one proof at a time.
+
 ## 5. Retrieval
 
 Possession proofs do not make the provider serve the file. What helps:
@@ -506,6 +577,7 @@ Blossom servers already authorize uploads with kind 24242 events, and users list
 | 2 | zk setup proof for sentinels (SHA-256 + Merkle path, CPU prover), replacing cut and choose | Next |
 | 3 | BitVM2-shaped pooled bond: registry, header-seeded challenges, aggregated proof; measure cost per deal against phase 1 | Research |
 | 3a | Aggregated epoch proof: one Cairo program over all of a provider's deals, proved and verified with Stwo, SHA-256 and Blake2s trees, soundness cases, cost table and extrapolation (§4.1); what on-chain enforcement takes (§4.2) | Done for the proof; recursion and on-chain verification not built |
+| 3b | Holdings mode (cost independent of the number of deals) and public proofs in the market: block-hash seeds, proofs on Blossom, Nostr announcements, an independent watchtower, pay only for verified epochs (§4.3) | Done on regtest; proofs verified off chain |
 
 ## What is and is not tested
 

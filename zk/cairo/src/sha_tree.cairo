@@ -42,6 +42,14 @@ pub fn deal_nonce(seed: Digest, root: Digest) -> Digest {
     compute_sha256_u32_array(m, 0, 0)
 }
 
+/// Holdings mode: nonce = SHA256("bsb/zk-pdp/hold|" ‖ seed ‖ D), one nonce for the whole deal set.
+pub fn holdings_nonce(seed: Digest, deals_digest: Digest) -> Digest {
+    let mut m: Array<u32> = array![0x6273622f, 0x7a6b2d70, 0x64702f68, 0x6f6c647c];
+    m.append_span(seed.span());
+    m.append_span(deals_digest.span());
+    compute_sha256_u32_array(m, 0, 0)
+}
+
 /// idx = u64le(SHA256("bsb/zk-pdp/chal|" ‖ nonce ‖ u32le(j))[0..8]) mod n.
 pub fn challenge_index(nonce: Digest, j: u32, n: u32) -> u32 {
     let mut m: Array<u32> = array![0x6273622f, 0x7a6b2d70, 0x64702f63, 0x68616c7c];

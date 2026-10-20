@@ -31,6 +31,8 @@ The full design, findings and plan are in [docs/design.md](docs/design.md).
 | `model/fixture.ts` | Writes `fixtures/sentinels.json`, the seam between the model and the regtest harness |
 | `regtest/` | Rust (rust-bitcoin 0.32.7, musig2 0.4.1): `bsb-regtest`, the phase-1 harness, and `bsb-bond`, one party's on-chain agent for bonds and payment channels (it signs only as `BSB_SEED`) |
 | `zk/` | Phase 3a: `cairo/`, the aggregated epoch proof as a Cairo program (SHA-256 tree, or Blake2s with `--features blake`); `prover/`, `bsb-zk` prove/verify on stwo-cairo; `witness.ts`; `bench.sh`, `adversarial.sh`, `summarize.py`. `model/zk_pdp.ts` is the statement |
+| `layer1/zk.ts`, `zk-provider.ts`, `watchtower.ts`, `public-pdp.ts` | Phase 3b: prove and verify through WSL; a provider's unprompted epoch proofs and their Nostr announcements; an independent watchtower; the end-to-end run |
+| `results/public-pdp.json` | Last phase-3b run: per provider and epoch, what it proved, what the client verified and paid, the watchtower's attestation, and every channel close |
 | `results/zk-pdp.md`, `zk-pdp-vps.md` | Phase 3a benchmark tables, fits and the 1 GiB / 1 TiB extrapolation, on the laptop (4.5 GB WSL) and on an 8-core 31 GB box (raw runs in the `.jsonl` files; soundness cases in `zk-pdp-adversarial.jsonl`) |
 | `scripts/regtest-node.sh` | Starts a throwaway regtest node on RPC port 18543 |
 | `results/regtest.json` | Last harness run: measured vsizes and every accept/reject with Core's reason |
@@ -187,6 +189,39 @@ machine's WSL paths (`BIN`, `EXE_DIR`, `NODE`); override them with environment v
 witness on a Linux filesystem: cairo-lang reads it unbuffered, which is slow over a Windows mount.
 On a host without swap, set `GUARD_RSS_MIB` so the guard stops a run before the OOM killer does.
 
+### Public epoch proofs (phase 3b)
+
+With the regtest node running and the phase-3a binaries built:
+
+```bash
+node layer1/public-pdp.ts
+```
+
+Three provider processes (`layer1/provider.ts --zk`) prove their holdings every 10 blocks, on their
+own, seeded by the boundary block's hash. Each puts the proof on its own Blossom server and announces
+it on Nostr. A watchtower process (`layer1/watchtower.ts`) verifies every proof and attests valid,
+invalid or missing. The client checks that its deals are covered, verifies each proof itself, and pays
+each verified epoch over its channel. From epoch 2 one provider zeroes 10% of its replicas and one
+reads another provider's copies (design §4.3):
+
+```
+provider     epoch  provider             client                 paid   watchtower
+honest       1      proved in 232 s      verified               512    valid
+honest       2      proved in 68 s       verified               512    valid
+honest       3      proved in 57 s       verified               512    valid
+deletes 10%  1      proved in 106 s      verified               512    valid
+deletes 10%  2      proved in 103 s      verified               512    valid
+deletes 10%  3      could not prove      no proof to check      0      missing (no proof 6 blocks after the boundary)
+outsources   1      proved in 164 s      verified               512    valid
+outsources   2      could not prove      no proof to check      0      missing (no proof 6 blocks after the boundary)
+outsources   3      could not prove      no proof to check      0      missing (no proof 6 blocks after the boundary)
+```
+
+The times include waiting for the single prover: proofs run one at a time through WSL
+(`layer1/zk.ts`), which looks for `bsb-zk` and the mode-1 executables at `BSB_ZK_BIN` and `BSB_ZK_EXE`.
+The executables are the phase-3a build commands run on this branch's `zk/cairo`. A run takes about
+eight minutes.
+
 ## Status
 
 - Phase 0 (model): done, 16 tests.
@@ -204,8 +239,12 @@ On a host without swap, set `GUARD_RSS_MIB` so the guard stops a run before the 
   challenged chunk cannot produce one, and the cost is measured (design §4.1): 11–14 MB per proof
   and about 20 ms to verify. On 8 cores, proving costs 7.6 s and 1.7 GB per challenged chunk on the
   SHA-256 tree, and 0.21 s and 50 MB on a Blake2s tree. Recursion and on-chain verification (BitVM2 or OP_CAT, §4.2) are not built.
-- Next: Lightning in place of the per-pair channels (2b), a zk setup proof replacing cut and choose
-  (2), and a pooled BitVM bond (3, research).
+- Phase 3b (public proofs): done on regtest. Holdings mode makes a proof's cost independent of the
+  number of deals (64 deals cost 19% more steps than 1). Providers prove each epoch unprompted, from
+  block-hash seeds, and publish over Blossom and Nostr. An independent watchtower attests every
+  epoch, and the client pays only for proofs it verified. Proofs are verified off chain.
+- Next: Lightning in place of the per-pair channels (2b, on its own branch), a zk setup proof
+  replacing cut and choose (2), and on-chain enforcement of the proof (BitVM2 or OP_CAT, §4.2).
 
 The keys and MuSig2 nonce seeds in `regtest/` are fixed test values. Never use this code with real
 funds.
