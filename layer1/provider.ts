@@ -28,6 +28,7 @@ import type { Payee } from "./lightning.ts";
 import { LndNode, LndPayee, lndExe } from "./lnd.ts";
 import { servePdpOverNostr } from "./nostr-pdp.ts";
 import { RelayClient } from "./relay.ts";
+import { startZkEpochs } from "./zk-provider.ts";
 
 const arg = (name: string, dflt?: string) => {
   const i = process.argv.indexOf(`--${name}`);
@@ -40,6 +41,10 @@ const PRICE = Number(arg("price", "2000"));
 const PAY = arg("pay", "channel");
 if (PAY !== "channel" && PAY !== "ln") throw new Error("--pay must be channel or ln");
 const RPC = arg("rpc", process.env.BSB_RPC ?? "http://127.0.0.1:18543");
+// --zk: prove holdings every --epoch-blocks blocks from --zk-from on, with --zk-q challenges.
+const ZK = process.argv.includes("--zk");
+const ZK_EPOCH = Number(arg("epoch-blocks", "10")), ZK_Q = Number(arg("zk-q", "8")), ZK_FROM = Number(arg("zk-from", "0"));
+const ZK_PRICE = Number(arg("zk-price", "512000"));
 mkdirSync(DIR, { recursive: true });
 
 const log = (ev: Record<string, unknown>) => process.stdout.write(JSON.stringify({ t: Date.now(), provider: NAME, ...ev }) + "\n");
@@ -53,6 +58,8 @@ const lnPayee = lnNode && new LndPayee(lnNode);
 const chanPayee = lnNode ? undefined : new ChannelPayee(me.x, tool, DIR);
 const payee: Payee = lnPayee ?? chanPayee!;
 const bonds = new Map<string, { path: string; next: number; k: number; last?: string }>();
+
+let zk: ReturnType<typeof startZkEpochs> | undefined;
 
 /** Lightning: before opening, the client asks this provider's node to catch up with the chain (lnd
  *  refuses funding while it is behind, and tells the peer only "internal error"). The client then opens
@@ -76,6 +83,7 @@ async function lnRoute(req: IncomingMessage, res: ServerResponse, url: URL): Pro
 
 async function bondRoute(req: IncomingMessage, res: ServerResponse, url: URL): Promise<boolean> {
   if (chanPayee ? await chanPayee.route(req, res, url) : await lnRoute(req, res, url)) return true;
+  if (zk && (await zk.route(req, res, url))) return true;
   const m = /^\/bond\/([0-9a-f]{64})\/(fund|presigs)$/.exec(url.pathname);
   if (req.method !== "POST" || !m) return false;
   const sha = m[1];
@@ -116,6 +124,7 @@ const provider = await startProvider({
 chanPayee?.setBaseUrl(provider.url);
 const rc = await RelayClient.connect(RELAY);
 servePdpOverNostr(rc, nostrKey, provider.pdpAnswer, log, provider.stash);
+if (ZK) zk = startZkEpochs(provider, rc, nostrKey, payee, { epochBlocks: ZK_EPOCH, q: ZK_Q, fromHeight: ZK_FROM, priceMsat: ZK_PRICE, rpcUrl: RPC, workDir: join(DIR, "zk"), log });
 
 // The on-chain agent: for each live bond, try the next sentinel. bsb-bond answers only once the challenge
 // is confirmed, and reads r from it.
@@ -172,7 +181,7 @@ if (!adminAddr || typeof adminAddr === "string") throw new Error("admin did not 
 
 async function shutdown() {
   if (stopping) return;
-  stopping = true; rc.close(); admin.close(); await provider.close();
+  stopping = true; zk?.stop(); rc.close(); admin.close(); await provider.close();
   await lnNode?.stop();
   process.exit(0);
 }

@@ -2,7 +2,7 @@
 
 *The client is the verifier, so most of what Filecoin needs a chain for, this design does not.*
 
-Design note, 2026-10-19; phase 1, 1b, 2a and 2b results added 2026-10-20. The model is `model/storage_bonds.ts`
+Design note, 2026-10-19; phase 1, 1b, 2a, 2b, 3a (§4.1, `zk/`) and 3b (§4.3) results added 2026-10-20. The model is `model/storage_bonds.ts`
 (`node --test model/*.test.ts`, 15 passing). Layer 1 runs end to end on localhost in `layer1/` (12 more
 tests, Lightning stubbed; see the README). The regtest harness in `regtest/` runs the same bond chain as
 real transactions against Bitcoin Core 31.1 (21 checks passing, results in `results/regtest.json`). It
@@ -89,6 +89,14 @@ cost, and it is worth paying only for what phases 0–2 cannot do: one bond pool
 10. **NIP-44's 65,535-byte limit decides how answers travel.** At q = 8 an answer is about 49 kB and goes
     inline. At q = 64 it is over 256 kB. The provider then holds it for one GET at an unguessable URL,
     and sends that URL and the answer's SHA-256 inside the encrypted, signed reply (layer1 tests).
+
+11. **A public aggregated proof is cheap to verify and cheap to prove only with a Blake2s tree.** One
+    Stwo proof covers every deal a provider holds. It is 11–14 MB, verifies in about 20 ms, and has
+    no proof unless every challenged chunk is held (§4.1). On an 8-core, 31 GB box, proving costs
+    7.6 s and 1.7 GB per challenged chunk on the protocol's SHA-256 tree, against 0.21 s and 50 MB on
+    a Blake2s tree. A 1 TiB provider in 1 GiB deals at q = 8 needs 18 h of that box per epoch with
+    SHA-256 and 31 min with Blake2s. Bitcoin can enforce the proof only through BitVM2 (a committee
+    and a Groth16 wrap) or OP_CAT (a soft fork) (§4.2).
 
 ## 1. Layer 1: pay per proof
 
@@ -359,7 +367,245 @@ solved:
    committee is this design's only web-2.5 residue, and it is why phase 3 comes last.
 4. **Proof cost.** An aggregated proof over N deals × q chunks per epoch. The open research question is
    the one the sketch names: whether it secures pooled BTC collateral more cheaply than per-pair
-   sentinel bonds.
+   sentinel bonds. Phase 3a (§4.1) measures the proof side.
+
+### 4.1 Phase 3a: an aggregated, publicly verifiable epoch proof (`zk/`)
+
+The statement, for one provider and one epoch, is public: a challenge seed (a public input for now,
+later a Bitcoin block hash), q, and a digest D of the deal list (each deal's chunk-tree root R_i and
+chunk count n_i). The provider shows q chunks per deal at indices it cannot choose:
+
+    nonce_i = H("bsb/zk-pdp/deal|" ‖ seed ‖ R_i)
+    idx_ij  = u64le(H("bsb/zk-pdp/chal|" ‖ nonce_i ‖ u32le(j))[0..8]) mod n_i      for j < q
+
+Each chunk at idx_ij must open to R_i in the `model/storage_bonds.ts` tree: 4 KiB chunks, a 0x00 leaf
+prefix, a 0x01 node prefix, the last node paired with itself, and R = H(0x02 ‖ u64le(n) ‖ top). This is
+layer 1's epoch with each deal's nonce derived from one public seed. `zk/cairo` is the Cairo program.
+It recomputes the indices, hashes each chunk into its leaf, climbs the path, and outputs (seed, q,
+number of deals, D). `zk/prover` (`bsb-zk`) proves the program with Stwo through stwo-cairo, in
+direct mode with no bootloader, and verifies the result. The verifier pins the program's bytecode,
+the security parameters (96-bit: pow 26, blowup 2, 70 queries), the preprocessed trace, the builtin
+segments and the output segment, then compares the output with a statement it computed itself from
+the deal list. `model/zk_pdp.ts` writes the witness and the statement, and every run cross-checks the
+Cairo hashing against node's SHA-256. The chunks never leave the provider.
+
+**Soundness checks** (`zk/adversarial.sh`, `results/zk-pdp-adversarial.jsonl`, both backends). The
+honest proof verifies. A provider that lost one challenged chunk, but kept every leaf hash and so can
+still send a valid Merkle path, gets no proof: the program aborts on `root mismatch`, and a panicking
+run has no trace to prove. Each of the following is rejected:
+
+- a valid proof for a seed the provider chose;
+- the honest proof checked against a deal list that differs in one bit of D;
+- the honest proof with its output edited to claim q + 1, checked against a statement edited to
+  match (the STARK fails);
+- the honest proof checked as the other backend's program.
+
+**Benchmark** (`zk/bench.sh`, `results/zk-pdp.md`). The laptop is a Ryzen AI 9 365 running WSL capped
+at 4.5 GB, with 4 prover threads and stwo-cairo's preprocessed trace bounded at 2^20 rows. "sha" is
+the protocol's tree. "blake" is the same statement with Blake2s-256 in place of SHA-256, with domain
+separation by personalization. stwo-cairo proves Blake2s with a native opcode, while SHA-256 here is
+plain Cairo with no syscall. That SHA-256 is a rewrite of Raito's in bounded integers, which takes 39%
+fewer steps, but it is still about 16k Cairo steps per compression, and one 4 KiB leaf takes 65
+compressions.
+
+| backend | deals × q = C | chunks/deal | Cairo steps | prove + execute | peak RSS | proof |
+| --- | --- | --- | --- | --- | --- | --- |
+| sha | 1 × 1 = 1 | 256 | 1.39 M | 30 s | 3.0 GB | 10.6 MB |
+| sha | 1 × 2 = 2 | 256 | 2.71 M | 38 s | 4.0 GB | 10.5 MB |
+| sha | 1 × 1 = 1 | 2^18 (1 GiB) | 1.71 M | 31 s | 3.3 GB | 10.5 MB |
+| sha | 2 × 1, 1 × 3 | 256 | — | memory-bound (needs 2^21 rows) | | |
+| blake | 1 × 1 = 1 | 256 | 26.5 k | 25 s | 2.0 GB | 10.7 MB |
+| blake | 4 × 4 = 16 | 256 | 404 k | 28 s | 2.5 GB | 11.0 MB |
+| blake | 16 × 4 = 64 | 256 | 1.62 M | 42 s | 4.0 GB | 11.3 MB |
+| blake | 1 × 64 = 64 | 2^18 (1 GiB) | 1.99 M | 60 s | 4.0 GB | 11.1 MB |
+| blake | C ≥ 128 | 256 | — | memory-bound | | |
+
+Fitted over the verified laptop runs, a SHA-256 chunk costs 6.7 s and 0.8 GB per proof. A Blake2s
+chunk costs 0.47 s and 31 MB. Each tree level adds 2.3% to a SHA-256 chunk. Every proof has a floor
+of about 20 s and 2 GB. Proof size is about 11 MB, and the STARK verifies in 16–20 ms, plus about a
+second to recompute the preprocessed root, which a verifier computes once and caches.
+
+**Larger runs** (`results/zk-pdp-vps.md`) went on a rented box with 8 cores, 31 GB of RAM and no
+swap, using 8 prover threads, the same binary and the same executables, and resident memory capped
+at 28 GB. K grows as needed, up to 2^23 rows:
+
+| backend | C | chunks/deal | K | prove + execute | peak RSS | proof |
+| --- | --- | --- | --- | --- | --- | --- |
+| sha | 1 | 256 | 20 | 14 s | 3.1 GB | 10.6 MB |
+| sha | 8 | 2^18 (1 GiB) | 23 | 88 s | 21.7 GB | 13.2 MB |
+| sha | 16 | 256 | 23 | 122 s | 27.4 GB | 13.3 MB |
+| sha | 32 | 256 | — | memory-bound at 28 GB | | |
+| blake | 64 | 256 | 20 | 18 s | 4.2 GB | 11.3 MB |
+| blake | 256 | 2^18 (1 GiB) | 22 | 68 s | 15.9 GB | 13.0 MB |
+| blake | 512 | 256 | 23 | 116 s | 26.8 GB | 14.0 MB |
+| blake | 1,024 | 256 | — | memory-bound at 28 GB | | |
+
+On that box a SHA-256 chunk costs 7.6 s and 1.7 GB, and a Blake2s chunk 0.21 s and 50 MB: Blake2s is
+about 36 times cheaper in both. Time is close to linear in Cairo steps for both backends, about
+6–9 µs per step, so Blake2s's advantage comes from needing roughly 50 times fewer steps per chunk.
+Memory per chunk is higher than on the laptop, because the preprocessed trace grows with K. Proofs
+grow from 11 MB to 14 MB as K rises, and verification stays at 19–24 ms.
+
+What sets the cost is the number of challenged chunks C = deals × q and the tree depth, not the bytes
+stored. At q = 8, from the box's fits (`results/zk-pdp-vps.md` has the full extrapolation):
+
+| per epoch | shape | sha | blake |
+| --- | --- | --- | --- |
+| 1 GiB or 1 TiB | 1 deal (C = 8) | 1 proof, about 90 s, 22 GB of RAM | 1 proof, about 10 s, 2 GB |
+| 1 GiB | 1,024 deals of 1 MiB (C = 8,192) | 512 proofs, 18 h, 6.1 GB of proofs | 16 proofs, 31 min, 194 MB |
+| 1 TiB | 1,024 deals of 1 GiB (C = 8,192) | the same: 18 h | the same: 31 min |
+| 1 TiB | 2^20 deals of 1 MiB (C = 8.4 M) | 2.1 years of this box | 22 days |
+
+Rows above 28 GB are split into the largest proofs that fit. On the laptop the same rows take 43 h
+(sha) and 1.8 h (blake). A single proof at C = 8,192 would need, by the memory fit, about 13 TiB
+(sha) or 400 GiB (blake). That is a linear extrapolation, not a measurement.
+
+Three conclusions follow:
+
+- **The tree's hash decides feasibility.** In Cairo, SHA-256 over 4 KiB leaves cannot keep up with a
+  daily epoch past roughly a thousand deals per 8-core prover. Blake2s can, at about 0.2 s per
+  challenged chunk. The chunk tree is only ever checked by the client and the provider, never by
+  Bitcoin script (the sentinels hash separately, see §2), so moving it to Blake2s costs the protocol
+  nothing. The alternative is a second Blake2s commitment signed in the deal next to R. If the zk
+  path goes ahead, that change should come first.
+- **Proofs must be per provider, not per byte.** Cost scales with deals × q. A provider should pool
+  its deals into a few large ones, or sample q across the whole deal set instead of per deal (a
+  different statement, not built), so that C stays in the hundreds.
+- **One proof per epoch needs recursion.** Without it, a 1 TiB provider publishes 16 proofs per epoch
+  (128 on the laptop) and a verifier checks each one. That is cheap off-chain (about 20 ms each) and
+  hopeless on-chain. stwo-cairo can verify a Stwo proof inside Cairo, so these can fold into one
+  proof. That was not built here.
+
+What the proof does not give: Stwo proofs as configured here are succinct and public, but not hiding.
+That is acceptable because the chunks are per-replica ciphertext, but it is not zero-knowledge in the
+strict sense. The proof also says nothing about where the data sits. A provider can fetch the
+challenged chunks from elsewhere at proving time, so per-replica encryption (§3) is still what stops
+outsourcing. And it does not make the provider serve the data (§5).
+
+### 4.2 Enforcing the proof on Bitcoin
+
+Bitcoin script cannot check a 10 MB STARK, so the proof needs one of two routes on chain.
+
+**BitVM2 (no soft fork).** The provider acts as the operator. At term end it asserts "every epoch's
+proof verified for the deal digests D_e committed on chain", and anyone can disprove that within the
+challenge window. With no assertion, the bond goes to the forfeit path. What it takes:
+
+1. **Wrap the STARK in a SNARK.** BitVM2 implementations verify Groth16 over BN254. The epoch proofs
+   (Blake2s Merkle channel, M31 field) must be folded by recursion and then wrapped in a
+   Groth16-friendly verifier circuit. No off-the-shelf wrap for stwo-cairo proofs was found in this
+   work.
+2. **Pay BitVM's on-chain size.** Alpen Labs estimates a naive BN254 Groth16 verifier at about
+   1.2 GB of script, split into roughly a thousand chunks. The BitVM3 paper puts BitVM2's assert and
+   disprove transactions at about 2–4 MB each. These are their figures, not measured here.
+3. **The setup committee.** It presigns the transaction graph for every bond UTXO, with 1-of-n
+   honest (the web-2.5 residue of §4).
+4. **Bind the inputs.** The statement needs D_e committed on chain before the seed block, so the
+   provider cannot choose its deals after seeing the challenge, and a header-chain proof that the
+   seed is the hash of block h_e. The ZeroSync-style `chain_segment` proof is the building block for
+   the second.
+
+**OP_CAT (BIP 347, a soft fork).** With OP_CAT, tapscript can verify a Circle STARK directly, with no
+committee and no Groth16 wrap. StarkWare and L2 Iterative's "Bitcoin Wildlife Sanctuary" verified a
+small Circle STARK (a Fibonacci-squared statement) on signet in July 2024, across a chain of
+covenant transactions. For this proof that would take:
+
+- a recursion step that shrinks it to a proof built for script: a Merkle channel on a hash script
+  has (SHA-256, not Blake2s), and a larger blowup with fewer queries for a smaller proof;
+- verification spread across covenant-chained transactions;
+- the same commitment to D_e and seed binding as above;
+- OP_CAT activation, which has not happened.
+
+BitVM2 works today but brings a committee, operator liquidity and megabyte-sized disputes. OP_CAT is
+trust-minimized and far smaller, but needs consensus that does not exist yet.
+
+**What either route buys over sentinel bonds:**
+
+- **Watchtower enforcement.** The statement is public (seed, q, D), so anyone holding the deal list
+  can check the provider and act: disprove a false assertion under BitVM2, or trigger forfeit under
+  OP_CAT. The client no longer has to be online and the only one who cares. Layer 1's receipts
+  become checkable too, which §6 notes they are not today.
+- **Pooled bonds.** One bond per provider covers every deal in D. It is sized to the provider's whole
+  liability, and its setup cost is spread over all its clients, instead of one 308 vB bond and up to
+  k presigned challenges per (client, provider) pair.
+- **Unbounded, unplanted challenges.** Every block hash is a fresh seed, so there are no k
+  precommitted sentinels to run out of. And the challenges are derived publicly rather than chosen
+  by the client, so the client-plants-a-bad-h_i attack (finding 5) and the cut and choose that
+  defends against it both go away.
+
+Two limits remain. The proof shows knowledge of the chunks, not where they are stored or that they
+are served (§3, §5). And per-epoch proving costs the provider real compute, about 0.2 s per
+challenged chunk on 8 cores with a Blake2s tree, which it will price in.
+
+### 4.3 Phase 3b: holdings mode, and public proofs in the running market (`layer1/public-pdp.ts`)
+
+**Holdings mode.** Phase 3a gave every deal its own q, so cost grew with the number of deals: 1,024
+small deals at q = 8 were 8,192 challenged chunks and about 31 minutes of proving per epoch. Mode 1
+draws the q challenges across all of the provider's chunks at once:
+
+    nonce = H_hold(seed ‖ D),   g_j = challenge_index(nonce, j, N),   N = Σ n_i
+
+Here g_j falls in deal k at index g_j − (n_0 + … + n_(k-1)). Each opening names its deal, the program
+checks that it is the deal g_j falls in, and the output carries the mode, so neither kind of proof can
+pass as the other. Measured on the laptop (Blake2s, q = 8, 256-chunk deals, bounded prover):
+
+| deals | Cairo steps | prove | peak RSS |
+| --- | --- | --- | --- |
+| 1 | 203 k | 74 s | 2.3 GB |
+| 64 | 241 k | 70 s | 2.3 GB |
+
+Sixty-four times the deals cost 19% more steps, all of it hashing the longer deal list into D. In
+per-deal mode the same 64 deals at q = 8 would be 512 challenged chunks, which took 116 s and 27 GB
+on the 8-core box (§4.1). The times here include writing the witness over /mnt/c; proving is about
+20–25 s of each. The same checks as phase 3a hold. A missing challenged chunk gives no proof, since
+the program aborts. A mode-1 proof checked against a mode-0 statement for the same deals and seed is
+rejected, the outputs differing exactly at the mode felt. Fourteen model tests cover the statement,
+the witness layout and the sampling.
+
+The trade-off is per-deal coverage. A provider that dropped a fraction f of all its chunks passes an
+epoch with probability (1 − f)^q, exactly as in one large deal. A small deal, though, is now sampled
+only in proportion to its size: a 1 MiB deal among 1 TiB of holdings is touched about once in 125,000
+challenges. Each client should therefore watch for its own deals being sampled over time, or pay a
+provider for a small per-deal q on top. That is a pricing question, not a soundness one.
+
+**Public proofs in the market.** Every party runs in its own process. The client never sends a
+challenge:
+
+1. Every 10 blocks, each provider (`layer1/provider.ts --zk`, `layer1/zk-provider.ts`) proves on its
+   own. The seed is the boundary block's hash from its own bitcoind, and q = 8 challenges are drawn
+   across all its deals. The proof (11.3–11.5 MB) goes onto its own Blossom server as a
+   content-addressed blob, and a Nostr event (kind 4245, placeholder) announces the boundary height,
+   q, the deal list and the proof's SHA-256 and URL. A provider that cannot prove publishes nothing.
+2. The client checks that each of its deals is in the announced list with its own Blake2s root. It
+   fetches the proof and checks its hash, rebuilds the statement from its own node's block hash, and
+   verifies. It then asks for that epoch's invoice and pays it over its payment channel, and it pays
+   nothing otherwise.
+3. A watchtower (`layer1/watchtower.ts`), a separate party with its own node and key, verifies the
+   same proofs from scratch and publishes signed attestations (kind 4246, placeholder): valid,
+   invalid with a reason, or missing six blocks after the boundary. Anyone can act on them, and
+   anyone who does not trust it can re-check them from public data.
+
+On a fresh regtest chain, with three deals (1 MiB, 512 KiB and 256 KiB) per provider, three epochs,
+and misbehaviour from epoch 2 (`results/public-pdp.json`):
+
+| provider | epoch 1 | epoch 2 | epoch 3 | paid on chain |
+| --- | --- | --- | --- | --- |
+| honest | proved; client verified; tower valid | proved, verified, valid | proved, verified, valid | 1,536 sats |
+| deletes 10% | proved, verified, valid | proved, verified, valid | could not prove; tower missing | 1,024 sats |
+| outsources | proved, verified, valid | could not prove; tower missing | could not prove; tower missing | 512 sats |
+
+The 10% deleter proving epoch 2 is the sampling working as designed. It holds 90% of its chunks, so
+it passes an epoch with probability 0.9^8 ≈ 0.43, and that seed's eight challenges all missed its
+gaps. In epoch 3 one did not. Each failed proof was the program rejecting the witness, not a crash.
+Each provider closed its channel on chain, and each close pays exactly the total the client signed
+for the epochs it verified. Verification itself takes about 5 s, most of it WSL start-up. Some
+verify times in the log are longer because the client and the watchtower queued behind proving
+under the single-prover lock.
+
+What this run does not show. The seed is a regtest block hash, and nothing stops a miner from
+grinding it, which on mainnet costs a block reward per try. Proofs are verified off chain; the
+sentinel bonds of §2 remain the on-chain stick, and §4.2 is what a proof-based bond needs. Nostr
+relays could withhold events, so a provider would publish to several relays and a watchtower read
+from several. And one machine proved for all three providers, one proof at a time.
 
 ## 5. Retrieval
 
@@ -401,6 +647,8 @@ Blossom servers already authorize uploads with kind 24242 events, and users list
 | 2b | Lightning in place of the per-pair channels (regtest LND behind the same Payee/Payer interface) | Done: `--pay ln`, one lnd per party, BOLT 11 decoded and checked by the client, closes checked on chain (§2.6); the one-way channel stays the default |
 | 2 | zk setup proof for sentinels (SHA-256 + Merkle path, CPU prover), replacing cut and choose | Next |
 | 3 | BitVM2-shaped pooled bond: registry, header-seeded challenges, aggregated proof; measure cost per deal against phase 1 | Research |
+| 3a | Aggregated epoch proof: one Cairo program over all of a provider's deals, proved and verified with Stwo, SHA-256 and Blake2s trees, soundness cases, cost table and extrapolation (§4.1); what on-chain enforcement takes (§4.2) | Done for the proof; recursion and on-chain verification not built |
+| 3b | Holdings mode (cost independent of the number of deals) and public proofs in the market: block-hash seeds, proofs on Blossom, Nostr announcements, an independent watchtower, pay only for verified epochs (§4.3) | Done on regtest; proofs verified off chain |
 
 ## What is and is not tested
 

@@ -23,6 +23,8 @@ import {
   CHUNK, SALT, WINDOWS_PER_CHUNK, epochIndices, leafHash, merkleProof, sentinelIndex, treeFromLeaves, windowOf, type Tree,
 } from "../model/storage_bonds.ts";
 import { be32, sha256 } from "../model/schnorr.ts";
+import { zkTree as zkTreeOf } from "./zk.ts";
+import type { Tree as ZkTree } from "../model/zk_pdp.ts";
 import { checkBlossomAuth, newKey } from "./nostr.ts";
 import { StubNetwork, type Payee } from "./lightning.ts";
 
@@ -47,8 +49,9 @@ export interface ProviderConfig {
 
 export interface Descriptor {
   url: string; sha256: string; size: number; type: string; uploaded: number;
-  /** Extension field: the chunk-tree commitment the provider recomputed from the bytes it received. */
-  bsb: { root: string; n: number; chunk: number };
+  /** Extension field: the chunk-tree commitment the provider recomputed from the bytes it received,
+   *  and the Blake2s tree root that public epoch proofs (layer1/zk.ts) are made against. */
+  bsb: { root: string; n: number; chunk: number; zk_root?: string };
 }
 
 export interface PdpAnswer {
@@ -71,6 +74,13 @@ export interface Provider {
   pdpAnswer(sha: string, nonce: string, q: number, epoch: number): Promise<PdpAnswer | { error: string }>;
   /** The commitments left unopened by the last completed cut and choose for a blob, if any. */
   bondTerms(sha: string): { s: string; h: string; hs?: string[] }[] | undefined;
+  /** Read chunk i as this provider would send it (zeros if deleted, someone else's bytes if
+   *  outsourced): what goes into its witness. */
+  readChunk(sha: string, i: number): Promise<Buffer>;
+  /** The Blake2s chunk tree of a blob, from the leaves recorded at upload (a deleter keeps them). */
+  zkTree(sha: string): ZkTree | undefined;
+  /** Store bytes as a blob of this server (BUD-01 GET serves it): how proofs are published. */
+  putBlob(body: Buffer, type: string): Descriptor;
   /** Hold a body for one GET at an unguessable /pdp-answer/<id> URL: how an answer too large for one
    *  NIP-44 message (65,535 bytes) is delivered. The Nostr message then carries the URL and its hash. */
   stash(body: string): string;
@@ -124,6 +134,7 @@ export async function startProvider(cfg: ProviderConfig): Promise<Provider> {
   const host = cfg.host ?? "127.0.0.1";
   const maxUpload = cfg.maxUploadBytes ?? 64 << 20;
   const trees = new Map<string, Tree>();
+  const zkTrees = new Map<string, ZkTree>();
   const outsourced = new Map<string, { url: string; sha256: string }>();
   let base = "";
 
@@ -181,17 +192,27 @@ export async function startProvider(cfg: ProviderConfig): Promise<Provider> {
     if (sha !== want) return fail(res, 409, "X-SHA-256 does not match the body");
     const have = meta(sha);
     if (have) return json(res, 200, descriptor(have));
+    json(res, 201, store(body, String(req.headers["content-type"] ?? "application/octet-stream").split(";")[0]));
+  }
+
+  /** Write a blob and its two trees; returns its descriptor. */
+  function store(body: Buffer, type: string): Descriptor {
+    const sha = createHash("sha256").update(body).digest("hex");
+    const have = meta(sha);
+    if (have) return descriptor(have);
     const leaves = leavesOf(body);
     const t = treeFromLeaves(leaves);
+    const z = zkTreeOf(body);
     const m = {
-      sha256: sha, size: body.length, type: String(req.headers["content-type"] ?? "application/octet-stream").split(";")[0],
-      uploaded: Math.floor(Date.now() / 1000), bsb: { root: t.root.toString("hex"), n: t.n, chunk: CHUNK },
+      sha256: sha, size: body.length, type,
+      uploaded: Math.floor(Date.now() / 1000), bsb: { root: t.root.toString("hex"), n: t.n, chunk: CHUNK, zk_root: z.root.toString("hex") },
     };
     writeFileSync(blobPath(sha) + ".tmp", body); renameSync(blobPath(sha) + ".tmp", blobPath(sha));
     writeFileSync(leavesPath(sha), Buffer.concat(leaves));
     writeFileSync(metaPath(sha), JSON.stringify(m));
     trees.set(sha, t);
-    json(res, 201, descriptor(m));
+    zkTrees.set(sha, z);
+    return descriptor(m);
   }
 
   function onGet(req: IncomingMessage, res: ServerResponse, sha: string) {
@@ -386,6 +407,9 @@ export async function startProvider(cfg: ProviderConfig): Promise<Provider> {
     },
     pdpAnswer,
     bondTerms: (sha) => terms.get(sha),
+    readChunk: async (sha, i) => { const m = meta(sha); return m ? readChunk(sha, m.size, i) : Buffer.alloc(0); },
+    zkTree: (sha) => zkTrees.get(sha),
+    putBlob: (body, type) => store(body, type),
     stash(body) {
       const id = randomBytes(16).toString("hex");
       stashed.set(id, body);

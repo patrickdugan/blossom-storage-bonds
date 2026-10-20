@@ -31,6 +31,10 @@ The full design, findings and plan are in [docs/design.md](docs/design.md).
 | `layer1/` | A Blossom server with PDP, sentinel and cut-and-choose endpoints; the provider process; the client; a Nostr relay; NIP-44 v2; epoch challenges over NIP-44; three payment backends behind one interface (Bitcoin payment channels, LND over REST with a BOLT 11 decoder, and an in-memory stub); the layer-1 demo and the market |
 | `model/fixture.ts` | Writes `fixtures/sentinels.json`, the seam between the model and the regtest harness |
 | `regtest/` | Rust (rust-bitcoin 0.32.7, musig2 0.4.1): `bsb-regtest`, the phase-1 harness, and `bsb-bond`, one party's on-chain agent for bonds and payment channels (it signs only as `BSB_SEED`) |
+| `zk/` | Phase 3a: `cairo/`, the aggregated epoch proof as a Cairo program (SHA-256 tree, or Blake2s with `--features blake`); `prover/`, `bsb-zk` prove/verify on stwo-cairo; `witness.ts`; `bench.sh`, `adversarial.sh`, `summarize.py`. `model/zk_pdp.ts` is the statement |
+| `layer1/zk.ts`, `zk-provider.ts`, `watchtower.ts`, `public-pdp.ts` | Phase 3b: prove and verify through WSL; a provider's unprompted epoch proofs and their Nostr announcements; an independent watchtower; the end-to-end run |
+| `results/public-pdp.json` | Last phase-3b run: per provider and epoch, what it proved, what the client verified and paid, the watchtower's attestation, and every channel close |
+| `results/zk-pdp.md`, `zk-pdp-vps.md` | Phase 3a benchmark tables, fits and the 1 GiB / 1 TiB extrapolation, on the laptop (4.5 GB WSL) and on an 8-core 31 GB box (raw runs in the `.jsonl` files; soundness cases in `zk-pdp-adversarial.jsonl`) |
 | `scripts/regtest-node.sh` | Starts a throwaway regtest node on RPC port 18543 |
 | `results/regtest.json` | Last harness run: measured vsizes and every accept/reject with Core's reason |
 | `results/layer1.json` | Last layer-1 demo run: every epoch's outcome per provider, receipts, balances |
@@ -208,6 +212,64 @@ For the full set of official NIP-44 vectors, run `scripts/fetch-nip44-vectors.sh
 file and checks it against a pinned SHA-256; the file is not committed because its repository declares
 no license. Without it the NIP-44 test checks only the embedded vectors.
 
+### Aggregated storage proof (phase 3a)
+
+One Stwo proof per provider per epoch, over all of its deals: for a public seed, q chunks per deal
+at indices derived from the seed, each opening to its deal root (design §4.1). The proving stack is
+Linux only; it was run in WSL Ubuntu 24.04 with Scarb 2.19.6 and Rust nightly-2025-07-14 (pinned in
+`zk/prover/rust-toolchain.toml`). stwo-cairo comes from the `small-preprocessed` fork
+(github.com/patrickdugan/stwo-cairo, e088e477), which bounds the preprocessed trace so that a proof
+fits in a few GB.
+
+```bash
+cd zk/cairo && scarb --release build && cp target/release/zk_pdp.executable.json $EXE_DIR/zk_pdp_sha.executable.json
+scarb --release build --features blake && cp target/release/zk_pdp.executable.json $EXE_DIR/zk_pdp_blake.executable.json
+cd ../prover && cargo build --release && cd ../..   # about 20 minutes the first time
+node zk/witness.ts --hash sha --deals 1 --q 2 --chunks 256 --out zk/runs/demo
+bsb-zk prove  --hash sha --executable $EXE_DIR/zk_pdp_sha.executable.json --args zk/runs/demo/args.json --out proof.json --max-log-rows 20
+bsb-zk verify --hash sha --executable $EXE_DIR/zk_pdp_sha.executable.json --proof proof.json --statement zk/runs/demo/statement.json --max-log-rows 20
+```
+
+`zk/adversarial.sh sha:1:1:64 blake:4:4:256` runs the soundness cases (missing chunk, own seed, other
+deals, forged output, wrong program). `zk/bench.sh hash:deals:q:chunks ...` runs the benchmark, then
+`python zk/summarize.py results/zk-pdp.jsonl > results/zk-pdp.md`. The scripts default to this
+machine's WSL paths (`BIN`, `EXE_DIR`, `NODE`); override them with environment variables. Keep the
+witness on a Linux filesystem: cairo-lang reads it unbuffered, which is slow over a Windows mount.
+On a host without swap, set `GUARD_RSS_MIB` so the guard stops a run before the OOM killer does.
+
+### Public epoch proofs (phase 3b)
+
+With the regtest node running and the phase-3a binaries built:
+
+```bash
+node layer1/public-pdp.ts
+```
+
+Three provider processes (`layer1/provider.ts --zk`) prove their holdings every 10 blocks, on their
+own, seeded by the boundary block's hash. Each puts the proof on its own Blossom server and announces
+it on Nostr. A watchtower process (`layer1/watchtower.ts`) verifies every proof and attests valid,
+invalid or missing. The client checks that its deals are covered, verifies each proof itself, and pays
+each verified epoch over its channel. From epoch 2 one provider zeroes 10% of its replicas and one
+reads another provider's copies (design §4.3):
+
+```
+provider     epoch  provider             client                 paid   watchtower
+honest       1      proved in 232 s      verified               512    valid
+honest       2      proved in 68 s       verified               512    valid
+honest       3      proved in 57 s       verified               512    valid
+deletes 10%  1      proved in 106 s      verified               512    valid
+deletes 10%  2      proved in 103 s      verified               512    valid
+deletes 10%  3      could not prove      no proof to check      0      missing (no proof 6 blocks after the boundary)
+outsources   1      proved in 164 s      verified               512    valid
+outsources   2      could not prove      no proof to check      0      missing (no proof 6 blocks after the boundary)
+outsources   3      could not prove      no proof to check      0      missing (no proof 6 blocks after the boundary)
+```
+
+The times include waiting for the single prover: proofs run one at a time through WSL
+(`layer1/zk.ts`), which looks for `bsb-zk` and the mode-1 executables at `BSB_ZK_BIN` and `BSB_ZK_EXE`.
+The executables are the phase-3a build commands run on this branch's `zk/cairo`. A run takes about
+eight minutes.
+
 ## Status
 
 - Phase 0 (model): done, 16 tests.
@@ -224,7 +286,16 @@ no license. Without it the NIP-44 test checks only the embedded vectors.
 - Phase 2b (Lightning): done. `--pay ln` runs the same market over real LND nodes, one per party, with
   BOLT 11 invoices and private channels from the client's node; preimages, payees and closes are all
   checked (above). The one-way Bitcoin channel stays the default. 51 TypeScript tests.
-- Next: a zk setup proof replacing cut and choose (2), and a pooled BitVM bond (3, research).
+- Phase 3a (aggregated epoch proof): done for the proof. Proofs verify, a provider missing one
+  challenged chunk cannot produce one, and the cost is measured (design §4.1): 11–14 MB per proof
+  and about 20 ms to verify. On 8 cores, proving costs 7.6 s and 1.7 GB per challenged chunk on the
+  SHA-256 tree, and 0.21 s and 50 MB on a Blake2s tree. Recursion and on-chain verification (BitVM2 or OP_CAT, §4.2) are not built.
+- Phase 3b (public proofs): done on regtest. Holdings mode makes a proof's cost independent of the
+  number of deals (64 deals cost 19% more steps than 1). Providers prove each epoch unprompted, from
+  block-hash seeds, and publish over Blossom and Nostr. An independent watchtower attests every
+  epoch, and the client pays only for proofs it verified. Proofs are verified off chain.
+- Next: on-chain enforcement driven by the public proofs (phase 4, `layer1/full-stack.ts`), a zk setup
+  proof replacing cut and choose (2), and verifying the proof on Bitcoin itself (BitVM2 or OP_CAT, §4.2).
 
 The keys and MuSig2 nonce seeds in `regtest/` are fixed test values. Never use this code with real
 funds.
