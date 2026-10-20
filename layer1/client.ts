@@ -11,7 +11,7 @@
 
 import { createHash, randomBytes } from "node:crypto";
 import type { Key } from "../model/schnorr.ts";
-import { buildTree, chunk, encryptReplica, replicaKey, verifyEpoch } from "../model/storage_bonds.ts";
+import { buildTree, chunk, encryptReplica, makeSentinel, replicaKey, sentinelSecret, verifyEpoch } from "../model/storage_bonds.ts";
 import { authHeader, blossomAuth, now, signEvent, tagValue, verifyEvent, type NostrEvent } from "./nostr.ts";
 import { preimageMatches, type Payer } from "./lightning.ts";
 import type { RelayClient } from "./relay.ts";
@@ -54,7 +54,13 @@ export interface Replica {
   n: number;
   root: string;
   q: number;
+  /** Sentinel commitments (s_j, h_j), made at upload while the client still has the ciphertext. The
+   *  secrets r_j are re-derived from the client secret when needed, so only these 64 bytes each are kept. */
+  commitments?: { s: string; h: string; hs: string[] }[];
 }
+
+/** The sentinels a bond is built on: the k that cut and choose left unopened. */
+export interface BondSentinel { j: number; r: string; s: string; h: string; hs: string[] }
 
 export type Outcome = "proved-paid" | "proved-unpaid" | "failed" | "unreachable";
 
@@ -86,7 +92,8 @@ export class StorageClient {
   constructor(opts: ClientOptions) { this.opts = opts; }
 
   /** Encrypt for this provider, upload, and check the provider's root against our own. */
-  async store(blob: Buffer, offer: Offer, q: number, type = "application/octet-stream"): Promise<Replica> {
+  /** `sentinels` > 0 also commits to that many sentinels of `windows` windows each, for a bond. */
+  async store(blob: Buffer, offer: Offer, q: number, type = "application/octet-stream", sentinels = 0, windows = 1): Promise<Replica> {
     const blobId = sha256hex(blob);
     const ct = encryptReplica(blob, replicaKey(this.opts.secret, blobId, offer.pubkey));
     const tree = buildTree(chunk(ct));
@@ -101,7 +108,42 @@ export class StorageClient {
     const d = (await r.json()) as Descriptor;
     if (d.sha256 !== sha || d.size !== ct.length) throw new Error("provider stored different bytes");
     if (d.bsb?.root !== tree.root.toString("hex") || d.bsb?.n !== tree.n) throw new Error("provider's chunk root differs from ours");
-    return { offer, blobId, sha256: sha, size: ct.length, n: tree.n, root: tree.root.toString("hex"), q };
+    const rep: Replica = { offer, blobId, sha256: sha, size: ct.length, n: tree.n, root: tree.root.toString("hex"), q };
+    if (sentinels > 0) {
+      const chunks = chunk(ct);
+      rep.commitments = Array.from({ length: sentinels }, (_, j) => {
+        const t = makeSentinel(this.sentinelSeed(sha), tree, chunks, j, windows);
+        return { s: t.s.toString("hex"), h: t.h.toString("hex"), hs: t.hs.map((x) => x.toString("hex")) };
+      });
+    }
+    return rep;
+  }
+
+  private sentinelSeed(sha: string): Buffer {
+    return createHash("sha256").update("bsb/sentinel-seed|").update(this.opts.secret).update(sha).digest();
+  }
+
+  /** Cut and choose with the provider (design §2.3): commit to all M sentinels, reveal the M − k the
+   *  provider opens, and keep the other k for the bond. Throws if the provider refuses. */
+  async bond(rep: Replica, k: number): Promise<BondSentinel[]> {
+    const cs = rep.commitments;
+    if (!cs || cs.length <= k) throw new Error("store() the replica with more than k sentinels first");
+    const post = async (what: string, body: unknown) => {
+      const r = await fetch(`${rep.offer.url}/bond/${rep.sha256}/${what}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      if (r.status !== 200) throw new Error(`bond ${what}: ${r.status} ${r.headers.get("x-reason") ?? ""}`);
+      return r.json() as Promise<Record<string, unknown>>;
+    };
+    const { open } = (await post("commit", { commitments: cs, k })) as { open: number[] };
+    const opened = new Set(open);
+    if (!Array.isArray(open) || opened.size !== cs.length - k || open.some((j) => !Number.isSafeInteger(j) || j < 0 || j >= cs.length)) {
+      throw new Error("provider opened a malformed set");
+    }
+    const r = (j: number) => sentinelSecret(this.sentinelSeed(rep.sha256), Buffer.from(rep.root, "hex"), j).toString("hex");
+    const res = (await post("reveal", { reveals: open.map((j) => ({ j, r: r(j) })) })) as { ok: boolean; kept?: number[]; bad?: number[] };
+    if (!res.ok) throw new Error(`provider rejected opened sentinels ${JSON.stringify(res.bad)}`);
+    const kept = cs.map((_, j) => j).filter((j) => !opened.has(j));
+    if (JSON.stringify(res.kept) !== JSON.stringify(kept)) throw new Error("provider kept a different set");
+    return kept.map((j) => ({ j, r: r(j), ...cs[j] }));
   }
 
   private nonceFor(rep: Replica, epoch: number): Buffer {

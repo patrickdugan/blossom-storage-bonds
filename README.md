@@ -7,9 +7,15 @@ tapscript. It needs no token, no chain of its own, no committee and no oracle.
   Blossom provider answers with Merkle paths for the chunks it selects, and the client checks them and
   pays over Lightning. The client is the verifier, so its own randomness is the challenge.
 - **Layer 2, the sentinel bond (on-chain).** The provider's collateral sits in a chain of presigned
-  taproot states. To challenge, the client reveals a 16-byte secret. The provider then has Δ blocks to
-  publish that secret plus the 64-byte window it names, one 80-byte item checked by `OP_SHA256`, or it
-  forfeits the bond. This works on mainnet today.
+  taproot states. To challenge, the client reveals a 16-byte secret r. The provider then has Δ blocks to
+  publish r plus each of the m 64-byte windows r names, one 80-byte item per window, each checked by
+  `OP_SHA256`, or it forfeits the bond. This works on mainnet today.
+
+Both layers run together on regtest (`node layer1/bonded.ts`). Four Blossom providers each post a
+1 BTC bond and are paid per proof. When challenged on chain, each answers from the bytes it actually
+stores. The honest provider gets its bond back. The ones that deleted 10% or 50% of their data, or
+answered from another provider's copy, have their answers rejected by Bitcoin Core's script check and
+lose their bonds to the client.
 
 The full design, findings and plan are in [docs/design.md](docs/design.md).
 
@@ -19,12 +25,13 @@ The full design, findings and plan are in [docs/design.md](docs/design.md).
 | --- | --- |
 | `docs/design.md` | Design note: trust table, findings, both layers, griefing, cut and choose, BitVM as phase 3 |
 | `model/` | Executable TypeScript model: replica encryption, chunk tree, epoch proofs, sentinels, tapscript leaves with an interpreter, sizes, economics |
-| `layer1/` | Phase 1b, layer 1 on localhost: a Blossom server with a PDP sidecar, a client, a Nostr relay, a Lightning interface with an in-memory stub, and the demo |
+| `layer1/` | Layer 1 on localhost: a Blossom server with PDP, sentinel and cut-and-choose endpoints, a client, a Nostr relay, a Lightning interface with an in-memory stub, and the two demos |
 | `model/fixture.ts` | Writes `fixtures/sentinels.json`, the seam between the model and the regtest harness |
-| `regtest/` | Rust harness (rust-bitcoin 0.32.7, musig2 0.4.1) that runs the bond chain as real transactions against Bitcoin Core |
+| `regtest/` | Rust (rust-bitcoin 0.32.7, musig2 0.4.1): `bsb-regtest`, the phase-1 harness, and `bsb-bond`, which funds and enforces the bond for one real deal |
 | `scripts/regtest-node.sh` | Starts a throwaway regtest node on RPC port 18543 |
 | `results/regtest.json` | Last harness run: measured vsizes and every accept/reject with Core's reason |
-| `results/layer1.json` | Last demo run: every epoch's outcome per provider, receipts, balances |
+| `results/layer1.json` | Last layer-1 demo run: every epoch's outcome per provider, receipts, balances |
+| `results/bonded.json` | Last end-to-end run: epochs, cut and choose, every on-chain challenge with Core's verdict, bond outcomes |
 
 ## Run
 
@@ -100,21 +107,57 @@ scripts/regtest-node.sh /tmp/bsb-regtest /path/to/bitcoind
 Then, in another:
 
 ```bash
-node model/fixture.ts 3 && cd regtest && cargo run --release
+node model/fixture.ts 3 && cd regtest && cargo run --release --bin bsb-regtest
 ```
 
 On Windows, build with the MSVC toolchain (`RUSTUP_TOOLCHAIN=stable-x86_64-pc-windows-msvc`), since
 `secp256k1-sys` needs a C compiler. Keep `CARGO_TARGET_DIR` outside synced folders.
 
+### Both layers end to end
+
+With the regtest node running and `cargo build --release` done in `regtest/`:
+
+```bash
+node layer1/bonded.ts
+```
+
+It finds `bsb-bond` under `$BSB_BOND`, `$CARGO_TARGET_DIR/release` or `regtest/target/release`. The
+client commits to 64 sentinels of 16 windows per replica. Each provider opens 60 of them over HTTP and
+checks them against its stored bytes, and a 1 BTC bond is funded on the other 4. Ten paid epochs follow,
+with the same misbehaviour as the layer-1 demo, and then the on-chain enforcement:
+
+```
+enforcement on regtest (Core decides every answer)
+  honest       challenge 0: accepted by Core (challenge 187 vB, answer 639 vB)
+  deletes 10%  challenge 0: accepted by Core (challenge 187 vB, answer 639 vB)
+  deletes 10%  challenge 1: rejected by Core: ... (Script failed an OP_EQUALVERIFY operation)  → forfeit 123317cafb37d2b2…
+  deletes 50%  challenge 0: rejected by Core: ... (Script failed an OP_EQUALVERIFY operation)  → forfeit 3b9c411a7f7c15e8…
+  outsources   challenge 0: rejected by Core: ... (Script failed an OP_EQUALVERIFY operation)  → forfeit ff209800d702d5ca…
+
+provider      failed epochs  earned msat  challenged  answered  P(forfeit | k challenges)  bond (1 BTC)
+honest                    0         2560           1         1                     0.000  closed → provider
+deletes 10%               3         1792           4         1                    0.9988  forfeited → client
+deletes 50%               7          768           4         0                     1.000  forfeited → client
+outsources                7          768           4         0                     1.000  forfeited → client
+```
+
+The provider's agent sends whatever its server returns for `GET /sentinel/<sha>?r=&m=16`, and the tool
+never checks it against h first, so Bitcoin Core is the only verifier. `--windows 1` reproduces the
+one-window sentinel. In that run the 10% deleter answered all four challenges and kept its bond, which
+is why sentinels have 16 windows now (design finding 9).
+
 ## Status
 
-- Phase 0 (model): done, 15 tests.
+- Phase 0 (model): done, 16 tests.
 - Phase 1 (regtest): done, 21 checks against Core 31.1. All four paths (challenge then respond,
   forfeit, refund, cooperative close) were broadcast and mined, and every predicted size matched to the
   byte. It found that Core will not relay the first design's 520-byte answer (see finding 4a).
 - Phase 1b (layer 1 on localhost): done, 12 tests, with Lightning stubbed (above). A provider that
   deletes chunks fails exactly the epochs whose nonce selects a deleted chunk, and is not paid for them.
   A provider that answers from another provider's replica fails every epoch.
+- Phase 2a (both layers end to end): done. 7 more tests for cut and choose and sentinel answers, plus
+  the regtest run above, in which every cheating provider forfeits and the honest one closes. 35
+  TypeScript tests in all.
 - Next: real Lightning (a regtest node pair or NWC) and NIP-44 DMs for layer 1, then a zk setup proof
   replacing cut and choose (2), and a pooled BitVM bond (3, research).
 

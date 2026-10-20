@@ -7,6 +7,9 @@
 // at upload) and <sha>.json (descriptor plus root). Keeping the leaves lets a provider answer with paths
 // even for chunks it no longer has, so the only thing a deleter loses is the chunk bytes themselves.
 //
+// Layer 2 support: GET /sentinel/<sha256>?r= answers a revealed sentinel with r ‖ window from the stored
+// bytes, and POST /bond/<sha256>/commit and /reveal run cut and choose before a bond is funded.
+//
 // Not implemented: BUD-04 mirror, BUD-06 HEAD /upload, BUD-12 list/delete, quotas, rate limits. Two
 // misbehaviours exist for the demo and tests, set through methods on the returned object, never over HTTP.
 
@@ -16,11 +19,15 @@ import { closeSync, existsSync, mkdirSync, openSync, readFileSync, readSync, ren
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Key } from "../model/schnorr.ts";
-import { CHUNK, epochIndices, leafHash, merkleProof, treeFromLeaves, type Tree } from "../model/storage_bonds.ts";
+import {
+  CHUNK, SALT, WINDOWS_PER_CHUNK, epochIndices, leafHash, merkleProof, sentinelIndex, treeFromLeaves, windowOf, type Tree,
+} from "../model/storage_bonds.ts";
+import { be32, sha256 } from "../model/schnorr.ts";
 import { checkBlossomAuth, newKey } from "./nostr.ts";
 import { StubNetwork, type Payee } from "./lightning.ts";
 
 export const MAX_Q = 256;
+export const MAX_WINDOWS = 64;   // windows per sentinel; 64 makes a ~2.3 kB leaf and a ~1.4k-vB answer
 
 export interface ProviderConfig {
   dir: string;
@@ -64,7 +71,7 @@ const extFor = (type: string): string =>
 const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "Authorization, *",
-  "Access-Control-Allow-Methods": "GET, HEAD, PUT, DELETE",
+  "Access-Control-Allow-Methods": "GET, HEAD, PUT, POST, DELETE",
   "Access-Control-Max-Age": "86400",
 };
 
@@ -218,6 +225,88 @@ export async function startProvider(cfg: ProviderConfig): Promise<Provider> {
     json(res, 200, answer);
   }
 
+  // ── layer 2 support: sentinel answers and cut and choose ──
+
+  /** r ‖ window[idx(r)] from whatever this provider still has (its own bytes, or an outsourced copy), or
+   *  null if it has nothing for that chunk. The bond tool puts this on chain as is; Core is the judge. */
+  async function sentinelItem(sha: string, r: Buffer, j = 0): Promise<Buffer | null> {
+    const m = meta(sha);
+    if (!m) return null;
+    const idx = sentinelIndex(r, tree(sha).n, j);
+    const c = await readChunk(sha, m.size, Math.floor(idx / WINDOWS_PER_CHUNK));
+    return c.length === 0 ? null : Buffer.concat([r, windowOf(c, idx)]);
+  }
+
+  async function onSentinel(res: ServerResponse, sha: string, params: URLSearchParams) {
+    const r = params.get("r") ?? "";
+    if (!new RegExp(`^[0-9a-f]{${2 * SALT}}$`).test(r)) return fail(res, 400, `r must be ${SALT} bytes of lowercase hex`);
+    const m = Number(params.get("m") ?? 1);
+    if (!Number.isSafeInteger(m) || m < 1 || m > MAX_WINDOWS) return fail(res, 400, `m must be an integer in 1..${MAX_WINDOWS}`);
+    if (!meta(sha)) return fail(res, 404, "blob not found");
+    const items: Buffer[] = [];
+    for (let j = 0; j < m; j++) {
+      const item = await sentinelItem(sha, Buffer.from(r, "hex"), j);
+      if (!item) return fail(res, 404, `chunk for window ${j} not held`);
+      items.push(item);
+    }
+    json(res, 200, { item: items[0].toString("hex"), items: items.map((x) => x.toString("hex")) });
+  }
+
+  /** Cut and choose (design §2.3). The client commits to M pairs (s_j, h_j); the provider picks M − k to
+   *  open, from its secret key and the commitments, so the client cannot predict or grind the choice. */
+  type Commitment = { s: string; h: string; hs?: string[] };
+  const pending = new Map<string, { commitments: Commitment[]; open: number[]; k: number }>();
+
+  async function onCommit(req: IncomingMessage, res: ServerResponse, sha: string) {
+    if (!meta(sha)) return fail(res, 404, "blob not found");
+    const body = await readBody(req, 1 << 20);
+    let msg: { commitments?: Commitment[]; k?: number };
+    try { msg = JSON.parse(String(body)); } catch { return fail(res, 400, "body must be JSON"); }
+    const cs = msg.commitments, k = msg.k;
+    const hex32 = (x: unknown) => typeof x === "string" && /^[0-9a-f]{64}$/.test(x);
+    const hsOk = (c: Commitment) => c.hs === undefined || (Array.isArray(c.hs) && c.hs.length >= 1 && c.hs.length <= MAX_WINDOWS && c.hs.every(hex32) && c.hs[0] === c.h);
+    if (!Array.isArray(cs) || cs.length < 2 || cs.length > 4096 || !cs.every((c) => hex32(c?.s) && hex32(c?.h) && hsOk(c))) {
+      return fail(res, 400, `commitments: 2..4096 entries of 32-byte hex s and h, and optional hs (1..${MAX_WINDOWS}, hs[0] = h)`);
+    }
+    if (!Number.isSafeInteger(k) || k! < 1 || k! >= cs.length) return fail(res, 400, "k must be in 1..M-1");
+    const seed = sha256("bsb/cut-and-choose|", be32(cfg.key.d), sha, JSON.stringify(cs));
+    const order = cs.map((_, j) => j);
+    for (let i = order.length - 1; i > 0; i--) {
+      const j = sha256(seed, String(i)).readUInt32LE(0) % (i + 1);
+      [order[i], order[j]] = [order[j], order[i]];
+    }
+    const open = order.slice(0, cs.length - k!).sort((a, b) => a - b);
+    pending.set(sha, { commitments: cs, open, k: k! });
+    json(res, 200, { open });
+  }
+
+  async function onReveal(req: IncomingMessage, res: ServerResponse, sha: string) {
+    const p = pending.get(sha);
+    if (!p) return fail(res, 409, "no pending commitment for this blob");
+    const body = await readBody(req, 1 << 20);
+    let msg: { reveals?: { j: number; r: string }[] };
+    try { msg = JSON.parse(String(body)); } catch { return fail(res, 400, "body must be JSON"); }
+    const rv = new Map((msg.reveals ?? []).map((x) => [x.j, x.r]));
+    const bad: number[] = [];
+    for (const j of p.open) {
+      const r = rv.get(j);
+      if (typeof r !== "string" || !new RegExp(`^[0-9a-f]{${2 * SALT}}$`).test(r)) { bad.push(j); continue; }
+      const rb = Buffer.from(r, "hex");
+      const c = p.commitments[j];
+      let good = sha256(rb).equals(Buffer.from(c.s, "hex"));
+      for (const [w, h] of (c.hs ?? [c.h]).entries()) {
+        if (!good) break;
+        const item = await sentinelItem(sha, rb, w);
+        good = !!item && sha256(item).equals(Buffer.from(h, "hex"));
+      }
+      if (!good) bad.push(j);
+    }
+    pending.delete(sha);
+    if (bad.length) return json(res, 200, { ok: false, bad });
+    const opened = new Set(p.open);
+    json(res, 200, { ok: true, kept: p.commitments.map((_, j) => j).filter((j) => !opened.has(j)) });
+  }
+
   const hostname = (req: IncomingMessage) => String(req.headers.host ?? "").replace(/:\d+$/, "").toLowerCase();
 
   const server = createServer((req, res) => {
@@ -227,6 +316,10 @@ export async function startProvider(cfg: ProviderConfig): Promise<Provider> {
       if (req.method === "PUT" && u.pathname === "/upload") return onUpload(req, res);
       const pdp = /^\/pdp\/([0-9a-f]{64})$/.exec(u.pathname);
       if (req.method === "GET" && pdp) return onPdp(res, pdp[1], u.searchParams);
+      const sen = /^\/sentinel\/([0-9a-f]{64})$/.exec(u.pathname);
+      if (req.method === "GET" && sen) return onSentinel(res, sen[1], u.searchParams);
+      const bond = /^\/bond\/([0-9a-f]{64})\/(commit|reveal)$/.exec(u.pathname);
+      if (req.method === "POST" && bond) return bond[2] === "commit" ? onCommit(req, res, bond[1]) : onReveal(req, res, bond[1]);
       const g = SHA_PATH.exec(u.pathname);
       if ((req.method === "GET" || req.method === "HEAD") && g) return onGet(req, res, g[1]);
       if (req.method === "GET" && u.pathname === "/") {

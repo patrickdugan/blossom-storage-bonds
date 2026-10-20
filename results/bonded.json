@@ -1,0 +1,161 @@
+{
+  "generated": "2026-10-20T00:23:11.759Z",
+  "note": "Bitcoin is real (Core regtest); Lightning is the in-memory stub. Nonces are seeded. One process plays both parties' on-chain agents with test keys.",
+  "params": {
+    "epochs": 10,
+    "q": 8,
+    "misbehaviourFrom": 4,
+    "m": 64,
+    "k": 4,
+    "windows": 16,
+    "bondBtc": 1,
+    "delta": 144,
+    "blobBytes": 1048576,
+    "chunks": 256
+  },
+  "regtest": {
+    "heightBefore": 386,
+    "heightAfter": 830
+  },
+  "summary": [
+    {
+      "role": "honest",
+      "failedEpochs": 0,
+      "earnedMsat": 2560,
+      "keptFraction": 1,
+      "sentinelsKept": [
+        25,
+        30,
+        37,
+        57
+      ],
+      "challenged": 1,
+      "pForfeitIfAllChallenged": 0,
+      "bond": {
+        "funded": "ce8aaeab56741e82a421bd0b38bb71e9c05515b1cf74b8d6a9c73e2a1d5f02f2",
+        "outcome": "closed",
+        "to": "provider",
+        "finalTxid": "62da8cfac0fac1cda3f3d0691ee68cfe121cd465edd6cdcf665438ac57dacbc6",
+        "confirmations": 1
+      },
+      "challenges": [
+        {
+          "answer": "accepted by Core",
+          "challenge_txid": "e5c7261fc2d1eff7938be46992b9481d331226ab1484365c9e6b749a81e820c9",
+          "challenge_vsize": 187,
+          "i": 0,
+          "r": "97c6927139dbfbe8f68e9ad763dceca1",
+          "respond_txid": "17af41117b05343aca27756534cb6dca245317977736b61af49bb9d6311e4f9c",
+          "respond_vsize": 639,
+          "windows": 16
+        }
+      ]
+    },
+    {
+      "role": "deletes 10%",
+      "failedEpochs": 3,
+      "earnedMsat": 1792,
+      "keptFraction": 0.9,
+      "sentinelsKept": [
+        5,
+        20,
+        23,
+        56
+      ],
+      "challenged": 4,
+      "pForfeitIfAllChallenged": 0.9988209815422261,
+      "bond": {
+        "funded": "7005a559c837246e265dda4685c4508ef93ea8233e5e33dd20a75122bb4af4a7",
+        "outcome": "forfeited",
+        "to": "client",
+        "finalTxid": "123317cafb37d2b2547fa5f3fba0329aaf01716e4562f31a732eeee544560170",
+        "confirmations": 1
+      },
+      "challenges": [
+        {
+          "answer": "accepted by Core",
+          "challenge_txid": "9fc36bc0f7242abb6e60782023acfe0e44e3a8c05b244a83ae2be10e2a346b9d",
+          "challenge_vsize": 187,
+          "i": 0,
+          "r": "2256b41801035c94f4d37aad0c100dd9",
+          "respond_txid": "5b4f58c3b1dfb4198ebb2563a6ca1d4e73b94588da98c9b83f604f97892a6fa8",
+          "respond_vsize": 639,
+          "windows": 16
+        },
+        {
+          "answer": "rejected by Core: transaction failed: mempool-script-verify-flag-failed (Script failed an OP_EQUALVERIFY operation)",
+          "challenge_txid": "dc17d1a9dccfeb1fc2ac99a52272d951b32d0695fd986cdb7e01dd709835af55",
+          "challenge_vsize": 187,
+          "forfeit_txid": "123317cafb37d2b2547fa5f3fba0329aaf01716e4562f31a732eeee544560170",
+          "i": 1,
+          "r": "8969c1ddc9bd43e15ddd0445055ed371",
+          "windows": 16
+        }
+      ]
+    },
+    {
+      "role": "deletes 50%",
+      "failedEpochs": 7,
+      "earnedMsat": 768,
+      "keptFraction": 0.5,
+      "sentinelsKept": [
+        10,
+        23,
+        32,
+        56
+      ],
+      "challenged": 4,
+      "pForfeitIfAllChallenged": 1,
+      "bond": {
+        "funded": "65d145b745f0f6a4287265d5984ae90e79ffa039b3e2c6af47886960ab92090c",
+        "outcome": "forfeited",
+        "to": "client",
+        "finalTxid": "3b9c411a7f7c15e8711dac6a357f442f8c7872b24ddf93302e269387f2ed7187",
+        "confirmations": 1
+      },
+      "challenges": [
+        {
+          "answer": "rejected by Core: transaction failed: mempool-script-verify-flag-failed (Script failed an OP_EQUALVERIFY operation)",
+          "challenge_txid": "7e25ed4544e50e60ea345d14ee3b84cff97d03c374c2c4566b9b22b3dc568654",
+          "challenge_vsize": 187,
+          "forfeit_txid": "3b9c411a7f7c15e8711dac6a357f442f8c7872b24ddf93302e269387f2ed7187",
+          "i": 0,
+          "r": "39271e80ee0a8a6fe6850a2c4c3022dd",
+          "windows": 16
+        }
+      ]
+    },
+    {
+      "role": "outsources",
+      "failedEpochs": 7,
+      "earnedMsat": 768,
+      "keptFraction": 0,
+      "sentinelsKept": [
+        20,
+        39,
+        51,
+        62
+      ],
+      "challenged": 4,
+      "pForfeitIfAllChallenged": 1,
+      "bond": {
+        "funded": "0f7061b1a12b27b461e7ce4160352c34adf0eb5d313a172726d72d2e92e43d5b",
+        "outcome": "forfeited",
+        "to": "client",
+        "finalTxid": "ff209800d702d5ca5746e3c875c3881b52cf1406473caa8fecc69dcdeba6ab41",
+        "confirmations": 1
+      },
+      "challenges": [
+        {
+          "answer": "rejected by Core: transaction failed: mempool-script-verify-flag-failed (Script failed an OP_EQUALVERIFY operation)",
+          "challenge_txid": "7c0ce122cbb8de47c2c75a740a4f7897a7c9fb95d31929afa12c7d589b75b0bd",
+          "challenge_vsize": 187,
+          "forfeit_txid": "ff209800d702d5ca5746e3c875c3881b52cf1406473caa8fecc69dcdeba6ab41",
+          "i": 0,
+          "r": "bad41bd17097d53aba0c6740c86d6965",
+          "windows": 16
+        }
+      ]
+    }
+  ]
+}

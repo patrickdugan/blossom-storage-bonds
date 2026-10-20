@@ -144,29 +144,45 @@ export interface Sentinel {
   readonly s: Buffer;      // SHA256(r): goes in the bond's challenge leaf
   readonly idx: number;    // which 64-byte window, derived from r so it stays hidden until the reveal
   readonly h: Buffer;      // SHA256(r ‖ window[idx]): goes in the response leaf
+  /** Multi-window sentinels: one revealed r opens m windows, idxs[j] and hs[j]; idxs[0] = idx, hs[0] = h. */
+  readonly idxs: number[];
+  readonly hs: Buffer[];
 }
 
 export const sentinelSecret = (seed: Uint8Array, replicaRoot: Uint8Array, i: number): Buffer =>
   sha256("bsb/sentinel|", Buffer.from(seed), Buffer.from(replicaRoot), u32(i)).subarray(0, SALT);
-/** The window index over all n·64 windows of an n-chunk replica. */
-export const sentinelIndex = (r: Uint8Array, nChunks: number): number =>
-  indexFrom(sha256("bsb/idx|", Buffer.from(r)), nChunks * WINDOWS_PER_CHUNK);
+/** The index of window j (default 0) over all n·64 windows of an n-chunk replica. Window 0 hashes r
+ *  alone, so a one-window sentinel is the same as before multi-window sentinels existed. */
+export const sentinelIndex = (r: Uint8Array, nChunks: number, j = 0): number =>
+  indexFrom(j === 0 ? sha256("bsb/idx|", Buffer.from(r)) : sha256("bsb/idx|", Buffer.from(r), u32(j)), nChunks * WINDOWS_PER_CHUNK);
 export const windowOf = (c: Buffer, idx: number): Buffer =>
   c.subarray((idx % WINDOWS_PER_CHUNK) * WINDOW, (idx % WINDOWS_PER_CHUNK + 1) * WINDOW);
 
-export function makeSentinel(seed: Uint8Array, t: Tree, chunks: Buffer[], i: number): Sentinel {
+export function makeSentinel(seed: Uint8Array, t: Tree, chunks: Buffer[], i: number, m = 1): Sentinel {
   const r = sentinelSecret(seed, t.root, i);
-  const idx = sentinelIndex(r, t.n);
-  return { r, s: sha256(r), idx, h: sha256(r, windowOf(chunks[Math.floor(idx / WINDOWS_PER_CHUNK)], idx)) };
+  const idxs = Array.from({ length: m }, (_, j) => sentinelIndex(r, t.n, j));
+  const hs = idxs.map((idx) => sha256(r, windowOf(chunks[Math.floor(idx / WINDOWS_PER_CHUNK)], idx)));
+  return { r, s: sha256(r), idx: idxs[0], h: hs[0], idxs, hs };
 }
 
 /** What the provider must put on chain once r is revealed: one 80-byte item, or null if it no longer
  *  holds the chunk that contains the window. */
-export function sentinelResponse(r: Uint8Array, nChunks: number, held: Map<number, Buffer>): Buffer | null {
-  const idx = sentinelIndex(r, nChunks);
+export function sentinelResponse(r: Uint8Array, nChunks: number, held: Map<number, Buffer>, j = 0): Buffer | null {
+  const idx = sentinelIndex(r, nChunks, j);
   const c = held.get(Math.floor(idx / WINDOWS_PER_CHUNK));
   return c ? Buffer.concat([Buffer.from(r), windowOf(c, idx)]) : null;
 }
+
+/** All m items for a multi-window sentinel, or null if any window's chunk is missing. */
+export function sentinelResponses(r: Uint8Array, nChunks: number, held: Map<number, Buffer>, m: number): Buffer[] | null {
+  const out: Buffer[] = [];
+  for (let j = 0; j < m; j++) { const x = sentinelResponse(r, nChunks, held, j); if (!x) return null; out.push(x); }
+  return out;
+}
+
+/** A provider that keeps a fraction f of chunks answers one m-window challenge with probability f^m, and
+ *  survives c challenges with f^(m·c). */
+export const sentinelSurvival = (f: number, m: number, challenges = 1): number => f ** (m * challenges);
 
 /** The provider cannot check h_i at setup without learning idx_i, so a client could plant a bad h_i,
  *  challenge it, and take a bond the provider could never save. Cut and choose: the client commits to M
@@ -235,10 +251,14 @@ export const challengeLeaf = (C: Key, P: Key, s: Uint8Array): Buffer =>
 /** Bond_i, refund: the provider alone after the term ends. */
 export const refundLeaf = (P: Key, termEnd: number): Buffer =>
   script(num(termEnd), OP.CLTV, OP.DROP, xonly(P), OP.CHECKSIG);
-/** Challenged_i, respond: the provider shows r_i ‖ chunk; the client's presignature sends the bond on
- *  to Bond_{i+1}. */
-export const respondLeaf = (P: Key, C: Key, h: Uint8Array): Buffer =>
-  script(xonly(P), OP.CHECKSIGVERIFY, xonly(C), OP.CHECKSIGVERIFY, OP.SHA256, h, OP.EQUAL);
+/** Challenged_i, respond: the provider shows r_i ‖ window for each of the sentinel's m windows; the
+ *  client's presignature sends the bond on to Bond_{i+1}. One h gives the one-window leaf; m hashes add
+ *  SHA256 <h_j> EQUALVERIFY per extra window, and the witness carries item_{m-1} … item_0 under the sigs. */
+export const respondLeaf = (P: Key, C: Key, h: Uint8Array | Uint8Array[]): Buffer => {
+  const hs = Array.isArray(h) ? h : [h];
+  const checks = hs.flatMap((x, j) => (j < hs.length - 1 ? [OP.SHA256, x, OP.EQUALVERIFY] : [OP.SHA256, x, OP.EQUAL]));
+  return script(xonly(P), OP.CHECKSIGVERIFY, xonly(C), OP.CHECKSIGVERIFY, ...checks);
+};
 /** Challenged_i, forfeit: the client after Δ blocks of silence. */
 export const forfeitLeaf = (C: Key, delta: number): Buffer =>
   script(num(delta), OP.CSV, OP.DROP, xonly(C), OP.CHECKSIG);

@@ -5,7 +5,7 @@ import { keyFromSeed } from "./schnorr.ts";
 import {
   CHUNK, MAX_ELEMENT, MAX_STANDARD_ITEM, SALT, TX, WINDOW, isStandardTapscriptStack, buildTree, digest, challengeLeaf, chunk, cutAndChooseSurvives, dealVbytes, minCutAndChoose, deletionGain,
   encryptReplica, epochIndices, epochPass, forfeitLeaf, makeSentinel, merkleProof, merkleVerify, proveEpoch,
-  refundLeaf, replicaKey, respondLeaf, runTapscript, scriptNum, scriptPathVsize, sentinelResponse, sign, theftEv,
+  refundLeaf, replicaKey, respondLeaf, runTapscript, sentinelResponses, sentinelSurvival, scriptNum, scriptPathVsize, sentinelResponse, sign, theftEv,
   twoLeafRoot, verifyEpoch, type SpendCtx,
 } from "./storage_bonds.ts";
 
@@ -152,6 +152,30 @@ test("sentinels: the index comes from r, so the leaves reveal nothing about whic
   // Two-leaf trees: the state roots differ per sentinel.
   const s0 = bondState(0), s1 = bondState(1);
   assert.ok(!twoLeafRoot(s0.challenge, s0.refund).equals(twoLeafRoot(s1.challenge, s1.refund)));
+});
+
+test("multi-window sentinel: one r opens m windows, the leaf checks all m, and one missing chunk loses the bond", () => {
+  const { chunks, tree } = replica("p1");
+  const m = 16;
+  const sen = makeSentinel(SECRET, tree, chunks, 0, m);
+  assert.equal(sen.hs.length, m);
+  assert.ok(sen.h.equals(makeSentinel(SECRET, tree, chunks, 0).h), "window 0 is the one-window sentinel");
+  const leaf = respondLeaf(P, C, sen.hs);
+  assert.equal(leaf.length, 68 + 35 * m, "two keyed CHECKSIGVERIFYs, then 35 bytes per window");
+  const L = "respond-multi";
+  const items = sentinelResponses(sen.r, tree.n, allHeld(chunks), m)!;
+  assert.ok(items.every((x) => x.length === MAX_STANDARD_ITEM) && isStandardTapscriptStack(items));
+  assert.deepEqual(runTapscript(leaf, [...items].reverse().concat([sign(C, L), sign(P, L)]), ctx(L)), { ok: true });
+  // Zero the chunk under window 7 only: the provider still has 15 of 16 answers, and that is not enough.
+  const held = allHeld(chunks);
+  const c7 = Math.floor(sen.idxs[7] / 64);
+  held.set(c7, Buffer.alloc(chunks[c7].length));
+  const lossy = sentinelResponses(sen.r, tree.n, held, m)!;
+  assert.equal(runTapscript(leaf, [...lossy].reverse().concat([sign(C, L), sign(P, L)]), ctx(L)).ok, false);
+  // Detection: a 10% deleter survives one 16-window challenge 18.5% of the time, four of them 0.12%.
+  assert.ok(Math.abs(sentinelSurvival(0.9, 16) - 0.1853) < 1e-4);
+  assert.ok(Math.abs(sentinelSurvival(0.9, 16, 4) - 0.00118) < 1e-5);
+  assert.ok(Math.abs(sentinelSurvival(0.9, 1, 4) - 0.6561) < 1e-12, "one window per challenge: 66% survive four");
 });
 
 test("script numbers are minimal", () => {

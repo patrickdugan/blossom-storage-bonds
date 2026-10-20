@@ -61,7 +61,7 @@ cost, and it is worth paying only for what phases 0–2 cannot do: one bond pool
    without learning which chunk it names. A client could plant a bad h_i, challenge it, and take a bond
    the provider could never save. Cut and choose fixes this cheaply: commit to M sentinels, let the
    provider open all but k, and use the k that remain. Theft has negative expected value once
-   M ≳ k·(1 + αB/setup), about 6,500 for k = 10, a 1M-sat bond and a 1,540-sat setup (test 13). A small
+   M ≳ k·(1 + αB/setup), about 6,500 for k = 10, a 1M-sat bond and a 1,540-sat setup (test 14). A small
    zk proof at setup is the clean version (§2.3). This is where zk earns its place in the early phases:
    off-chain and small.
 6. **On-chain cost is 308 vB per bond on the happy path and 696 vB per challenge actually issued,
@@ -76,6 +76,15 @@ cost, and it is worth paying only for what phases 0–2 cannot do: one bond pool
 8. **Proof of possession is not retrieval.** A provider can answer every challenge and still refuse to
    serve the file. The bond cannot force retrieval. Pay-per-retrieval over Lightning and erasure coding
    across providers limit the damage; nothing here removes the hostage case (§5).
+9. **One window per challenge is too weak; one r should open many windows.** In the phase 2 run with one
+   window per sentinel, a provider that had zeroed 10% of its chunks answered all four on-chain
+   challenges and kept its bond, although layer 1 had caught it in three epochs. It survives each
+   one-window challenge with probability 0.9, and four of them 66% of the time. A multi-window sentinel
+   fixes this cheaply. One revealed r derives m window indices, and the respond leaf checks each
+   80-byte item r ‖ window_j with its own `SHA256 <h_j> EQUALVERIFY`. Every item stays within the
+   80-byte relay limit, and each extra window adds 35 bytes of leaf and 81 bytes of witness, about
+   27 vB. At m = 16 the answer is 639 vB (measured). A 10% deleter survives one challenge 18.5% of the
+   time and four 0.12% (model test 12). With m = 1 every script and size is unchanged from phase 1.
 
 ## 1. Layer 1: pay per proof
 
@@ -191,6 +200,42 @@ image never reaches. Bond per (client, provider) pair over a root of the client'
 sized to the term. To add blobs, spend the old bond cooperatively straight into a new one: one
 transaction per rollover.
 
+## 2.5 Phase 2: both layers, end to end (`layer1/bonded.ts`)
+
+Real Blossom servers and a real bond per provider on Core 31.1 regtest. Lightning is still the in-memory
+stub.
+
+1. Four providers run Blossom servers. The client uploads a 1 MiB blob encrypted per provider. While it
+   still holds each ciphertext, it commits to M = 64 sentinels of 16 windows each.
+2. Cut and choose runs over HTTP (`POST /bond/<sha>/commit`, `/reveal`). Each provider opens 60 of the
+   64, chosen from its own secret key so the client cannot grind the choice. It checks all 16 windows of
+   each against the bytes it stores. The bond is built on the 4 it did not open.
+3. `bsb-bond fund` locks 1 BTC per provider and presigns the chain.
+4. Ten paid epochs run at q = 8. From epoch 4 one provider zeroes 10% of its chunks, one 50%, and one
+   deletes its replica and answers from the honest provider's copy.
+5. The client challenges each provider that failed an epoch on its sentinels in turn, and the honest one
+   once as a spot check. The provider's agent fetches r ‖ window for all 16 windows from its own server
+   (`GET /sentinel/<sha>?r=&m=16`) and submits them. The tool does not compare the answer with h first,
+   so Core's script check is the only verifier. A rejected answer is followed by Δ = 144 blocks and the
+   forfeit leaf.
+
+Results (`results/bonded.json`):
+
+| Provider | Failed epochs (of 10) | Paid | On-chain challenges | Core's verdict | 1 BTC bond |
+| --- | --- | --- | --- | --- | --- |
+| honest | 0 | 2,560 msat | 1 | accepted (639 vB) | closed by MuSig2 keypath to the provider |
+| deletes 10% | 3 | 1,792 msat | 2 | accepted, then `OP_EQUALVERIFY` failed | forfeited to the client |
+| deletes 50% | 7 | 768 msat | 1 | `OP_EQUALVERIFY` failed | forfeited to the client |
+| outsources | 7 | 768 msat | 1 | `OP_EQUALVERIFY` failed | forfeited to the client |
+
+All four final transactions were checked on the node: one keypath spend to the provider's address, and
+three forfeit-leaf spends with nSequence 144 to the client's address. The same run with one window per
+sentinel let the 10% deleter keep its bond (finding 9).
+
+What this demo does not show. One process plays both parties' on-chain agents, with keys derived from
+seeds in the deal file. The challenges run after the epochs rather than interleaved with them. The bond
+is 1 BTC against a 1 MiB blob, sized to make the outcome readable, not priced.
+
 ## 3. Replicas
 
 Per-replica encryption gives every provider a distinct blob (distinct Blossom hashes too), so r
@@ -261,7 +306,8 @@ Blossom servers already authorize uploads with kind 24242 events, and users list
 | 0 | This model: replica encryption, chunk tree, epoch PDP, sentinel leaves, cut and choose, sizes | Done, 15 tests |
 | 1 | Regtest with real transactions: BIP341 sighashes, MuSig2 internal key, TRUC + P2A, the full presigned chain, challenge/respond/forfeit/refund/close all broadcast (rust-bitcoin 0.32.7, musig2 0.4.1, Core 31.1) | Done, 21 checks; found the 80-byte limit (finding 4a) |
 | 1b | Blossom sidecar: `/pdp/<sha256>?nonce=` answering from stored replicas, plus a client that runs epochs, pays an invoice and publishes a receipt | Done on localhost, 12 tests; Lightning is an in-memory hash-lock stub behind an interface, and the nonce goes over HTTP rather than NIP-44 |
-| 2 | zk setup proof for sentinels (SHA-256 + Merkle path, CPU prover), replacing cut and choose | After 1 |
+| 2a | Both layers end to end: cut and choose over HTTP, a real bond per deal funded on regtest, paid epochs, and on-chain enforcement from each provider's stored bytes (`layer1/bonded.ts`, `bsb-bond`); multi-window sentinels | Done: every cheater forfeits, the honest provider closes (§2.5) |
+| 2 | zk setup proof for sentinels (SHA-256 + Merkle path, CPU prover), replacing cut and choose | Next |
 | 3 | BitVM2-shaped pooled bond: registry, header-seeded challenges, aggregated proof; measure cost per deal against phase 1 | Research |
 
 ## What is and is not tested
@@ -274,7 +320,8 @@ What neither covers yet:
 - Mainnet relay beyond Core defaults. Other node policies and pinning across a real network are
   untested.
 - Fee spikes during Δ.
-- The cut-and-choose exchange itself, which is modelled as a probability rather than run.
+- Cut and choose between separate parties. It runs over HTTP (§2.5), but both sides are in one process
+  with test keys.
 - Lightning. Layer 1 runs a real Blossom server, PDP sidecar and Nostr relay on localhost (`layer1/`),
   but payment is an in-memory stub with hash locks, not a Lightning node.
 - NIP-17/NIP-44 delivery of the nonce, offer and deal events, and any relay other than the bundled

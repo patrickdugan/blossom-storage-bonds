@@ -16,276 +16,38 @@
 //! The sentinels come from fixtures/sentinels.json (written by model/fixture.ts) and every hash in it
 //! is rechecked here. Nonce seeds and keys are fixed test values: never reuse this code for real keys.
 
-mod rpc;
+mod common;
 
+#[allow(unused_imports)]
+use common::*;
+#[allow(unused_imports)]
 use bitcoin::absolute::LockTime;
+#[allow(unused_imports)]
 use bitcoin::consensus::encode::serialize_hex;
+#[allow(unused_imports)]
 use bitcoin::hashes::{sha256, Hash};
+#[allow(unused_imports)]
 use bitcoin::key::{Keypair, TapTweak};
+#[allow(unused_imports)]
 use bitcoin::opcodes::all::*;
+#[allow(unused_imports)]
 use bitcoin::script::Builder;
+#[allow(unused_imports)]
 use bitcoin::secp256k1::{All, Message, Secp256k1, SecretKey};
+#[allow(unused_imports)]
 use bitcoin::sighash::{Prevouts, SighashCache, TapSighashType};
+#[allow(unused_imports)]
 use bitcoin::taproot::{LeafVersion, TapLeafHash, TaprootBuilder, TaprootSpendInfo};
+#[allow(unused_imports)]
 use bitcoin::transaction::Version;
+#[allow(unused_imports)]
 use bitcoin::{Address, Amount, Network, OutPoint, ScriptBuf, Sequence, Transaction, TxIn, TxOut, Witness, XOnlyPublicKey};
+#[allow(unused_imports)]
 use musig2::{CompactSignature, FirstRound, KeyAggContext, PartialSignature, SecNonceSpices};
-use rpc::Rpc;
+#[allow(unused_imports)]
+use common::rpc::Rpc;
+#[allow(unused_imports)]
 use serde_json::{json, Value};
-
-const BOND: Amount = Amount::from_sat(100_000_000);
-const DELTA: u16 = 144;
-const FEERATE: u64 = 2; // sat/vB for CPFP packages and self-funded spends
-const CLOSE_FEE: Amount = Amount::from_sat(1_000);
-const MAX_STANDARD_ITEM: usize = 80; // MAX_STANDARD_TAPSCRIPT_STACK_ITEM_SIZE, policy/policy.h
-
-// ───────────────────────────── fixture ─────────────────────────────
-
-struct Sentinel {
-    r: Vec<u8>,
-    s: [u8; 32],
-    h: [u8; 32],
-    preimage: Vec<u8>,
-    wrong: Vec<u8>,
-}
-
-fn unhex(s: &str) -> Vec<u8> {
-    (0..s.len()).step_by(2).map(|i| u8::from_str_radix(&s[i..i + 2], 16).unwrap()).collect()
-}
-fn arr32(v: &[u8]) -> [u8; 32] {
-    v.try_into().unwrap()
-}
-
-fn parse_sentinel(s: &Value, item_len: usize) -> Sentinel {
-    let t = Sentinel {
-        r: unhex(s["r"].as_str().unwrap()),
-        s: arr32(&unhex(s["s"].as_str().unwrap())),
-        h: arr32(&unhex(s["h"].as_str().unwrap())),
-        preimage: unhex(s["preimage"].as_str().unwrap()),
-        wrong: unhex(s["wrong_preimage"].as_str().unwrap()),
-    };
-    assert_eq!(sha256::Hash::hash(&t.r).to_byte_array(), t.s, "s = SHA256(r)");
-    assert_eq!(sha256::Hash::hash(&t.preimage).to_byte_array(), t.h, "h = SHA256(r ‖ window)");
-    assert_eq!(&t.preimage[..t.r.len()], &t.r[..], "the preimage starts with r");
-    assert_eq!(t.preimage.len(), item_len);
-    assert_ne!(sha256::Hash::hash(&t.wrong).to_byte_array(), t.h);
-    t
-}
-
-/// The standard sentinels (one 80-byte item each) and the wide one (one 520-byte item).
-fn load_sentinels() -> (Vec<Sentinel>, Sentinel) {
-    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../fixtures/sentinels.json");
-    let v: Value = serde_json::from_str(&std::fs::read_to_string(path).expect("run model/fixture.ts first")).unwrap();
-    let std = v["sentinels"].as_array().unwrap().iter().map(|s| parse_sentinel(s, MAX_STANDARD_ITEM)).collect();
-    (std, parse_sentinel(&v["wide"], 520))
-}
-
-// ───────────────────────────── keys and leaves ─────────────────────────────
-
-struct Party {
-    kp: Keypair,
-    x: XOnlyPublicKey,
-    sk: SecretKey,
-}
-
-fn party(secp: &Secp256k1<All>, label: &str) -> Party {
-    let sk = SecretKey::from_slice(sha256::Hash::hash(label.as_bytes()).as_byte_array()).unwrap();
-    let kp = Keypair::from_secret_key(secp, &sk);
-    Party { kp, x: kp.x_only_public_key().0, sk }
-}
-
-fn challenge_leaf(c: &Party, p: &Party, s: [u8; 32]) -> ScriptBuf {
-    Builder::new()
-        .push_x_only_key(&c.x).push_opcode(OP_CHECKSIGVERIFY)
-        .push_x_only_key(&p.x).push_opcode(OP_CHECKSIGVERIFY)
-        .push_opcode(OP_SHA256).push_slice(s).push_opcode(OP_EQUAL)
-        .into_script()
-}
-fn refund_leaf(p: &Party, t_end: u32) -> ScriptBuf {
-    Builder::new()
-        .push_int(t_end as i64).push_opcode(OP_CLTV).push_opcode(OP_DROP)
-        .push_x_only_key(&p.x).push_opcode(OP_CHECKSIG)
-        .into_script()
-}
-fn respond_leaf(p: &Party, c: &Party, h: [u8; 32]) -> ScriptBuf {
-    Builder::new()
-        .push_x_only_key(&p.x).push_opcode(OP_CHECKSIGVERIFY)
-        .push_x_only_key(&c.x).push_opcode(OP_CHECKSIGVERIFY)
-        .push_opcode(OP_SHA256).push_slice(h).push_opcode(OP_EQUAL)
-        .into_script()
-}
-fn forfeit_leaf(c: &Party, delta: u16) -> ScriptBuf {
-    Builder::new()
-        .push_int(delta as i64).push_opcode(OP_CSV).push_opcode(OP_DROP)
-        .push_x_only_key(&c.x).push_opcode(OP_CHECKSIG)
-        .into_script()
-}
-
-fn p2a() -> ScriptBuf {
-    ScriptBuf::from_bytes(vec![0x51, 0x02, 0x4e, 0x73])
-}
-
-fn musig_ctx(p: &Party, c: &Party) -> KeyAggContext {
-    let pts: Vec<musig2::secp::Point> = [p, c]
-        .iter()
-        .map(|q| musig2::secp::Point::from_slice(&q.kp.public_key().serialize()).unwrap())
-        .collect();
-    KeyAggContext::new(pts).unwrap()
-}
-
-/// A taproot state: one leaf at depth 0, or two at depth 1.
-struct State {
-    spend: TaprootSpendInfo,
-    spk: ScriptBuf,
-}
-
-fn state(secp: &Secp256k1<All>, internal: XOnlyPublicKey, leaves: &[&ScriptBuf]) -> State {
-    let b = match leaves {
-        [a] => TaprootBuilder::new().add_leaf(0, (*a).clone()).unwrap(),
-        [a, b] => TaprootBuilder::new().add_leaf(1, (*a).clone()).unwrap().add_leaf(1, (*b).clone()).unwrap(),
-        _ => unreachable!(),
-    };
-    let spend = b.finalize(secp, internal).unwrap();
-    let spk = ScriptBuf::new_p2tr_tweaked(spend.output_key());
-    State { spend, spk }
-}
-
-fn control(st: &State, leaf: &ScriptBuf) -> Vec<u8> {
-    st.spend.control_block(&(leaf.clone(), LeafVersion::TapScript)).unwrap().serialize()
-}
-
-// ───────────────────────────── transactions ─────────────────────────────
-
-fn txin(prev: OutPoint, seq: Sequence) -> TxIn {
-    TxIn { previous_output: prev, script_sig: ScriptBuf::new(), sequence: seq, witness: Witness::new() }
-}
-
-/// A zero-fee TRUC parent: the whole bond to `to`, plus a zero-value P2A anchor.
-fn presigned(prev: OutPoint, to: &ScriptBuf) -> Transaction {
-    Transaction {
-        version: Version(3),
-        lock_time: LockTime::ZERO,
-        input: vec![txin(prev, Sequence::ENABLE_RBF_NO_LOCKTIME)],
-        output: vec![
-            TxOut { value: BOND, script_pubkey: to.clone() },
-            TxOut { value: Amount::ZERO, script_pubkey: p2a() },
-        ],
-    }
-}
-
-fn script_sig(secp: &Secp256k1<All>, tx: &Transaction, prev: &TxOut, leaf: &ScriptBuf, who: &Party) -> Vec<u8> {
-    let lh = TapLeafHash::from_script(leaf, LeafVersion::TapScript);
-    let sh = SighashCache::new(tx)
-        .taproot_script_spend_signature_hash(0, &Prevouts::All(&[prev.clone()]), lh, TapSighashType::Default)
-        .unwrap();
-    secp.sign_schnorr_no_aux_rand(&Message::from_digest(sh.to_byte_array()), &who.kp).serialize().to_vec()
-}
-
-fn with_witness(mut tx: Transaction, items: Vec<Vec<u8>>) -> Transaction {
-    tx.input[0].witness = Witness::from_slice(&items);
-    tx
-}
-
-// ───────────────────────────── node and fee wallet ─────────────────────────────
-
-struct Node {
-    rpc: Rpc,
-    secp: Secp256k1<All>,
-    fee: Party,
-    fee_addr: Address,
-}
-
-impl Node {
-    fn mine(&self, n: u32) {
-        self.rpc.call("generatetoaddress", json!([n, self.fee_addr.to_string()])).unwrap();
-    }
-
-    /// The largest confirmed, mature output paying the fee key.
-    fn fee_utxo(&self) -> (OutPoint, TxOut) {
-        let tip = self.rpc.height() as u64;
-        let r = self.rpc.call("scantxoutset", json!(["start", [format!("addr({})", self.fee_addr)]])).unwrap();
-        let best = r["unspents"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .filter(|u| !u["coinbase"].as_bool().unwrap_or(true) || u["height"].as_u64().unwrap() + 100 <= tip)
-            .max_by_key(|u| (u["amount"].as_f64().unwrap() * 1e8) as u64)
-            .expect("no mature fee UTXO");
-        let op = OutPoint { txid: best["txid"].as_str().unwrap().parse().unwrap(), vout: best["vout"].as_u64().unwrap() as u32 };
-        let value = Amount::from_sat((best["amount"].as_f64().unwrap() * 1e8).round() as u64);
-        (op, TxOut { value, script_pubkey: self.fee_addr.script_pubkey() })
-    }
-
-    fn sign_fee_input(&self, tx: &mut Transaction, idx: usize, prevouts: &[TxOut]) {
-        let sh = SighashCache::new(&*tx)
-            .taproot_key_spend_signature_hash(idx, &Prevouts::All(prevouts), TapSighashType::Default)
-            .unwrap();
-        let tweaked = self.fee.kp.tap_tweak(&self.secp, None);
-        let sig = self.secp.sign_schnorr_no_aux_rand(&Message::from_digest(sh.to_byte_array()), &tweaked.to_keypair());
-        tx.input[idx].witness = Witness::from_slice(&[sig.serialize().to_vec()]);
-    }
-
-    /// The provider (here the fee key) funds a bond: one keypath input, bond and change outputs.
-    fn fund(&self, spk: &ScriptBuf) -> Transaction {
-        let (op, prev) = self.fee_utxo();
-        let fee = Amount::from_sat(FEERATE * 154);
-        let mut tx = Transaction {
-            version: Version(2),
-            lock_time: LockTime::ZERO,
-            input: vec![txin(op, Sequence::ENABLE_RBF_NO_LOCKTIME)],
-            output: vec![
-                TxOut { value: BOND, script_pubkey: spk.clone() },
-                TxOut { value: prev.value - BOND - fee, script_pubkey: self.fee_addr.script_pubkey() },
-            ],
-        };
-        self.sign_fee_input(&mut tx, 0, &[prev]);
-        tx
-    }
-
-    /// CPFP child of a zero-fee parent: spends the P2A anchor plus one fee input.
-    fn child(&self, parent: &Transaction) -> Transaction {
-        let (op, prev) = self.fee_utxo();
-        let anchor = OutPoint { txid: parent.compute_txid(), vout: 1 };
-        let fee = Amount::from_sat(FEERATE * (parent.vsize() as u64 + 153));
-        let mut tx = Transaction {
-            version: Version(3),
-            lock_time: LockTime::ZERO,
-            input: vec![txin(anchor, Sequence::ENABLE_RBF_NO_LOCKTIME), txin(op, Sequence::ENABLE_RBF_NO_LOCKTIME)],
-            output: vec![TxOut { value: prev.value - fee, script_pubkey: self.fee_addr.script_pubkey() }],
-        };
-        let prevouts = [parent.output[1].clone(), prev];
-        self.sign_fee_input(&mut tx, 1, &prevouts);
-        tx
-    }
-
-    fn submit_package(&self, parent: &Transaction) -> Result<Transaction, String> {
-        let child = self.child(parent);
-        let r = self.rpc.call("submitpackage", json!([[serialize_hex(parent), serialize_hex(&child)]]))?;
-        if r["package_msg"].as_str() == Some("success") {
-            return Ok(child);
-        }
-        let errs: Vec<String> = r["tx-results"]
-            .as_object()
-            .map(|m| m.values().filter_map(|t| t["error"].as_str().map(String::from)).collect())
-            .unwrap_or_default();
-        Err(format!("{}: {}", r["package_msg"].as_str().unwrap_or("?"), errs.join("; ")))
-    }
-
-    /// Mine a block containing `tx` without the mempool: consensus rules only, no relay policy.
-    fn mine_raw(&self, tx: &Transaction) -> Result<(), String> {
-        self.rpc.call("generateblock", json!([self.fee_addr.to_string(), [serialize_hex(tx)]])).map(|_| ())
-    }
-
-    fn send(&self, tx: &Transaction) -> Result<(), String> {
-        self.rpc.call("sendrawtransaction", json!([serialize_hex(tx)])).map(|_| ())
-    }
-
-    /// Core's own vsize for a confirmed transaction (txindex is on).
-    fn core_vsize(&self, tx: &Transaction) -> u64 {
-        let r = self.rpc.call("getrawtransaction", json!([tx.compute_txid().to_string(), true])).unwrap();
-        r["vsize"].as_u64().unwrap()
-    }
-}
 
 // ───────────────────────────── reporting ─────────────────────────────
 
@@ -363,7 +125,7 @@ fn main() {
         let refund = refund_leaf(&p, t_end);
         let forfeit = forfeit_leaf(&c, DELTA);
         let challenge_leaves: Vec<ScriptBuf> = sen.iter().map(|s| challenge_leaf(&c, &p, s.s)).collect();
-        let respond_leaves: Vec<ScriptBuf> = sen.iter().map(|s| respond_leaf(&p, &c, s.h)).collect();
+        let respond_leaves: Vec<ScriptBuf> = sen.iter().map(|s| respond_leaf(&p, &c, &[s.h])).collect();
         let mut bonds: Vec<State> = challenge_leaves.iter().map(|l| state(secp, internal, &[l, &refund])).collect();
         bonds.push(state(secp, internal, &[&refund]));
         let challenged = respond_leaves.iter().map(|l| state(secp, internal, &[l, &forfeit])).collect();
