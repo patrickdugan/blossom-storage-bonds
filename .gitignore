@@ -1,3 +1,6 @@
 /regtest/target/
 node_modules/
 /fixtures/nip44.vectors.json
+/zk/runs/
+/zk/cairo/target/
+/zk/prover/target/

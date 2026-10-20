@@ -1,0 +1,46 @@
+# Prover and verifier for the aggregated storage proof (zk/cairo). The stwo / stwo-cairo /
+# cairo-vm revisions are Raito's (starkware-bitcoin/raito 48c237ac), as in rust-bitcoin's zk
+# prover, with stwo-cairo taken from the small-preprocessed fork: e8bc957 plus a preprocessed
+# trace bounded at 2^k rows, which is what lets a proof fit in a few GiB instead of ~15.
+[package]
+name = "bsb-zk"
+version = "0.0.0"
+edition = "2021"
+rust-version = "1.89"
+description = "Prove and verify the blossom-storage-bonds aggregated storage proof with stwo-cairo"
+publish = false
+
+[[bin]]
+name = "bsb-zk"
+path = "src/main.rs"
+
+[dependencies]
+stwo = { git = "https://github.com/starkware-libs/stwo", rev = "45d0180", default-features = false }
+cairo-air = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "e8bc9571675bb654b6e26a7bd53838a6ae78c344", default-features = false }
+stwo_cairo_prover = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "e8bc9571675bb654b6e26a7bd53838a6ae78c344" }
+stwo-cairo-adapter = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "e8bc9571675bb654b6e26a7bd53838a6ae78c344" }
+cairo-vm = { version = "3.0.0", features = ["std"] }
+cairo-lang-executable = { git = "https://github.com/m-kus/cairo", rev = "13f3701f3d6c50086beb25ee3a191949bcc8dddf" }
+cairo-lang-execute-utils = { git = "https://github.com/m-kus/cairo", rev = "13f3701f3d6c50086beb25ee3a191949bcc8dddf" }
+cairo-lang-runner = { git = "https://github.com/m-kus/cairo", rev = "13f3701f3d6c50086beb25ee3a191949bcc8dddf" }
+serde_json = "1"
+blake2 = { version = "0.10", default-features = false }
+
+[patch.crates-io]
+cairo-lang-executable = { git = "https://github.com/m-kus/cairo", rev = "13f3701f3d6c50086beb25ee3a191949bcc8dddf" }
+cairo-lang-runner = { git = "https://github.com/m-kus/cairo", rev = "13f3701f3d6c50086beb25ee3a191949bcc8dddf" }
+cairo-lang-casm = { git = "https://github.com/m-kus/cairo", rev = "13f3701f3d6c50086beb25ee3a191949bcc8dddf" }
+cairo-lang-execute-utils = { git = "https://github.com/m-kus/cairo", rev = "13f3701f3d6c50086beb25ee3a191949bcc8dddf" }
+cairo-vm = { git = "https://github.com/m-kus/cairo-vm", rev = "c9aa51b9360a6c89389cf88c93ac30b5213e64a7" }
+stwo-cairo-adapter = { git = "https://github.com/patrickdugan/stwo-cairo", rev = "e088e4779fd74a9080e7e00f1ba842d439b976c5" }
+
+[patch."https://github.com/starkware-libs/stwo-cairo"]
+cairo-air = { git = "https://github.com/patrickdugan/stwo-cairo", rev = "e088e4779fd74a9080e7e00f1ba842d439b976c5" }
+stwo_cairo_prover = { git = "https://github.com/patrickdugan/stwo-cairo", rev = "e088e4779fd74a9080e7e00f1ba842d439b976c5" }
+stwo-cairo-adapter = { git = "https://github.com/patrickdugan/stwo-cairo", rev = "e088e4779fd74a9080e7e00f1ba842d439b976c5" }
+stwo-cairo-common = { git = "https://github.com/patrickdugan/stwo-cairo", rev = "e088e4779fd74a9080e7e00f1ba842d439b976c5" }
+stwo-cairo-serialize = { git = "https://github.com/patrickdugan/stwo-cairo", rev = "e088e4779fd74a9080e7e00f1ba842d439b976c5" }
+stwo-cairo-serialize-derive = { git = "https://github.com/patrickdugan/stwo-cairo", rev = "e088e4779fd74a9080e7e00f1ba842d439b976c5" }
+
+[profile.release]
+debug = false

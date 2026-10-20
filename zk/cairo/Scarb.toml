@@ -1,0 +1,21 @@
+[package]
+name = "zk_pdp"
+version = "0.1.0"
+edition = "2024_07"
+cairo-version = "2.19.6"
+
+# No `allow-syscalls`: the build fails if a syscall (e.g. corelib SHA-256 through
+# `sha256_process_block`) is compiled in, because a proof does not constrain a syscall's result.
+[executable]
+
+[cairo]
+enable-gas = false
+
+[dependencies]
+cairo_execute = "2.19.6"
+
+[dev-dependencies]
+cairo_test = "2.19.6"
+
+[features]
+blake = []

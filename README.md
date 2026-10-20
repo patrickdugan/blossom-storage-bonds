@@ -30,6 +30,8 @@ The full design, findings and plan are in [docs/design.md](docs/design.md).
 | `layer1/` | A Blossom server with PDP, sentinel and cut-and-choose endpoints; the provider process; the client; a Nostr relay; NIP-44 v2; epoch challenges over NIP-44; Bitcoin payment channels and an in-memory Lightning stub behind one interface; the layer-1 demo and the market |
 | `model/fixture.ts` | Writes `fixtures/sentinels.json`, the seam between the model and the regtest harness |
 | `regtest/` | Rust (rust-bitcoin 0.32.7, musig2 0.4.1): `bsb-regtest`, the phase-1 harness, and `bsb-bond`, one party's on-chain agent for bonds and payment channels (it signs only as `BSB_SEED`) |
+| `zk/` | Phase 3a: `cairo/`, the aggregated epoch proof as a Cairo program (SHA-256 tree, or Blake2s with `--features blake`); `prover/`, `bsb-zk` prove/verify on stwo-cairo; `witness.ts`; `bench.sh`, `adversarial.sh`, `summarize.py`. `model/zk_pdp.ts` is the statement |
+| `results/zk-pdp.md` | Phase 3a benchmark table, fits and the 1 GiB / 1 TiB extrapolation (raw runs in `zk-pdp.jsonl`; soundness cases in `zk-pdp-adversarial.jsonl`) |
 | `scripts/regtest-node.sh` | Starts a throwaway regtest node on RPC port 18543 |
 | `results/regtest.json` | Last harness run: measured vsizes and every accept/reject with Core's reason |
 | `results/layer1.json` | Last layer-1 demo run: every epoch's outcome per provider, receipts, balances |
@@ -160,6 +162,30 @@ For the full set of official NIP-44 vectors, run `scripts/fetch-nip44-vectors.sh
 file and checks it against a pinned SHA-256; the file is not committed because its repository declares
 no license. Without it the NIP-44 test checks only the embedded vectors.
 
+### Aggregated storage proof (phase 3a)
+
+One Stwo proof per provider per epoch, over all of its deals: for a public seed, q chunks per deal
+at indices derived from the seed, each opening to its deal root (design §4.1). The proving stack is
+Linux only; it was run in WSL Ubuntu 24.04 with Scarb 2.19.6 and Rust nightly-2025-07-14 (pinned in
+`zk/prover/rust-toolchain.toml`). stwo-cairo comes from the `small-preprocessed` fork
+(github.com/patrickdugan/stwo-cairo, e088e477), which bounds the preprocessed trace so that a proof
+fits in a few GB.
+
+```bash
+cd zk/cairo && scarb --release build && cp target/release/zk_pdp.executable.json $EXE_DIR/zk_pdp_sha.executable.json
+scarb --release build --features blake && cp target/release/zk_pdp.executable.json $EXE_DIR/zk_pdp_blake.executable.json
+cd ../prover && cargo build --release && cd ../..   # about 20 minutes the first time
+node zk/witness.ts --hash sha --deals 1 --q 2 --chunks 256 --out zk/runs/demo
+bsb-zk prove  --hash sha --executable $EXE_DIR/zk_pdp_sha.executable.json --args zk/runs/demo/args.json --out proof.json --max-log-rows 20
+bsb-zk verify --hash sha --executable $EXE_DIR/zk_pdp_sha.executable.json --proof proof.json --statement zk/runs/demo/statement.json --max-log-rows 20
+```
+
+`zk/adversarial.sh sha:1:1:64 blake:4:4:256` runs the soundness cases (missing chunk, own seed, other
+deals, forged output, wrong program). `zk/bench.sh hash:deals:q:chunks ...` runs the benchmark, then
+`python zk/summarize.py results/zk-pdp.jsonl > results/zk-pdp.md`. The scripts default to this
+machine's WSL paths (`BIN`, `EXE_DIR`, `NODE`); override them with environment variables. Keep the
+witness on a Linux filesystem: cairo-lang reads it unbuffered, which is slow over a Windows mount.
+
 ## Status
 
 - Phase 0 (model): done, 16 tests.
@@ -173,6 +199,10 @@ no license. Without it the NIP-44 test checks only the embedded vectors.
   (the full official vector set passes), payments settle on chain through Bitcoin payment channels,
   and each provider's own agent answers its on-chain challenges. Every cheating provider forfeits; the
   honest one is paid and refunded. 43 TypeScript tests.
+- Phase 3a (aggregated epoch proof): done for the proof. Proofs verify, a provider missing one
+  challenged chunk cannot produce one, and the cost is measured (design §4.1): about 11 MB per proof
+  and under 20 ms to verify. Proving costs 6.7 s per challenged chunk on the SHA-256 tree and 0.47 s
+  on a Blake2s tree. Recursion and on-chain verification (BitVM2 or OP_CAT, §4.2) are not built.
 - Next: Lightning in place of the per-pair channels (2b), a zk setup proof replacing cut and choose
   (2), and a pooled BitVM bond (3, research).
 
