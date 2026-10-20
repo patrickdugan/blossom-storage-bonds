@@ -1,3 +1,5 @@
+Machine: laptop: Ryzen AI 9 365, WSL capped at 4.5 GB, 4 prover threads.
+
 | backend | deals | q | chunks/deal (depth) | challenged C | Cairo steps | K | prove (s) | total (s) | peak RSS (MiB) | proof (MB) | STARK verify (s) | result |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | sha | 1 | 1 | 256 (8) | 1 | 1,387,657 | 20 | 28.5 | 30.3 | 3,047 | 10.6 | 0.020 | verified |
@@ -22,7 +24,7 @@ Fits (least squares over the verified runs):
 - sha: steps ≈ 64,040 + C·(1,066,345 + 32,159·depth); total time ≈ 24.1 s + 6.72 s·C; peak RSS ≈ 2,344 + 807.1 MiB·C; largest C proved here 2 (fit: 38 s); proof ≈ 10.5 MB; STARK verify ≈ 18 ms (the CLI's total, ≈ 1.1 s, is mostly recomputing the preprocessed root, which a verifier caches)
 - blake: steps ≈ 976 + C·(20,495 + 591·depth); total time ≈ 20.0 s + 0.47 s·C; peak RSS ≈ 2,039 + 30.9 MiB·C; largest C proved here 64 (fit: 50 s); proof ≈ 11.1 MB; STARK verify ≈ 18 ms (the CLI's total, ≈ 1.2 s, is mostly recomputing the preprocessed root, which a verifier caches)
 
-Extrapolation at q = 8 per deal (layer 1's default). C = deals × q. 'One proof' is the peak RSS a single proof would need by the memory fit (this machine has 4.5 GB). 'Split' = ⌈C / C_max⌉ proofs of the largest C proved here, run one after another on this machine (time from the fit); each proof is verified on its own.
+Extrapolation at q = 8 per deal (layer 1's default). C = deals × q. 'One proof' is the peak RSS a single proof would need by the memory fit. 'Split' = ⌈C / C_max⌉ proofs of the largest C proved here, run one after another on this machine (time from the fit); each proof is verified on its own.
 
 | per epoch | split into | backend | C | Cairo steps | one proof: peak RSS | proofs if split | prover time, split (h) | proof bytes, split | STARK verify, split (s) |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |

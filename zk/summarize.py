@@ -1,6 +1,6 @@
 """Table and extrapolation for the aggregated storage proof benchmark.
 
-    python zk/summarize.py results/zk-pdp.jsonl > results/zk-pdp.md
+    python zk/summarize.py results/zk-pdp.jsonl ["machine label"] > results/zk-pdp.md
 
 Reads the JSON lines zk/bench.sh writes. Per backend it fits, by least squares over the runs that
 proved,
@@ -19,6 +19,9 @@ import math
 import sys
 
 rows = [json.loads(l) for l in open(sys.argv[1], encoding="utf-8") if l.strip()]
+MACHINE = sys.argv[2] if len(sys.argv) > 2 else "laptop: Ryzen AI 9 365, WSL capped at 4.5 GB, 4 prover threads"
+print(f"Machine: {MACHINE}.")
+print()
 rows.sort(key=lambda r: (r["hash"] != "sha", r["deals"] * r["q"], r["chunks_per_deal"], r["deals"]))
 ok = [r for r in rows if r.get("verify", {}).get("result") == "verified"]
 
@@ -95,7 +98,7 @@ scen = [
 Q = 8
 print()
 print(f"Extrapolation at q = {Q} per deal (layer 1's default). C = deals × q. 'One proof' is the peak RSS a single "
-      "proof would need by the memory fit (this machine has 4.5 GB). 'Split' = ⌈C / C_max⌉ proofs of the largest C "
+      "proof would need by the memory fit. 'Split' = ⌈C / C_max⌉ proofs of the largest C "
       "proved here, run one after another on this machine (time from the fit); each proof is verified on its own.")
 print()
 print("| per epoch | split into | backend | C | Cairo steps | one proof: peak RSS | proofs if split | prover time, split (h) | proof bytes, split | STARK verify, split (s) |")

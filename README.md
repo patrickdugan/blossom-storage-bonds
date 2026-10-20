@@ -31,7 +31,7 @@ The full design, findings and plan are in [docs/design.md](docs/design.md).
 | `model/fixture.ts` | Writes `fixtures/sentinels.json`, the seam between the model and the regtest harness |
 | `regtest/` | Rust (rust-bitcoin 0.32.7, musig2 0.4.1): `bsb-regtest`, the phase-1 harness, and `bsb-bond`, one party's on-chain agent for bonds and payment channels (it signs only as `BSB_SEED`) |
 | `zk/` | Phase 3a: `cairo/`, the aggregated epoch proof as a Cairo program (SHA-256 tree, or Blake2s with `--features blake`); `prover/`, `bsb-zk` prove/verify on stwo-cairo; `witness.ts`; `bench.sh`, `adversarial.sh`, `summarize.py`. `model/zk_pdp.ts` is the statement |
-| `results/zk-pdp.md` | Phase 3a benchmark table, fits and the 1 GiB / 1 TiB extrapolation (raw runs in `zk-pdp.jsonl`; soundness cases in `zk-pdp-adversarial.jsonl`) |
+| `results/zk-pdp.md`, `zk-pdp-vps.md` | Phase 3a benchmark tables, fits and the 1 GiB / 1 TiB extrapolation, on the laptop (4.5 GB WSL) and on an 8-core 31 GB box (raw runs in the `.jsonl` files; soundness cases in `zk-pdp-adversarial.jsonl`) |
 | `scripts/regtest-node.sh` | Starts a throwaway regtest node on RPC port 18543 |
 | `results/regtest.json` | Last harness run: measured vsizes and every accept/reject with Core's reason |
 | `results/layer1.json` | Last layer-1 demo run: every epoch's outcome per provider, receipts, balances |
@@ -185,6 +185,7 @@ deals, forged output, wrong program). `zk/bench.sh hash:deals:q:chunks ...` runs
 `python zk/summarize.py results/zk-pdp.jsonl > results/zk-pdp.md`. The scripts default to this
 machine's WSL paths (`BIN`, `EXE_DIR`, `NODE`); override them with environment variables. Keep the
 witness on a Linux filesystem: cairo-lang reads it unbuffered, which is slow over a Windows mount.
+On a host without swap, set `GUARD_RSS_MIB` so the guard stops a run before the OOM killer does.
 
 ## Status
 
@@ -200,9 +201,9 @@ witness on a Linux filesystem: cairo-lang reads it unbuffered, which is slow ove
   and each provider's own agent answers its on-chain challenges. Every cheating provider forfeits; the
   honest one is paid and refunded. 43 TypeScript tests.
 - Phase 3a (aggregated epoch proof): done for the proof. Proofs verify, a provider missing one
-  challenged chunk cannot produce one, and the cost is measured (design §4.1): about 11 MB per proof
-  and under 20 ms to verify. Proving costs 6.7 s per challenged chunk on the SHA-256 tree and 0.47 s
-  on a Blake2s tree. Recursion and on-chain verification (BitVM2 or OP_CAT, §4.2) are not built.
+  challenged chunk cannot produce one, and the cost is measured (design §4.1): 11–14 MB per proof
+  and about 20 ms to verify. On 8 cores, proving costs 7.6 s and 1.7 GB per challenged chunk on the
+  SHA-256 tree, and 0.21 s and 50 MB on a Blake2s tree. Recursion and on-chain verification (BitVM2 or OP_CAT, §4.2) are not built.
 - Next: Lightning in place of the per-pair channels (2b), a zk setup proof replacing cut and choose
   (2), and a pooled BitVM bond (3, research).
 

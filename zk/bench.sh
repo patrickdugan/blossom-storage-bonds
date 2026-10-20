@@ -5,8 +5,8 @@
 #   bash zk/bench.sh sha:1:1:256 blake:4:4:256 ...
 #
 # Every proof runs under a guard that samples RSS and swap each second and kills the prover once
-# its swap passes $GUARD_SWAP_MIB: on this machine (WSL capped at 4.5 GB) a run that only finishes
-# by paging is reported as memory-bound, not timed. K is the bounded preprocessed trace (2^K rows;
+# its swap passes $GUARD_SWAP_MIB (or its RSS passes $GUARD_RSS_MIB, if set): on the laptop (WSL
+# capped at 4.5 GB) a run that only finishes by paging is reported as memory-bound, not timed. K is the bounded preprocessed trace (2^K rows;
 # stwo-cairo needs K >= 20 and K >= every component's log size); a run whose components outgrow
 # 2^K is retried at K + 1.
 set -u
@@ -20,6 +20,7 @@ RESULTS=${RESULTS:-$ZK/../results/zk-pdp.jsonl}
 # the WSL mount of the Windows (OneDrive) folder that alone cost about 6 s per challenged chunk.
 STAGE=${STAGE:-/root/zk-bench}
 GUARD_SWAP_MIB=${GUARD_SWAP_MIB:-1024}
+GUARD_RSS_MIB=${GUARD_RSS_MIB:-0}   # 0: no RSS cap (the WSL VM is capped already)
 K0=${K0:-20}
 KMAX=${KMAX:-22}
 export RAYON_NUM_THREADS=${RAYON_NUM_THREADS:-4}
@@ -35,6 +36,10 @@ guarded() {  # log, command...: run, sampling the heaviest of it; exit 137 if th
     echo "$(date +%s) rss=${rss:-0} swap=${swap:-0}" >> "$log"
     if [ "${swap:-0}" -gt "$GUARD_SWAP_MIB" ]; then
       echo "guard: swap ${swap} MiB > ${GUARD_SWAP_MIB} MiB, killing" >&2; kill -9 $pid; fired=1
+    fi
+    # On a host without swap the OOM killer comes first, so cap resident memory as well.
+    if [ "$GUARD_RSS_MIB" -gt 0 ] && [ "${rss:-0}" -gt "$GUARD_RSS_MIB" ]; then
+      echo "guard: RSS ${rss} MiB > ${GUARD_RSS_MIB} MiB, killing" >&2; kill -9 $pid; fired=1
     fi
     sleep 1
   done
@@ -57,7 +62,7 @@ for spec in "$@"; do
     guarded "$dir/guard.log" "$BIN" prove --hash "$hash" --executable "$EXE_DIR/zk_pdp_$hash.executable.json" \
       --args "$stage/args.json" --out "$stage/proof.json" --max-log-rows "$k" > "$dir/prove.json" 2> "$dir/prove.err"
     rc=$?
-    if [ $rc != 0 ] && grep -q "preprocessed trace variant allows" "$dir/prove.err" && [ $k -lt $KMAX ]; then
+    if [ $rc != 0 ] && grep -q "preprocessed trace variant allows\|Not enough twiddles" "$dir/prove.err" && [ $k -lt $KMAX ]; then
       k=$((k + 1)); continue
     fi
     break
@@ -80,7 +85,7 @@ print(json.dumps({"run": name, "hash": h, "deals": int(d), "q": int(q), "chunks_
 EOF
   else
     why=$(tail -c 300 "$dir/prove.err" | tr '\n"' ' ' )
-    [ $rc = 137 ] && why="memory-bound: swap passed ${GUARD_SWAP_MIB} MiB at K=$k"
+    [ $rc = 137 ] && why="memory-bound at K=$k: $(grep -m1 guard: "$dir/prove.err" | tr '"' ' ')"
     echo "{\"run\": \"$name\", \"hash\": \"$hash\", \"deals\": $deals, \"q\": $q, \"chunks_per_deal\": $chunks, \"k\": $k, \"rc\": $rc, \"swap_peak_mib\": ${swap_peak:-0}, \"error\": \"$why\"}" >> "$RESULTS"
   fi
   tail -1 "$RESULTS" | cut -c1-400

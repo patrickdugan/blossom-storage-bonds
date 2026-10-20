@@ -91,12 +91,12 @@ cost, and it is worth paying only for what phases 0–2 cannot do: one bond pool
     and sends that URL and the answer's SHA-256 inside the encrypted, signed reply (layer1 tests).
 
 11. **A public aggregated proof is cheap to verify and cheap to prove only with a Blake2s tree.** One
-    Stwo proof covers every deal a provider holds. It is about 11 MB, verifies in under 20 ms, and
-    has no proof unless every challenged chunk is held (§4.1). Proving costs about 6.7 s and 0.8 GB per
-    challenged chunk on the protocol's SHA-256 tree, against 0.47 s and 31 MB on a Blake2s tree. A
-    1 TiB provider in 1 GiB deals at q = 8 needs 43 laptop-hours per epoch with SHA-256 and 1.8 with
-    Blake2s. Bitcoin can enforce the proof only through BitVM2 (a committee and a Groth16 wrap) or
-    OP_CAT (a soft fork) (§4.2).
+    Stwo proof covers every deal a provider holds. It is 11–14 MB, verifies in about 20 ms, and has
+    no proof unless every challenged chunk is held (§4.1). On an 8-core, 31 GB box, proving costs
+    7.6 s and 1.7 GB per challenged chunk on the protocol's SHA-256 tree, against 0.21 s and 50 MB on
+    a Blake2s tree. A 1 TiB provider in 1 GiB deals at q = 8 needs 18 h of that box per epoch with
+    SHA-256 and 31 min with Blake2s. Bitcoin can enforce the proof only through BitVM2 (a committee
+    and a Groth16 wrap) or OP_CAT (a soft fork) (§4.2).
 
 ## 1. Layer 1: pay per proof
 
@@ -349,41 +349,61 @@ compressions.
 | blake | 1 × 64 = 64 | 2^18 (1 GiB) | 1.99 M | 60 s | 4.0 GB | 11.1 MB |
 | blake | C ≥ 128 | 256 | — | memory-bound | | |
 
-Fitted over the verified runs, a SHA-256 chunk costs 6.7 s and 0.8 GB per proof. A Blake2s chunk
-costs 0.47 s and 31 MB, about 14 times cheaper in time and 26 times in memory. Each tree level adds
-2.3% to a SHA-256 chunk. Every proof has a floor of about 20 s and 2 GB. Proof size is flat at about
-11 MB. The STARK verifies in 16–20 ms, plus about a second to recompute the preprocessed root, which a
-verifier computes once and caches.
+Fitted over the verified laptop runs, a SHA-256 chunk costs 6.7 s and 0.8 GB per proof. A Blake2s
+chunk costs 0.47 s and 31 MB. Each tree level adds 2.3% to a SHA-256 chunk. Every proof has a floor
+of about 20 s and 2 GB. Proof size is about 11 MB, and the STARK verifies in 16–20 ms, plus about a
+second to recompute the preprocessed root, which a verifier computes once and caches.
+
+**Larger runs** (`results/zk-pdp-vps.md`) went on a rented box with 8 cores, 31 GB of RAM and no
+swap, using 8 prover threads, the same binary and the same executables, and resident memory capped
+at 28 GB. K grows as needed, up to 2^23 rows:
+
+| backend | C | chunks/deal | K | prove + execute | peak RSS | proof |
+| --- | --- | --- | --- | --- | --- | --- |
+| sha | 1 | 256 | 20 | 14 s | 3.1 GB | 10.6 MB |
+| sha | 8 | 2^18 (1 GiB) | 23 | 88 s | 21.7 GB | 13.2 MB |
+| sha | 16 | 256 | 23 | 122 s | 27.4 GB | 13.3 MB |
+| sha | 32 | 256 | — | memory-bound at 28 GB | | |
+| blake | 64 | 256 | 20 | 18 s | 4.2 GB | 11.3 MB |
+| blake | 256 | 2^18 (1 GiB) | 22 | 68 s | 15.9 GB | 13.0 MB |
+| blake | 512 | 256 | 23 | 116 s | 26.8 GB | 14.0 MB |
+| blake | 1,024 | 256 | — | memory-bound at 28 GB | | |
+
+On that box a SHA-256 chunk costs 7.6 s and 1.7 GB, and a Blake2s chunk 0.21 s and 50 MB: Blake2s is
+about 36 times cheaper in both. Time is close to linear in Cairo steps for both backends, about
+6–9 µs per step, so Blake2s's advantage comes from needing roughly 50 times fewer steps per chunk.
+Memory per chunk is higher than on the laptop, because the preprocessed trace grows with K. Proofs
+grow from 11 MB to 14 MB as K rises, and verification stays at 19–24 ms.
 
 What sets the cost is the number of challenged chunks C = deals × q and the tree depth, not the bytes
-stored. At q = 8 (`results/zk-pdp.md` has the full extrapolation):
+stored. At q = 8, from the box's fits (`results/zk-pdp-vps.md` has the full extrapolation):
 
 | per epoch | shape | sha | blake |
 | --- | --- | --- | --- |
-| 1 GiB or 1 TiB | 1 deal (C = 8) | 4 proofs, 2.5 min, 42 MB; one proof would need ~9 GB | 1 proof, 24 s, 11 MB |
-| 1 GiB | 1,024 deals of 1 MiB (C = 8,192) | 4,096 proofs, 43 h, 43 GB | 128 proofs, 1.8 h, 1.4 GB |
-| 1 TiB | 1,024 deals of 1 GiB (C = 8,192) | the same: 43 h | the same: 1.8 h |
-| 1 TiB | 2^20 deals of 1 MiB (C = 8.4 M) | 5 years of this laptop | 76 days |
+| 1 GiB or 1 TiB | 1 deal (C = 8) | 1 proof, about 90 s, 22 GB of RAM | 1 proof, about 10 s, 2 GB |
+| 1 GiB | 1,024 deals of 1 MiB (C = 8,192) | 512 proofs, 18 h, 6.1 GB of proofs | 16 proofs, 31 min, 194 MB |
+| 1 TiB | 1,024 deals of 1 GiB (C = 8,192) | the same: 18 h | the same: 31 min |
+| 1 TiB | 2^20 deals of 1 MiB (C = 8.4 M) | 2.1 years of this box | 22 days |
 
-Rows above 4.5 GB are split into the largest proofs that fit here. A single proof would need, by the
-memory fit, about 6.5 TB (sha) or 250 GB (blake) at C = 8,192. That is a linear extrapolation, not a
-measurement.
+Rows above 28 GB are split into the largest proofs that fit. On the laptop the same rows take 43 h
+(sha) and 1.8 h (blake). A single proof at C = 8,192 would need, by the memory fit, about 13 TiB
+(sha) or 400 GiB (blake). That is a linear extrapolation, not a measurement.
 
 Three conclusions follow:
 
 - **The tree's hash decides feasibility.** In Cairo, SHA-256 over 4 KiB leaves cannot keep up with a
-  daily epoch past a few hundred deals per provider. Blake2s can, at about 0.5 s per challenged chunk.
-  The chunk tree is only ever checked by the client and the provider, never by Bitcoin script (the
-  sentinels hash separately, see §2), so moving it to Blake2s costs the protocol nothing. The
-  alternative is a second Blake2s commitment signed in the deal next to R. If the zk path goes ahead,
-  that change should come first.
+  daily epoch past roughly a thousand deals per 8-core prover. Blake2s can, at about 0.2 s per
+  challenged chunk. The chunk tree is only ever checked by the client and the provider, never by
+  Bitcoin script (the sentinels hash separately, see §2), so moving it to Blake2s costs the protocol
+  nothing. The alternative is a second Blake2s commitment signed in the deal next to R. If the zk
+  path goes ahead, that change should come first.
 - **Proofs must be per provider, not per byte.** Cost scales with deals × q. A provider should pool
   its deals into a few large ones, or sample q across the whole deal set instead of per deal (a
   different statement, not built), so that C stays in the hundreds.
-- **One proof per epoch needs recursion.** Without it, a 1 TiB provider publishes about 128 proofs
-  per epoch and a verifier checks each one. That is cheap off-chain (18 ms each) and hopeless
-  on-chain. stwo-cairo can verify a Stwo proof inside Cairo, so the 128 can fold into one proof. That
-  was not built here.
+- **One proof per epoch needs recursion.** Without it, a 1 TiB provider publishes 16 proofs per epoch
+  (128 on the laptop) and a verifier checks each one. That is cheap off-chain (about 20 ms each) and
+  hopeless on-chain. stwo-cairo can verify a Stwo proof inside Cairo, so these can fold into one
+  proof. That was not built here.
 
 What the proof does not give: Stwo proofs as configured here are succinct and public, but not hiding.
 That is acceptable because the chunks are per-replica ciphertext, but it is not zero-knowledge in the
@@ -442,8 +462,8 @@ trust-minimized and far smaller, but needs consensus that does not exist yet.
   defends against it both go away.
 
 Two limits remain. The proof shows knowledge of the chunks, not where they are stored or that they
-are served (§3, §5). And per-epoch proving costs the provider real compute, about 0.5 s per
-challenged chunk with a Blake2s tree, which it will price in.
+are served (§3, §5). And per-epoch proving costs the provider real compute, about 0.2 s per
+challenged chunk on 8 cores with a Blake2s tree, which it will price in.
 
 ## 5. Retrieval
 
