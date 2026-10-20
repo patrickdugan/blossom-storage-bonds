@@ -33,6 +33,7 @@ The full design, findings and plan are in [docs/design.md](docs/design.md).
 | `regtest/` | Rust (rust-bitcoin 0.32.7, musig2 0.4.1): `bsb-regtest`, the phase-1 harness, and `bsb-bond`, one party's on-chain agent for bonds and payment channels (it signs only as `BSB_SEED`) |
 | `zk/` | Phase 3a: `cairo/`, the aggregated epoch proof as a Cairo program (SHA-256 tree, or Blake2s with `--features blake`); `prover/`, `bsb-zk` prove/verify on stwo-cairo; `witness.ts`; `bench.sh`, `adversarial.sh`, `summarize.py`. `model/zk_pdp.ts` is the statement |
 | `layer1/zk.ts`, `zk-provider.ts`, `watchtower.ts`, `public-pdp.ts` | Phase 3b: prove and verify through WSL; a provider's unprompted epoch proofs and their Nostr announcements; an independent watchtower; the end-to-end run |
+| `layer1/full-stack.ts`, `results/full-stack.json` | Phase 4: the whole stack in one run, and its outcomes read back from the chain |
 | `results/public-pdp.json` | Last phase-3b run: per provider and epoch, what it proved, what the client verified and paid, the watchtower's attestation, and every channel close |
 | `results/zk-pdp.md`, `zk-pdp-vps.md` | Phase 3a benchmark tables, fits and the 1 GiB / 1 TiB extrapolation, on the laptop (4.5 GB WSL) and on an 8-core 31 GB box (raw runs in the `.jsonl` files; soundness cases in `zk-pdp-adversarial.jsonl`) |
 | `scripts/regtest-node.sh` | Starts a throwaway regtest node on RPC port 18543 |
@@ -270,6 +271,32 @@ The times include waiting for the single prover: proofs run one at a time throug
 The executables are the phase-3a build commands run on this branch's `zk/cairo`. A run takes about
 eight minutes.
 
+### The whole stack (phase 4)
+
+With the regtest node running, lnd installed (see the Lightning market above), and the phase-3b
+executables built:
+
+```bash
+node layer1/full-stack.ts
+```
+
+Three provider processes, each with its own lnd, prove their holdings every 10 blocks, seeded by the
+boundary block's hash. The client verifies each proof and pays the epoch over Lightning, and a
+watchtower attests every epoch. A missing or invalid attestation sends the client to that provider's
+1 BTC sentinel bond on chain (design §4.4). From the first proof to the written results took 7.8
+minutes, after a few minutes of setup:
+
+```
+provider     proofs ok  paid (LN)  attested               bond (1 BTC)
+honest       3/3        1536       valid throughout       refunded to the provider
+deletes 10%  1/3        512        missing @ 180          forfeited to the client
+outsources   1/3        512        missing @ 180          forfeited to the client
+```
+
+`results/full-stack.json` has every transaction behind that table, read back from bitcoind: bond
+funding, challenges with the revealed secrets, forfeits and the refund, each Lightning channel and
+its close, every BOLT 11 payment hash and its preimage, and the watchtower's attestations.
+
 ## Status
 
 - Phase 0 (model): done, 16 tests.
@@ -294,8 +321,11 @@ eight minutes.
   number of deals (64 deals cost 19% more steps than 1). Providers prove each epoch unprompted, from
   block-hash seeds, and publish over Blossom and Nostr. An independent watchtower attests every
   epoch, and the client pays only for proofs it verified. Proofs are verified off chain.
-- Next: on-chain enforcement driven by the public proofs (phase 4, `layer1/full-stack.ts`), a zk setup
-  proof replacing cut and choose (2), and verifying the proof on Bitcoin itself (BitVM2 or OP_CAT, §4.2).
+- Phase 4 (the whole stack): done on regtest. Bonds, public STARK epoch proofs, Lightning payment per
+  verified epoch, and watchtower attestations that trigger on-chain challenges, in one run with every
+  party in its own process. Both cheaters forfeit; the honest provider is paid and refunded.
+- Next: on-chain payments with ZK inclusion proofs as a third payment backend, a zk setup proof
+  replacing cut and choose (2), and verifying the storage proof on Bitcoin itself (BitVM2 or OP_CAT, §4.2).
 
 The keys and MuSig2 nonce seeds in `regtest/` are fixed test values. Never use this code with real
 funds.

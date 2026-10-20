@@ -607,6 +607,53 @@ sentinel bonds of §2 remain the on-chain stick, and §4.2 is what a proof-based
 relays could withhold events, so a provider would publish to several relays and a watchtower read
 from several. And one machine proved for all three providers, one proof at a time.
 
+### 4.4 Phase 4: the whole stack in one run (`layer1/full-stack.ts`)
+
+Phases 2a, 2b and 3b each had one part of the deal. 2a had the bond and its on-chain enforcement,
+2b had Lightning, and 3b had public proofs and the watchtower. Phase 4 joins them so that a failed
+public proof costs the provider its bond, with no client-chosen challenge anywhere in the epoch
+phase.
+
+Every party runs in its own process with its own keys, fee wallet and lnd: three providers
+(`provider.ts --pay ln --zk`), one watchtower and the client, on one regtest bitcoind.
+
+1. Each provider holds three deals (1 MiB, 512 KiB, 256 KiB). The 1 MiB deal carries a 1 BTC
+   sentinel bond, set up by cut and choose (64 sentinels of 16 windows, 4 kept) with each side
+   checking the other's presignatures. The client's lnd opens a private 50,000-sat channel to each
+   provider's lnd.
+2. Every 10 blocks each provider proves its holdings unprompted: seed = the boundary block's hash,
+   q = 16 over all three deals. The STARK goes on its own Blossom server and is announced on Nostr.
+3. The client verifies each proof against its own node and pays that epoch's BOLT 11 invoice over
+   Lightning, after checking the payee and amount itself. Without a valid proof it pays nothing.
+4. The watchtower verifies every proof on its own and attests valid, invalid or missing.
+5. A missing or invalid attestation puts the provider on the client's list. After Lightning settles,
+   the client reveals that provider's sentinels on chain. The provider's own process reads each
+   revealed secret from the chain and answers from its own bytes. Bitcoin Core rejects a wrong answer,
+   and after 144 blocks without a valid one the client spends the forfeit leaf. A provider with no
+   adverse attestation is never challenged, and refunds its bond at `t_end`.
+
+From epoch 2, one provider zeroes 10% of every replica and one reads the honest provider's copies.
+The result, all read back from bitcoind (`results/full-stack.json`):
+
+| provider | epochs proved and verified | paid over Lightning | watchtower | on-chain challenge | 1 BTC bond |
+| --- | --- | --- | --- | --- | --- |
+| honest | 3 / 3 | 1,536 sats | valid at 170, 180, 190 | none | refunded through the CLTV leaf at `t_end` (9b5886a2…) |
+| deletes 10% | 1 / 3 | 512 sats | missing at 180 and 190 | sentinel 0; its answer rejected (`OP_EQUALVERIFY`) | forfeited through the CSV-144 leaf to the client (226a8d19…) |
+| outsources | 1 / 3 | 512 sats | missing at 180 and 190 | sentinel 0; its answer rejected (`OP_EQUALVERIFY`) | forfeited through the CSV-144 leaf to the client (04d5479e…) |
+
+Each Lightning close spends its channel's funding outpoint and has an output of exactly what the client
+paid over it, which the run checks. All five paid epochs carry a preimage that opens its BOLT 11
+payment hash. At q = 16 a 10% deleter passes an epoch with probability 0.9^16 ≈ 0.19, so being
+caught at its first epoch of misbehaviour was the likely outcome, not a forced one. With 16 windows
+per sentinel, one on-chain challenge then forfeits it with probability 1 − 0.9^16 ≈ 0.81 (0.9988 over
+all four). Here the first did.
+
+What this run does not show. Proofs are verified off chain, so the trigger is the watchtower's signed
+attestation. The bond itself is still the two-party sentinel bond, enforced by Bitcoin script; making
+the STARK itself the on-chain condition needs §4.2. Lightning settles before the bond phase, because
+lnd's per-block RPC would exhaust Windows' ephemeral ports during the 144-block windows. It is one
+machine and one regtest node, and the seeds are regtest block hashes.
+
 ## 5. Retrieval
 
 Possession proofs do not make the provider serve the file. What helps:
@@ -649,6 +696,7 @@ Blossom servers already authorize uploads with kind 24242 events, and users list
 | 3 | BitVM2-shaped pooled bond: registry, header-seeded challenges, aggregated proof; measure cost per deal against phase 1 | Research |
 | 3a | Aggregated epoch proof: one Cairo program over all of a provider's deals, proved and verified with Stwo, SHA-256 and Blake2s trees, soundness cases, cost table and extrapolation (§4.1); what on-chain enforcement takes (§4.2) | Done for the proof; recursion and on-chain verification not built |
 | 3b | Holdings mode (cost independent of the number of deals) and public proofs in the market: block-hash seeds, proofs on Blossom, Nostr announcements, an independent watchtower, pay only for verified epochs (§4.3) | Done on regtest; proofs verified off chain |
+| 4 | The whole stack in one run: bonds, public proofs, Lightning payment per verified epoch, and watchtower attestations that trigger on-chain sentinel challenges (§4.4) | Done on regtest: both cheaters forfeit, the honest provider is paid and refunded |
 
 ## What is and is not tested
 
