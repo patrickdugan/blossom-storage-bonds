@@ -28,12 +28,13 @@ The full design, findings and plan are in [docs/design.md](docs/design.md).
 | --- | --- |
 | `docs/design.md` | Design note: trust table, findings, both layers, griefing, cut and choose, BitVM as phase 3 |
 | `model/` | Executable TypeScript model: replica encryption, chunk tree, epoch proofs, sentinels, tapscript leaves with an interpreter, sizes, economics |
-| `layer1/` | A Blossom server with PDP, sentinel and cut-and-choose endpoints; the provider process; the client; a Nostr relay; NIP-44 v2; epoch challenges over NIP-44; three payment backends behind one interface (Bitcoin payment channels, LND over REST with a BOLT 11 decoder, and an in-memory stub); the layer-1 demo and the market |
+| `layer1/` | A Blossom server with PDP, sentinel and cut-and-choose endpoints; the provider process; the client; a Nostr relay; NIP-44 v2; epoch challenges over NIP-44; four payment backends behind one interface (Bitcoin payment channels, LND over REST with a BOLT 11 decoder, plain on-chain payments with inclusion receipts, and an in-memory stub); the layer-1 demo and the market |
 | `model/fixture.ts` | Writes `fixtures/sentinels.json`, the seam between the model and the regtest harness |
 | `regtest/` | Rust (rust-bitcoin 0.32.7, musig2 0.4.1): `bsb-regtest`, the phase-1 harness, and `bsb-bond`, one party's on-chain agent for bonds and payment channels (it signs only as `BSB_SEED`) |
 | `zk/` | Phase 3a: `cairo/`, the aggregated epoch proof as a Cairo program (SHA-256 tree, or Blake2s with `--features blake`); `prover/`, `bsb-zk` prove/verify on stwo-cairo; `witness.ts`; `bench.sh`, `adversarial.sh`, `summarize.py`. `model/zk_pdp.ts` is the statement |
 | `layer1/zk.ts`, `zk-provider.ts`, `watchtower.ts`, `public-pdp.ts` | Phase 3b: prove and verify through WSL; a provider's unprompted epoch proofs and their Nostr announcements; an independent watchtower; the end-to-end run |
 | `layer1/full-stack.ts`, `results/full-stack.json` | Phase 4: the whole stack in one run, and its outcomes read back from the chain |
+| `layer1/onchain.ts`, `headerchain.ts`, `results/full-stack-onchain.json` | Phase 5: on-chain pay per proof (signed invoices, pay-to-contract outputs, batching, receipts = txid + Merkle inclusion proof), the header-chain check that stands in for a ZeroSync-style STARK, and the whole stack paid that way |
 | `results/public-pdp.json` | Last phase-3b run: per provider and epoch, what it proved, what the client verified and paid, the watchtower's attestation, and every channel close |
 | `results/zk-pdp.md`, `zk-pdp-vps.md` | Phase 3a benchmark tables, fits and the 1 GiB / 1 TiB extrapolation, on the laptop (4.5 GB WSL) and on an 8-core 31 GB box (raw runs in the `.jsonl` files; soundness cases in `zk-pdp-adversarial.jsonl`) |
 | `scripts/regtest-node.sh` | Starts a throwaway regtest node on RPC port 18543 |
@@ -297,6 +298,50 @@ outsources   1/3        512        missing @ 180          forfeited to the clien
 funding, challenges with the revealed secrets, forfeits and the refund, each Lightning channel and
 its close, every BOLT 11 payment hash and its preimage, and the watchtower's attestations.
 
+### The whole stack, paid on chain (phase 5)
+
+Wallets need a short path on Windows (SQLite fails past 260 characters), so give the node a
+`-walletdir`:
+
+```bash
+scripts/regtest-node.sh <datadir> <bitcoind> -walletdir=<short existing dir>
+```
+
+```bash
+node layer1/full-stack.ts --pay onchain
+```
+
+The same run with no lnd. The client pays each verified epoch from a Core wallet, in one transaction
+per batch (`--pay-every N` epochs), to a taproot output per provider that commits to the invoices'
+payment hashes. It then publishes a receipt: the txid, the invoices and the Merkle inclusion proof.
+The watchtower runs with no node at all. It checks every header from genesis, as served by an
+untrusted mirror (a stand-in for a ZeroSync-style STARK of the header chain, which Raito's
+`chain_segment` cannot produce for regtest yet; design §4.5). It takes each epoch's seed from that
+chain and attests both sides of every epoch, stored and paid. Each provider then sweeps what it was
+paid with its own key:
+
+```
+provider     epoch  provider         client       paid (chain)  watchtower: stored / paid
+honest       1      proved           verified     512           valid / paid
+honest       2      proved           verified     512           valid / paid
+honest       3      proved           verified     512           valid / paid
+deletes 10%  1      proved           verified     512           valid / paid
+deletes 10%  2      could not prove  nothing      0             missing / —
+...
+on-chain payments (5 sat/vB):
+  be9e4f18651158f1… epochs 170: 3 output(s), 3 invoice(s), 240 vB (model 240), fee 1205 sats
+  4c1b9ea663841465… epochs 180: 1 output(s), 1 invoice(s), 154 vB (model 154), fee 775 sats
+  6e7698b44d10c550… epochs 190: 1 output(s), 1 invoice(s), 154 vB (model 154), fee 775 sats
+  a third party's re-check from 1615 mirrored headers: 3/3 receipts verify
+```
+
+Bonds end as in phase 4. Paid one epoch at a time, the five epoch payments cost more in fees (2,755
+sats) than they paid (2,560), and a lone 512-sat output costs more to spend at 5 sat/vB than it holds.
+With `--pay-every 3`, one 240-vB transaction paid all six verified epochs of a second run, for 1,205
+sats in fees. The design note has the fee arithmetic. `results/full-stack-onchain.json` and
+`results/full-stack-onchain-batched.json` hold every payment, receipt and sweep, read back from
+bitcoind.
+
 ## Status
 
 - Phase 0 (model): done, 16 tests.
@@ -324,8 +369,12 @@ its close, every BOLT 11 payment hash and its preimage, and the watchtower's att
 - Phase 4 (the whole stack): done on regtest. Bonds, public STARK epoch proofs, Lightning payment per
   verified epoch, and watchtower attestations that trigger on-chain challenges, in one run with every
   party in its own process. Both cheaters forfeit; the honest provider is paid and refunded.
-- Next: on-chain payments with ZK inclusion proofs as a third payment backend, a zk setup proof
-  replacing cut and choose (2), and verifying the storage proof on Bitcoin itself (BitVM2 or OP_CAT, §4.2).
+- Phase 5 (on-chain payments): done on regtest, with the header-chain STARK replaced by a labelled
+  stand-in. `--pay onchain` pays verified epochs in batched transactions and publishes a receipt per
+  payment; a watchtower with no node checks both the storage proof and the payment receipt of every
+  epoch from public data (design §4.5, below).
+- Next: a regtest build of Raito's `chain_segment` so receipts carry a real header-chain STARK
+  (design §4.5 lists what it needs), a zk setup proof replacing cut and choose (2), and verifying the storage proof on Bitcoin itself (BitVM2 or OP_CAT, §4.2).
 
 The keys and MuSig2 nonce seeds in `regtest/` are fixed test values. Never use this code with real
 funds.

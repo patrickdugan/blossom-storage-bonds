@@ -654,6 +654,185 @@ the STARK itself the on-chain condition needs §4.2. Lightning settles before th
 lnd's per-block RPC would exhaust Windows' ephemeral ports during the 144-block windows. It is one
 machine and one regtest node, and the seeds are regtest block hashes.
 
+### 4.5 Phase 5: on-chain payments with inclusion receipts (`full-stack.ts --pay onchain`)
+
+Phase 4 makes "stored" a public fact: anyone can check an epoch's STARK against a block hash. "Paid"
+stayed private, a Lightning preimage held by the client. Phase 5 adds a third pay-per-proof backend
+(`layer1/onchain.ts`, behind the same `Payee`/`Payer` interfaces) in which payment is a public fact
+too: a plain Bitcoin transaction, plus a receipt that anyone can check without a node.
+
+**Binding a payment to an epoch.** The provider's invoice is signed with its Nostr key and carries a
+random 32-byte payment hash, the amount, a memo naming the epoch (`bsb zk epoch <height>`), an expiry,
+and an x-only pay key `P`. The client pays to the taproot output key
+
+    Q = P + H_TapTweak(P ‖ m)·G,    m = H_bsb/pay(h_1 ‖ … ‖ h_n)
+
+which is BIP341's tweak with `m` in place of a script-tree root. The output commits to the ordered list
+of payment hashes it settles, and holds at least the sum of their invoices. The provider spends it on
+the key path with `d + t`; in the run each provider imports `rawtr(d + t)` into a Core wallet of its
+own and sweeps what it was paid. No OP_RETURN is needed: the commitment costs no bytes, and to anyone
+without the invoices `Q` is an ordinary P2TR output. One transaction pays many epochs and many
+providers, one output per provider.
+
+**The receipt** (Nostr kind 4247, a placeholder) is the txid plus an inclusion proof: the raw
+transaction, the invoices each output pays, the 80-byte block header and height, the transaction's
+Merkle branch to the header's root, and the coinbase with its branch. All leaves sit at one depth, so
+a real coinbase at leaf 0 pins the tree depth that the branch length claims, and 64-byte transactions
+are refused (CVE-2017-12842), as in rust-bitcoin's `ProvenTip::verify_tx`. `verifyReceipt` checks it
+against a header chain and asks no node. The client publishes receipts, but a receipt is
+self-authenticating, so it does not matter who posts it.
+
+**Where this differs from Lightning's hash lock.**
+
+- Nothing is atomic. On Lightning the payee claims the money only by revealing the preimage, so payment
+  and proof of payment are one event. Here the payment hash is only a tag the output commits to. Nobody
+  needs or learns a preimage, so `pay()` resolves with an empty one, and the proof is the receipt, which
+  exists once the transaction confirms.
+- The proof is public and needs nothing from the payee. Once the transaction is buried under enough
+  work, the payee cannot deny it and the payer cannot fake it. A preimage proves payment only to someone
+  who trusts the invoice it opens, and it is private to the payer until published.
+- It is not final at once. A block is ~10 minutes away and can be reorganised, so a verifier asks for
+  depth. The run takes 1 confirmation; mainnet would want 3 to 6. Lightning settles in seconds.
+- A bad payment cannot fail safe. Paying an expired or wrong invoice moves the coins anyway. The payer
+  checks each invoice before paying (signature, network, expiry, amount, no repeats), and the receipt
+  records the block time so a verifier can see a late payment.
+
+**The header chain, and why the STARK is a stand-in here.** The receipt needs one more fact: that the
+header is block `h` of the real chain. The goal is rust-bitcoin's ZeroSync-style light client (branch
+`zk-client`, `zk/sync`). There, Stwo proofs of Raito's Cairo `chain_segment` program attest that batches
+of 8 headers validly extend a committed chain state and block-hash MMR. The client links them from
+genesis under pinned program id `f58bbd8f…` and preprocessed root `954bc5fe…` (k = 20), and applies the
+shape gates: PCS config, preprocessed root, builtin slots, output segment at the final `ap`, program
+hash, and a mandatory work floor. A receipt would then carry an MMR inclusion proof for its header in
+place of the header chain below. **`chain_segment` cannot validate regtest headers as it stands**, so
+this run uses the smallest honest stand-in: `layer1/headerchain.ts` replays the headers from genesis
+under the same rules (link, BIP34/66/65 version, time above the median of 11, bits exactly the required
+target, hash at or below it, cumulative work, plus the verifier's two-hour clock rule), with no STARK.
+It checks against Core's genesis and all 2,101 mainnet headers in rust-bitcoin's fixture, including
+the first retarget. What `chain_segment` would need for regtest:
+
+1. The proof-of-work limit. `bits_to_target` (`consensus/src/validation/difficulty.cairo`) caps
+   targets at mainnet's `MAX_TARGET = 0xffff·2^208` and rejects exponents 31 and 32 outright. Every
+   regtest header has bits `0x207fffff` (target `0x7fffff·2^232`, powLimit `0x7fff…ff`), so every one
+   fails `validate_bits`. It needs regtest's powLimit, and exponent 32 accepted.
+2. No retargeting. `adjust_difficulty` retargets every 2016 blocks; regtest has `fPowNoRetargeting`,
+   so bits stay `0x207fffff`. This only matters from height 2016, past this run.
+3. The version rule. `chain_segment/src/lib.cairo` hard-codes BIP34/66/65 at 227,931 / 363,725 /
+   388,381; regtest activates all three at height 1. Core's regtest blocks carry version `0x20000000`,
+   so they pass either way, but the constants are wrong.
+4. Genesis. The Cairo program takes its initial chain state as input, so genesis is not in Cairo, but
+   `zk-sync` links from `genesis_state(Params::MAINNET)` (hard-coded in `prove` and `verify`). It needs
+   a network option: regtest genesis `0f9188f1…2206`, time 1296688602, bits `0x207fffff`.
+5. A new pin. A regtest build is a different program, so `CHAIN_SEGMENT_PROGRAM_ID` must be
+   regenerated (`zk-sync constants`). The k = 20 preprocessed root depends only on the prover
+   configuration and stays. The shape gates are unchanged.
+
+On regtest the work floor means nothing, because a block costs about two hashes. So this run shows the
+mechanism, not the security: anyone can mine a regtest chain with a fake payment in it. On mainnet, the
+floor (a recent `nMinimumChainWork`) is what makes a verified chain *the* chain. Cost is the other
+caveat. Without recursion the STARK is far larger than what it replaces: zk-sync proves 8 headers per
+~15 MB proof. The 198 headers up to this run's last payment (block 197) would be 25 proofs and
+~375 MB, against 16 kB of raw headers here, and about 3 minutes of proving in the 4.5 GB WSL. The STARK wins
+only with recursion, one proof for the whole chain as Raito does it, which the fork does not have yet.
+Mainnet has ~75 MB of headers, and that is the case recursion is for.
+
+**Fees.** A taproot key-path input is 57.5 vB, a P2TR output 43 vB, and the overhead 10.5 vB. A batch
+with one input, `n` provider outputs and change is `111 + 43n` vB (`batchVsize`; the run's
+transactions match it to the vbyte). One payment for one epoch is 154 vB (with P2WPKH coins, 140.5 vB;
+an OP_RETURN commitment would add 43 vB more). At 5 sat/vB that is 770 sats, more than the demo's
+512-sat epoch. Batching providers into one transaction and, more importantly, epochs into one output
+is what makes it pay:
+
+| one transaction pays | vB | fee at 5 sat/vB | fee per epoch-payment | share of a 512-sat epoch |
+| --- | --- | --- | --- | --- |
+| 1 provider × 1 epoch | 154 | 770 | 770 | 150% |
+| 3 providers × 1 epoch | 240 | 1,200 | 400 | 78% |
+| 30 providers × 1 epoch | 1,401 | 7,005 | 234 | 46% |
+| 3 providers × 10 epochs | 240 | 1,200 | 40 | 7.8% |
+| 3 providers × 100 epochs | 240 | 1,200 | 4 | 0.8% |
+| 30 providers × 10 epochs | 1,401 | 7,005 | 23 | 4.6% |
+
+Batching providers alone has a floor: each provider output is 43 vB, 215 sats at 5 sat/vB, 42% of an
+epoch's price, however large the batch. Only epochs per output amortise that. Paying every E epochs
+turns pay-per-proof into pay-per-E-proofs, so the provider extends E epochs of credit (E × 512 sats per
+client) and loses pay per proof's main property, that neither side is ever owed more than one epoch.
+Every output must also clear the 330-sat taproot dust limit.
+
+The payee pays too. Spending a taproot key-path output costs 57.5 vB, so each payment output costs
+about 100 vB over its life: 43 to create and 57.5 to spend, about 500 sats at 5 sat/vB. The first run
+hit this. Each cheater was paid one 512-sat output for epoch 1, and sweeping it alone is 111 vB, 555
+sats at 5 sat/vB, so Core's `sendall` refused: the payment was worth less than spending it. The
+provider sweep now falls back to Core's 1 sat/vB relay floor, and the results record it
+(`uneconomic_at_fee_rate`). The honest provider's three outputs swept in one transaction, 226 vB for
+1,536 sats. The 330-sat dust limit is a relay rule, not an economic one. An output is worth
+having only if it holds well over a spend's cost at the fee rates the payee expects, which again means
+many epochs per output. On-chain payment suits long epochs and large deals, say an epoch per day paid
+weekly; Lightning suits small, frequent ones.
+
+**Latency.** A Lightning payment settles in seconds after the proof verifies. On chain, a payment
+waits for its batch (E epochs), then a block (about 10 minutes, with a long tail), then the depth the
+verifier wants. A ZeroSync-style prover keeps up easily: about 7 s to prove 8 headers, against 80
+minutes for 8 blocks. Like zk-sync, a verifier follows the tip natively above the proven height.
+
+**Privacy.** On the chain alone, the payments are hard to spot: no OP_RETURN marker, a fresh-looking
+P2TR key per output, no address reuse. But the inputs link a client to every provider it pays in a
+batch, amounts are visible, and runs of equal outputs (E × 512 sats) are a fingerprint. Published
+receipts give away the rest by design: client, provider, amount, epoch and txid, all linked. Public
+verifiability and public linkage are the same thing. Lightning keeps payments between the two parties.
+A middle course is to keep receipts private and publish one only when a provider claims it was not
+paid. A receipt verifies just as well months later, as long as the headers can still be had.
+
+**Paid is provable; unpaid is not.** A payment is proven by one Merkle branch (~12 hashes for a
+3,000-transaction block) plus the header-chain proof. To prove that invoice `h` was not paid, you would
+have to show that no output in any block since the invoice was issued commits to `h`. With
+pay-to-contract, nobody without the invoices can even recognise such an output. And since `h` can be
+batched with any other hashes, there is no finite set of candidate keys to rule out. So it would take a
+proof over every transaction in every block of the window: Raito-style full block validation, at
+billions of Cairo steps per segwit-era block, not 81k per header. Disputes therefore resolve one way. A
+"paid" claim can be proven. An "unpaid" claim can only be refuted, by a receipt, never confirmed. The
+watchtower therefore attests three things on the paid side: `paid`, `invalid`, and `no-receipt`. The
+last means "no valid receipt was published by the deadline", which is a fact about publication, not
+about the chain. The provider's remedy for non-payment is the one pay per proof always had: stop proving
+for that client. Lightning has the same asymmetry. A preimage proves payment; nothing proves its absence.
+
+**The run** (`node layer1/full-stack.ts --pay onchain`, fresh regtest, `results/full-stack-onchain.json`):
+the same roles as §4.4, with no lnd anywhere. The watchtower ran with no bitcoind. It followed the
+client's header mirror and checked every header from genesis, took each epoch's seed from that chain,
+verified each STARK, and verified each receipt.
+
+| provider | stored (watchtower) | paid (watchtower, from receipts) | on chain | 1 BTC bond |
+| --- | --- | --- | --- | --- |
+| honest | valid at 170, 180, 190 | paid at 170, 180, 190 | 3 outputs, 1,536 sats; swept in one 226-vB transaction at 5 sat/vB | refunded through the CLTV leaf (9b5886a2…) |
+| deletes 10% | valid at 170; missing at 180, 190 | paid at 170 | 1 output, 512 sats; sweepable only at 1 sat/vB (111 vB) | forfeited through the CSV-144 leaf (226a8d19…) |
+| outsources | valid at 170; missing at 180, 190 | paid at 170 | 1 output, 512 sats; sweepable only at 1 sat/vB (111 vB) | forfeited through the CSV-144 leaf (04d5479e…) |
+
+| payment | epochs | provider outputs | vB (model) | fee at 5 sat/vB | receipt |
+| --- | --- | --- | --- | --- | --- |
+| be9e4f18… | 170 | 3 | 240 (240) | 1,205 sats | 3,307 B, checked in 433 ms against 178 headers |
+| 4c1b9ea6… | 180 | 1 | 154 (154) | 775 sats | 1,959 B, 174 ms, 188 headers |
+| 6e7698b4… | 190 | 1 | 154 (154) | 775 sats | 1,959 B, 123 ms, 198 headers |
+
+Paying the run's five verified epochs one epoch at a time cost 2,755 sats in fees for 2,560 sats of
+storage payments. A second fresh run with `--pay-every 3` (`results/full-stack-onchain-batched.json`)
+paid every epoch in one transaction after epoch 3. This time the 10% deleter passed epoch 2 (a 0.19
+chance at q = 16) and was caught at 190. The transaction was `2cad7cc2…`: 240 vB, fee 1,205 sats, with
+three provider outputs committing to 3, 2 and 1 payment hashes (1,536, 1,024 and 512 sats). Six
+epoch-payments cost 1,205 sats in fees, where the per-epoch run paid 2,755 for five. Its one 4,999-byte
+receipt verified in 0.7 to 1.1 s, all six invoice signatures included. The honest provider's single
+1,536-sat output then swept at 5 sat/vB (111 vB). The outsourcer's lone 512-sat output again could not
+be swept at that rate. Both cheaters forfeited as before. The bond transactions are the same as §4.4's, since the parties' keys are seeded.
+At the end, a fresh header chain built from the mirror (1,615 headers, as any third party would
+build it) verified all three receipts again, at 1,418 to 1,438 confirmations. The run reads every
+payment output back from bitcoind and checks that each provider's sweep spends it. Verification
+time goes almost entirely to the invoices' BIP-340 signatures, which this repo checks in plain bigint
+arithmetic (120 to 170 ms per invoice). The Merkle and header checks are a few dozen SHA-256 calls. The regtest blocks hold only the
+coinbase and the payment, so every Merkle branch here has one hash.
+
+What this run does not show. The header chain is checked by replay, not by a STARK (above). The work
+floor is the regtest chain's own work at startup, which proves nothing. The mirror is the client's
+own node, which a regtest verifier cannot tell apart from a forger. The payer is a Core wallet on the
+shared node. The 1-confirmation depth would be unsafe on mainnet.
+
 ## 5. Retrieval
 
 Possession proofs do not make the provider serve the file. What helps:
@@ -697,6 +876,7 @@ Blossom servers already authorize uploads with kind 24242 events, and users list
 | 3a | Aggregated epoch proof: one Cairo program over all of a provider's deals, proved and verified with Stwo, SHA-256 and Blake2s trees, soundness cases, cost table and extrapolation (§4.1); what on-chain enforcement takes (§4.2) | Done for the proof; recursion and on-chain verification not built |
 | 3b | Holdings mode (cost independent of the number of deals) and public proofs in the market: block-hash seeds, proofs on Blossom, Nostr announcements, an independent watchtower, pay only for verified epochs (§4.3) | Done on regtest; proofs verified off chain |
 | 4 | The whole stack in one run: bonds, public proofs, Lightning payment per verified epoch, and watchtower attestations that trigger on-chain sentinel challenges (§4.4) | Done on regtest: both cheaters forfeit, the honest provider is paid and refunded |
+| 5 | On-chain pay per proof: signed invoices, pay-to-contract outputs committing to payment hashes, batching, receipts (txid + Merkle inclusion proof) checked from a header chain with no node; a watchtower that attests both "stored" and "paid" from public data (§4.5) | Done on regtest with a header-replay stand-in for the ZeroSync-style STARK; a regtest `chain_segment` is next |
 
 ## What is and is not tested
 
@@ -714,6 +894,9 @@ What neither covers yet:
   tests, and the LND backend's own unit tests use a fake node.
 - Separate machines. The parties are separate processes with separate keys and wallets, but they share
   one host and one regtest node.
+- A STARK of the header chain behind payment receipts. `chain_segment` cannot take regtest headers
+  (§4.5), so receipts are checked against a replayed header chain, and on regtest the work floor proves
+  nothing. On-chain payments are untested on any network but regtest, and at depths beyond 1.
 - NIP-17 gift wrapping, offers and deals as Nostr events, and any relay other than the bundled minimal
   one. The epoch challenge and answer are NIP-44 v2 events (§2.5).
 

@@ -1,0 +1,875 @@
+{
+  "generated": "2026-10-20T15:13:53.710Z",
+  "note": "One regtest run: every party a separate process with its own keys and wallet. Public STARK epoch proofs seeded by block hashes; verified epochs paid on chain to taproot outputs committing to the invoices' payment hashes, batched; a receipt (txid + Merkle inclusion proof) per payment, checked by a watchtower with no node against a header chain it validated from genesis (the stand-in for a ZeroSync-style STARK of that chain); a missing or invalid attestation triggers on-chain sentinel challenges; every txid here was read back from bitcoind.",
+  "params": {
+    "epochs": 3,
+    "misbehaviourFromEpoch": 2,
+    "q": 16,
+    "epochBlocks": 10,
+    "deadline": 6,
+    "firstBoundary": 170,
+    "deals": [
+      256,
+      128,
+      64
+    ],
+    "bondSats": 100000000,
+    "sentinels": {
+      "M": 64,
+      "k": 4,
+      "windows": 16
+    },
+    "delta": 144,
+    "priceSatsPerEpoch": 512,
+    "pay": "onchain",
+    "payEvery": 3,
+    "feeRateSatPerVb": 5,
+    "receiptDeadline": 38,
+    "watchtowerNode": "none: header mirror + work floor"
+  },
+  "regtest": {
+    "heightBefore": 0,
+    "heightAfter": 1614
+  },
+  "summary": [
+    {
+      "role": "honest",
+      "pid": 42896,
+      "epochs": [
+        {
+          "epoch": 1,
+          "height": 170,
+          "providerSays": "proved",
+          "proof": "96dc5170a329d9783ee1f5f92677d1d304c151aee14a9aa52a74dbd9e3a45a00",
+          "tower": "valid",
+          "towerEvent": "f494a12d327c38ea6a660352c6d5260b35e97eb0cfa77a5f1e32d0d7c434d91f",
+          "client": "verified",
+          "paidSats": 512,
+          "payTx": "2cad7cc2b4c597868e119b4a229239a6668a28ca38fc7cd0a4649c3066f7218e",
+          "towerPaid": "paid",
+          "towerPaidEvent": "0b73af99424f501c34ea5b3851ef3424f7e0f454b1404563d4695b69a0775607",
+          "paidCheck": {
+            "txid": "2cad7cc2b4c597868e119b4a229239a6668a28ca38fc7cd0a4649c3066f7218e",
+            "vout": 1,
+            "block": 197,
+            "confirmations": 1,
+            "receipt_bytes": 4999,
+            "verify_ms": 1072.1896,
+            "chain": "headers-standin: 198 headers checked from genesis, work 396"
+          }
+        },
+        {
+          "epoch": 2,
+          "height": 180,
+          "providerSays": "proved",
+          "proof": "4b1f2f4a7d4bed67f6c4e2a58da4068118b6d6fef95f62b26f2be03d3f31bf32",
+          "client": "verified",
+          "tower": "valid",
+          "towerEvent": "5b750a7eb81ccfa4f1a1280d4cf7d14e34263dabf20c604729e76f5bb70dc00a",
+          "paidSats": 512,
+          "payTx": "2cad7cc2b4c597868e119b4a229239a6668a28ca38fc7cd0a4649c3066f7218e",
+          "towerPaid": "paid",
+          "towerPaidEvent": "035565774b674e8115965da2eddf6ec3340684fbb9996bc3256518427f0c002e",
+          "paidCheck": {
+            "txid": "2cad7cc2b4c597868e119b4a229239a6668a28ca38fc7cd0a4649c3066f7218e",
+            "vout": 1,
+            "block": 197,
+            "confirmations": 1,
+            "receipt_bytes": 4999,
+            "verify_ms": 1072.1896,
+            "chain": "headers-standin: 198 headers checked from genesis, work 396"
+          }
+        },
+        {
+          "epoch": 3,
+          "height": 190,
+          "proof": "d5cdc934a802a17e1773b45c3d206e32be4e280729806fe5883df20da17f90ad",
+          "providerSays": "proved",
+          "tower": "valid",
+          "towerEvent": "96186306ac57d032c2f3d24b1879c6c21e742e9bd42790b609bd011df06aef25",
+          "client": "verified",
+          "paidSats": 512,
+          "payTx": "2cad7cc2b4c597868e119b4a229239a6668a28ca38fc7cd0a4649c3066f7218e",
+          "towerPaid": "paid",
+          "towerPaidEvent": "66d6c87b3107a8347e294768ec1a3aa6e5b288a5966b891183f57f39f915b631",
+          "paidCheck": {
+            "txid": "2cad7cc2b4c597868e119b4a229239a6668a28ca38fc7cd0a4649c3066f7218e",
+            "vout": 1,
+            "block": 197,
+            "confirmations": 1,
+            "receipt_bytes": 4999,
+            "verify_ms": 1072.1896,
+            "chain": "headers-standin: 198 headers checked from genesis, work 396"
+          }
+        }
+      ],
+      "onchain": {
+        "payments": [
+          {
+            "txid": "2cad7cc2b4c597868e119b4a229239a6668a28ca38fc7cd0a4649c3066f7218e",
+            "vout": 1,
+            "sats": 1536,
+            "epochs": 3,
+            "confirmations": 1418,
+            "script": "5120e2c3153658801dddb6c8bdf13cf30a2eadadb9c44ef9a06ac66c1d717f372761"
+          }
+        ],
+        "paid_sats": 1536,
+        "sweep": {
+          "txid": "a5c83fec3d5b83bbefce20420c704f4e8fd7c6ecd814d5176bfa8d7e48744485",
+          "confirmations": 1417,
+          "inputs": 1,
+          "vsize": 111,
+          "fee_rate": 5,
+          "output_sats": 976,
+          "to": "bcrt1pgt72lmteq548q9erp25ku4nsewesufcw8kgehm6hl6qz7kf9ehgszwcyg0"
+        }
+      },
+      "bond": {
+        "fund_txid": "6cbf47b6e93cf88b805b0ec1689ef141536fd308554a8686546c6d4a0a4efab7",
+        "value_sats": 100000000,
+        "settled_by": "9b5886a204720e7cb3db7b4f95775e7b03734bf584bdfe1d3cf7e6de8e9f80cf",
+        "settle_confirmations": 1,
+        "leaf": "refund leaf (CLTV t_end), to the provider",
+        "to": "provider"
+      },
+      "enforcement": {
+        "cause": null,
+        "challenges": []
+      },
+      "p_detect_10pct_per_epoch": 0,
+      "p_forfeit_given_challenge": 0,
+      "providerLog": [
+        {
+          "t": 1792508681931,
+          "provider": "honest",
+          "event": "zk-epoch",
+          "height": 170,
+          "proved": true,
+          "proof": "96dc5170a329d9783ee1f5f92677d1d304c151aee14a9aa52a74dbd9e3a45a00",
+          "bytes": 11149764,
+          "seconds": 129.383,
+          "published": true,
+          "id": "17d1448ecebcfc0c237b4f1a03ea6eda8c1707ea9e848d45ee9599106c5f64f1"
+        },
+        {
+          "t": 1792508903586,
+          "provider": "honest",
+          "event": "zk-epoch",
+          "height": 180,
+          "proved": true,
+          "proof": "4b1f2f4a7d4bed67f6c4e2a58da4068118b6d6fef95f62b26f2be03d3f31bf32",
+          "bytes": 11330284,
+          "seconds": 140.814,
+          "published": true,
+          "id": "784241fb88be1d7fda766b406237acc2afeaf47fb1270283dcacf8b9bfb063d2"
+        },
+        {
+          "t": 1792509014281,
+          "provider": "honest",
+          "event": "zk-epoch",
+          "height": 190,
+          "proved": true,
+          "proof": "d5cdc934a802a17e1773b45c3d206e32be4e280729806fe5883df20da17f90ad",
+          "bytes": 11398562,
+          "seconds": 89.537,
+          "published": true,
+          "id": "bf3383ebecd56086239a7c96a9a4f3c6fb33af94567eecdac20c6c0115a12def"
+        },
+        {
+          "t": 1792509033319,
+          "provider": "honest",
+          "event": "onchain-sweep",
+          "txid": "a5c83fec3d5b83bbefce20420c704f4e8fd7c6ecd814d5176bfa8d7e48744485",
+          "outputs": [
+            {
+              "txid": "2cad7cc2b4c597868e119b4a229239a6668a28ca38fc7cd0a4649c3066f7218e",
+              "vout": 1,
+              "sats": 1536
+            }
+          ],
+          "sats": 1536,
+          "feeRate": 5,
+          "receipts": 1
+        }
+      ]
+    },
+    {
+      "role": "deletes 10%",
+      "pid": 39720,
+      "epochs": [
+        {
+          "epoch": 1,
+          "height": 170,
+          "providerSays": "proved",
+          "proof": "fe31dfe399b956d1844e8e20eab922b8148e6d0c85609cb0ba25b8229a83f905",
+          "tower": "valid",
+          "towerEvent": "388d800eacdb34c96711b3f9aabbb7ed93debfe08870f0893e599ad10c54bcba",
+          "client": "verified",
+          "paidSats": 512,
+          "payTx": "2cad7cc2b4c597868e119b4a229239a6668a28ca38fc7cd0a4649c3066f7218e",
+          "towerPaid": "paid",
+          "towerPaidEvent": "3739eab7c12ab66569899bdd79d1edfd1ed112b351e987300352bdffca0668c5",
+          "paidCheck": {
+            "txid": "2cad7cc2b4c597868e119b4a229239a6668a28ca38fc7cd0a4649c3066f7218e",
+            "vout": 2,
+            "block": 197,
+            "confirmations": 1,
+            "receipt_bytes": 4999,
+            "verify_ms": 1072.1896,
+            "chain": "headers-standin: 198 headers checked from genesis, work 396"
+          }
+        },
+        {
+          "epoch": 2,
+          "height": 180,
+          "proof": "57cfa76672b9a1cfb7469ea4e1570abd59083fdd4f358fe3162be21a6db8c162",
+          "providerSays": "proved",
+          "client": "verified",
+          "tower": "valid",
+          "towerEvent": "d9e69e5c8ca555a2deec2b8eb67f50bb672cbd4b8538e0b9557a4f0f559b0896",
+          "paidSats": 512,
+          "payTx": "2cad7cc2b4c597868e119b4a229239a6668a28ca38fc7cd0a4649c3066f7218e",
+          "towerPaid": "paid",
+          "towerPaidEvent": "0c86ab3e21ef25e8eea23f50c6ed91f4a609f1946740877d19e3e8c49de620e8",
+          "paidCheck": {
+            "txid": "2cad7cc2b4c597868e119b4a229239a6668a28ca38fc7cd0a4649c3066f7218e",
+            "vout": 2,
+            "block": 197,
+            "confirmations": 1,
+            "receipt_bytes": 4999,
+            "verify_ms": 1072.1896,
+            "chain": "headers-standin: 198 headers checked from genesis, work 396"
+          }
+        },
+        {
+          "epoch": 3,
+          "height": 190,
+          "providerSays": "could not prove",
+          "tower": "missing",
+          "towerEvent": "05e279d48b345376c4363bbcc98eeec457ca943b8d84b217070bb67bb3d87044"
+        }
+      ],
+      "onchain": {
+        "payments": [
+          {
+            "txid": "2cad7cc2b4c597868e119b4a229239a6668a28ca38fc7cd0a4649c3066f7218e",
+            "vout": 2,
+            "sats": 1024,
+            "epochs": 2,
+            "confirmations": 1418,
+            "script": "5120a44eeeb54185cd4433b8e9b9f0adb760c322c4a90f7af3bb970a34e6d7dc14a8"
+          }
+        ],
+        "paid_sats": 1024,
+        "sweep": {
+          "txid": "06fad7745119e91a4ae77e27f35912c0b9cd535516cb8d998a3ded1345e3a494",
+          "confirmations": 1416,
+          "inputs": 1,
+          "vsize": 111,
+          "fee_rate": 5,
+          "output_sats": 464,
+          "to": "bcrt1pjmyjhyrg6el26tretjl2ew3kl2t9555tf85h4h0x8eahuwftu54qt5wenk"
+        }
+      },
+      "bond": {
+        "fund_txid": "e92aaadd82b58df4c7e07dcd2b59bcad8143908616bc7f247863ad2c7d73fe59",
+        "value_sats": 100000000,
+        "settled_by": "226a8d19a9e9ebcf8696ef1990a8b82a2c1848294901067db8662d84a5554996",
+        "settle_confirmations": 1270,
+        "leaf": "forfeit leaf (CSV 144), to the client",
+        "to": "client"
+      },
+      "enforcement": {
+        "cause": {
+          "height": 190,
+          "result": "missing",
+          "event": "05e279d48b345376c4363bbcc98eeec457ca943b8d84b217070bb67bb3d87044",
+          "why": "no proof 6 blocks after the boundary"
+        },
+        "challenges": [
+          {
+            "sentinel": 0,
+            "challenge_txid": "f393e9879c9ef5eaf8b4f968c4a4ce5df1499050c1fb2a671d68dbace903c729",
+            "answered_after_blocks": null,
+            "forfeit_txid": "226a8d19a9e9ebcf8696ef1990a8b82a2c1848294901067db8662d84a5554996",
+            "challenge_confirmations": 1414,
+            "revealed_r": "35d5ef863f010d891dc1c219f8f93c86"
+          }
+        ]
+      },
+      "p_detect_10pct_per_epoch": 0.8146979811148158,
+      "p_forfeit_given_challenge": 0.9988209815422261,
+      "providerLog": [
+        {
+          "t": 1792508738019,
+          "provider": "deletes10",
+          "event": "zk-epoch",
+          "height": 170,
+          "proved": true,
+          "proof": "fe31dfe399b956d1844e8e20eab922b8148e6d0c85609cb0ba25b8229a83f905",
+          "bytes": 11354663,
+          "seconds": 185.219,
+          "published": true,
+          "id": "88e6ec800d7016a06e9fa5f9f0bd6ad3cf0ba9a6bf8974cb02e146bdc8cab45a"
+        },
+        {
+          "t": 1792508816286,
+          "provider": "deletes10",
+          "event": "zk-epoch",
+          "height": 180,
+          "proved": true,
+          "proof": "57cfa76672b9a1cfb7469ea4e1570abd59083fdd4f358fe3162be21a6db8c162",
+          "bytes": 11684400,
+          "seconds": 54.36,
+          "published": true,
+          "id": "449535ddf9452a74803144b1b222a2c09db2f605de0c9130fae6f49aeeaf2ba6"
+        },
+        {
+          "t": 1792508923257,
+          "provider": "deletes10",
+          "event": "zk-epoch",
+          "height": 190,
+          "proved": false,
+          "why": "program rejected the witness: Error at pc=0:15:",
+          "seconds": 1.903
+        },
+        {
+          "t": 1792509034425,
+          "provider": "deletes10",
+          "event": "onchain-sweep",
+          "txid": "06fad7745119e91a4ae77e27f35912c0b9cd535516cb8d998a3ded1345e3a494",
+          "outputs": [
+            {
+              "txid": "2cad7cc2b4c597868e119b4a229239a6668a28ca38fc7cd0a4649c3066f7218e",
+              "vout": 2,
+              "sats": 1024
+            }
+          ],
+          "sats": 1024,
+          "feeRate": 5,
+          "receipts": 1
+        },
+        {
+          "t": 1792509037100,
+          "provider": "deletes10",
+          "event": "bond-respond",
+          "sha": "7804ecd5e206",
+          "i": 0,
+          "error": "transaction failed: mempool-script-verify-flag-failed (Script failed an OP_EQUALVERIFY operation)",
+          "r": "35d5ef863f010d891dc1c219f8f93c86",
+          "status": "rejected"
+        },
+        {
+          "t": 1792509088211,
+          "provider": "deletes10",
+          "event": "bond-respond",
+          "sha": "7804ecd5e206",
+          "i": 0,
+          "error": "transaction failed: bad-txns-inputs-missingorspent; bad-txns-inputs-missingorspent",
+          "r": "35d5ef863f010d891dc1c219f8f93c86",
+          "status": "rejected"
+        }
+      ]
+    },
+    {
+      "role": "outsources",
+      "pid": 1012,
+      "epochs": [
+        {
+          "epoch": 1,
+          "height": 170,
+          "proof": "8c11c7fe40edb692cb7e9d1857ef07a2cea4219f765fab9c694a1871f79b1025",
+          "providerSays": "proved",
+          "tower": "valid",
+          "towerEvent": "d3325dfa2a83d7b5674955ad6e987adc285120bea6b5239925eb7d4e5e7460a9",
+          "client": "verified",
+          "paidSats": 512,
+          "payTx": "2cad7cc2b4c597868e119b4a229239a6668a28ca38fc7cd0a4649c3066f7218e",
+          "towerPaid": "paid",
+          "towerPaidEvent": "dc6a80ee22d7fa907ee3f657063941910578225c83684ce9ec92da00e3dd6190",
+          "paidCheck": {
+            "txid": "2cad7cc2b4c597868e119b4a229239a6668a28ca38fc7cd0a4649c3066f7218e",
+            "vout": 0,
+            "block": 197,
+            "confirmations": 1,
+            "receipt_bytes": 4999,
+            "verify_ms": 1072.1896,
+            "chain": "headers-standin: 198 headers checked from genesis, work 396"
+          }
+        },
+        {
+          "epoch": 2,
+          "height": 180,
+          "providerSays": "could not prove",
+          "tower": "missing",
+          "towerEvent": "b139736b57c63002be9fec04d56451cf731583cde9a534a39b23dea3be68fa16"
+        },
+        {
+          "epoch": 3,
+          "height": 190,
+          "providerSays": "could not prove",
+          "tower": "missing",
+          "towerEvent": "ccf016cb63cf6ee98451645540b2b5f990d37fc132574339641dbcdf616a0d54"
+        }
+      ],
+      "onchain": {
+        "payments": [
+          {
+            "txid": "2cad7cc2b4c597868e119b4a229239a6668a28ca38fc7cd0a4649c3066f7218e",
+            "vout": 0,
+            "sats": 512,
+            "epochs": 1,
+            "confirmations": 1418,
+            "script": "51202747572a226f167762ffccd4f8b5291cc5f4a0f25ac0f66ef6fa9a30f6613ef5"
+          }
+        ],
+        "paid_sats": 512,
+        "sweep": {
+          "txid": "a923e4a949b1dabade8e6d3dfea94322c3dd1d821b18f6e8b26b81c9c70d7e81",
+          "confirmations": 1415,
+          "inputs": 1,
+          "vsize": 111,
+          "fee_rate": 1,
+          "uneconomic_at_fee_rate": 5,
+          "output_sats": 400,
+          "to": "bcrt1plr4w0xvktt2d5wx98ke4wgt5rwzzxku34znkqz6fg0zv4vjvmjzqhfpvy5"
+        }
+      },
+      "bond": {
+        "fund_txid": "50227bf5f735d9ac9233903903c36651afc4dbef3390db0becd3f62948ece13c",
+        "value_sats": 100000000,
+        "settled_by": "04d5479ea23681a6182a0fcd9b16118875a0c3cd219a731f198e393be8ce78c7",
+        "settle_confirmations": 1125,
+        "leaf": "forfeit leaf (CSV 144), to the client",
+        "to": "client"
+      },
+      "enforcement": {
+        "cause": {
+          "height": 180,
+          "result": "missing",
+          "event": "b139736b57c63002be9fec04d56451cf731583cde9a534a39b23dea3be68fa16",
+          "why": "no proof 6 blocks after the boundary"
+        },
+        "challenges": [
+          {
+            "sentinel": 0,
+            "challenge_txid": "8fa27e38a34132dbe5bf5d142e8c8d9f2054e97a6259e0a8579e0c16aba161fd",
+            "answered_after_blocks": null,
+            "forfeit_txid": "04d5479ea23681a6182a0fcd9b16118875a0c3cd219a731f198e393be8ce78c7",
+            "challenge_confirmations": 1269,
+            "revealed_r": "d43c6d675667ddd7765d5fbfc7c35ecb"
+          }
+        ]
+      },
+      "p_detect_10pct_per_epoch": 1,
+      "p_forfeit_given_challenge": 1,
+      "providerLog": [
+        {
+          "t": 1792508600622,
+          "provider": "outsources",
+          "event": "zk-epoch",
+          "height": 170,
+          "proved": true,
+          "proof": "8c11c7fe40edb692cb7e9d1857ef07a2cea4219f765fab9c694a1871f79b1025",
+          "bytes": 11424596,
+          "seconds": 47.924,
+          "published": true,
+          "id": "b951e2db10bd26dc45709145242200aeab450fe9b9991f76fffc680060d39196"
+        },
+        {
+          "t": 1792508816840,
+          "provider": "outsources",
+          "event": "zk-epoch",
+          "height": 180,
+          "proved": false,
+          "why": "program rejected the witness: Error at pc=0:15:",
+          "seconds": 55.767
+        },
+        {
+          "t": 1792508924634,
+          "provider": "outsources",
+          "event": "zk-epoch",
+          "height": 190,
+          "proved": false,
+          "why": "program rejected the witness: Error at pc=0:15:",
+          "seconds": 2.981
+        },
+        {
+          "t": 1792509036575,
+          "provider": "outsources",
+          "event": "onchain-sweep",
+          "txid": "a923e4a949b1dabade8e6d3dfea94322c3dd1d821b18f6e8b26b81c9c70d7e81",
+          "outputs": [
+            {
+              "txid": "2cad7cc2b4c597868e119b4a229239a6668a28ca38fc7cd0a4649c3066f7218e",
+              "vout": 0,
+              "sats": 512
+            }
+          ],
+          "sats": 512,
+          "feeRate": 1,
+          "uneconomicAt": 5,
+          "receipts": 1
+        },
+        {
+          "t": 1792509088707,
+          "provider": "outsources",
+          "event": "bond-respond",
+          "sha": "d94db8784f75",
+          "i": 0,
+          "error": "transaction failed: mempool-script-verify-flag-failed (Script failed an OP_EQUALVERIFY operation)",
+          "r": "d43c6d675667ddd7765d5fbfc7c35ecb",
+          "status": "rejected"
+        },
+        {
+          "t": 1792509144663,
+          "provider": "outsources",
+          "event": "bond-respond",
+          "sha": "d94db8784f75",
+          "i": 0,
+          "error": "transaction failed: bad-txns-inputs-missingorspent; bad-txns-inputs-missingorspent",
+          "r": "d43c6d675667ddd7765d5fbfc7c35ecb",
+          "status": "rejected"
+        }
+      ]
+    }
+  ],
+  "payments": [
+    {
+      "txid": "2cad7cc2b4c597868e119b4a229239a6668a28ca38fc7cd0a4649c3066f7218e",
+      "epochs": [
+        170,
+        180,
+        190
+      ],
+      "vsize": 240,
+      "vsize_model": 240,
+      "fee_sats": 1205,
+      "fee_rate": 5.020833333333333,
+      "outputs": [
+        {
+          "vout": 0,
+          "payee": "6fa6c8436d3329c877186be698cf80aa1d6c31ef6944e0410b4dd491ce598083",
+          "invoices": 1,
+          "sats": 512
+        },
+        {
+          "vout": 1,
+          "payee": "9b9eecc0eab20a5c9663dd8e196e855044dcd5393dd94c6ca0821de5722fe249",
+          "invoices": 3,
+          "sats": 1536
+        },
+        {
+          "vout": 2,
+          "payee": "35c2c7abd16e5c730b588127fd57f7d3be0f107f1416077c215c92ede76cece1",
+          "invoices": 2,
+          "sats": 1024
+        }
+      ],
+      "receipt_event": "e3f0d6a7561d64f4ad6009970e36f5c07120f04642bc9240942a273734352ee1",
+      "receipt_bytes": 4999,
+      "receipt": {
+        "v": 1,
+        "network": "regtest",
+        "txid": "2cad7cc2b4c597868e119b4a229239a6668a28ca38fc7cd0a4649c3066f7218e",
+        "tx": "020000000001018cce09d5b5598a78dbede79ecaaa260fd12da52b2caa52cf6fc0659b81563b190000000000fdffffff0400020000000000002251202747572a226f167762ffccd4f8b5291cc5f4a0f25ac0f66ef6fa9a30f6613ef50006000000000000225120e2c3153658801dddb6c8bdf13cf30a2eadadb9c44ef9a06ac66c1d717f3727610004000000000000225120a44eeeb54185cd4433b8e9b9f0adb760c322c4a90f7af3bb970a34e6d7dc14a84be1052a01000000225120a81ef736394c856fd7ee2118c7476d5272211de5d55c7913df5d216dd24027e90140c5c395dd9908685f6103a89334219f841a06d15726a3b23a0cf6860e58dee7f98dbd4a67697a2bb52714e7ae26245d17779d595127eee4303e33f9c62a95e27d00000000",
+        "block": {
+          "height": 197,
+          "header": "00000030ea6098faaa6789c2a92b62be8d084c0694c6f83be6a7d843c3c9a30e79bf356bbd8b356929ec821550822de73b6b0a2f65cdf72e7866625007755ad49d02c55f6284d76affff7f2000000000",
+          "time": 1792509026,
+          "index": 1,
+          "branch": [
+            "cbdb454c36c3289889b573890a9bafc19cbc9ca09c5c1b02ce0dd3cff301c472"
+          ],
+          "coinbase": "020000000001010000000000000000000000000000000000000000000000000000000000000000ffffffff0402c50000feffffff02b5fd0295000000002251202f8aef29873248e5d70870fa96155f1171000d89c5486c4d6459ed576b6797fc0000000000000000266a24aa21a9edfd26a2ce6bf1a83ae18875627fdd0086cb107f7d43619bf9d17d0359123de40301200000000000000000000000000000000000000000000000000000000000000000c4000000",
+          "coinbaseBranch": [
+            "8e21f766309c64a4d07cfc38ca288a66a63992224a9b118e8697c5b4c27cad2c"
+          ]
+        },
+        "outputs": [
+          {
+            "vout": 0,
+            "invoices": [
+              "bsbonchain1eyJoIjoiOGMxOWJkZDgwN2JhM2RiZWIzYWNhYjhiNzI0OTAxYzZmOWIxODU5ZTIxNTQzNzU4NzQ0ZmQ2OTg3ZGZiNmNmNiIsImEiOjUxMjAwMCwicCI6IjZmYTZjODQzNmQzMzI5Yzg3NzE4NmJlNjk4Y2Y4MGFhMWQ2YzMxZWY2OTQ0ZTA0MTBiNGRkNDkxY2U1OTgwODMiLCJrIjoiMmU1MGQ2MWEyNGJlYzg5ZjFlNTA4OTg2ZWFkMTVkOGZiY2U2NmNkZTVkMGIzOTc2YTA5NDE5OTIxMGFhMGMzNSIsIm4iOiJyZWd0ZXN0IiwibSI6ImJzYiB6ayBlcG9jaCAxNzAiLCJ4IjoxNzkyNTEyMzQzLCJzIjoiNmMwYjljZjYwYmQ3NDZjOGQ1YmVjNGNjNTMzNWRlNDVjNDEwNmU3ZWIyYWY2N2MzODU3YWUyMTg0MGQ4ZTc5NDNkZmYxMzUxNTk1MGMzZWE0NmZiZGIwYTEzZGUwZDFmNzJhMzZlN2M0NjdkY2FhY2NhZTU4YzAyMDM0OWU3MzcifQ"
+            ]
+          },
+          {
+            "vout": 1,
+            "invoices": [
+              "bsbonchain1eyJoIjoiNmE0MGQzZjdmYTdjNmY0NDMwZTg3ZjA4ZTJkNzQwYmI4OGNiMDhmZTBhY2IzMzMzZTc3MDU1OTY0NTJkZjkyYSIsImEiOjUxMjAwMCwicCI6IjliOWVlY2MwZWFiMjBhNWM5NjYzZGQ4ZTE5NmU4NTUwNDRkY2Q1MzkzZGQ5NGM2Y2EwODIxZGU1NzIyZmUyNDkiLCJrIjoiN2FmOWI1OTI4YTE5MWNmYjIxNDUwZjQ1NGRkNjVjOWQ2ZTNjY2ZjMTU5ZmU3OTM3ZjQyMDk2NGNjMzE3NDIxNCIsIm4iOiJyZWd0ZXN0IiwibSI6ImJzYiB6ayBlcG9jaCAxNzAiLCJ4IjoxNzkyNTEyMzUyLCJzIjoiOGI2MWZiNTc2MTViMWVhMTZkOWE2MjY5ZGMxNDI5YmU3ZjcyYTIzMmM2Nzk3OTM4NTM3M2RmYmQxYjEyZjQ5NDYxNWY1NWU5NWY3NWU3NzY0MjM2Zjc0N2I0OWQyMWE0ZGJhOWQ0YTkzOTIzOTE1NWY5OWQxMTVkMzU5OTBlZDEifQ",
+              "bsbonchain1eyJoIjoiYTUxMmQzMTc1NDQ3ODMzYjY4NmEyMWMxN2I2ZjQyYzBlNWJjMDYwNzQ3MGNmZmUyNzZjZGI3OTUxY2NmMDcyOSIsImEiOjUxMjAwMCwicCI6IjliOWVlY2MwZWFiMjBhNWM5NjYzZGQ4ZTE5NmU4NTUwNDRkY2Q1MzkzZGQ5NGM2Y2EwODIxZGU1NzIyZmUyNDkiLCJrIjoiN2FmOWI1OTI4YTE5MWNmYjIxNDUwZjQ1NGRkNjVjOWQ2ZTNjY2ZjMTU5ZmU3OTM3ZjQyMDk2NGNjMzE3NDIxNCIsIm4iOiJyZWd0ZXN0IiwibSI6ImJzYiB6ayBlcG9jaCAxODAiLCJ4IjoxNzkyNTEyNTE2LCJzIjoiYzJmZmM5ZjczNDExZGIwNjE0YWUyZjgxYmZiOGZlYzg3NjU4MDliOTYwZDc5YzM1OTE5MTJlZTcwNzAxZmE1YjM4MWI3M2E0NWQzZWU5ZDExNWJjNTZjNWI2YzQ1Y2JkOTQ4MmM1YzBmMGE0NjdlYzUwYTQ3Y2VjZjhiMmNiNDkifQ",
+              "bsbonchain1eyJoIjoiYzA5NWI2OGE4YmZkNzZlYzVjYzk5N2E0MzI5Y2ViMmQ3MzMxYWM4ZDliYzMwOTY2ZGU4OWUxNzM0YzI5YzgwYyIsImEiOjUxMjAwMCwicCI6IjliOWVlY2MwZWFiMjBhNWM5NjYzZGQ4ZTE5NmU4NTUwNDRkY2Q1MzkzZGQ5NGM2Y2EwODIxZGU1NzIyZmUyNDkiLCJrIjoiN2FmOWI1OTI4YTE5MWNmYjIxNDUwZjQ1NGRkNjVjOWQ2ZTNjY2ZjMTU5ZmU3OTM3ZjQyMDk2NGNjMzE3NDIxNCIsIm4iOiJyZWd0ZXN0IiwibSI6ImJzYiB6ayBlcG9jaCAxOTAiLCJ4IjoxNzkyNTEyNjI0LCJzIjoiYTI5MTZhZTkzYzQzYzZkOGU2MjAzNmNmMGRmMDVjOTU0ZjE3YzYxMDZkZDFhOTNkYzhiYzQyMmY1MjYxZDM4Y2M5ODBhMmY0NmZmZjExMzU2M2Q1Yzk0M2JkYjNlNTg1MDIyM2U4YjQ2ZTk1MjAzYThlYzI5NzhmZWRiODE3ZWIifQ"
+            ]
+          },
+          {
+            "vout": 2,
+            "invoices": [
+              "bsbonchain1eyJoIjoiN2UzZTZlNDZkYmYyNGZmNWQwOTNmM2NjNzFmYWU1NmM4YjhiMTRiZTQyYTg1ZDcwYjVlNmQyYjhkZGI5YWM5ZiIsImEiOjUxMjAwMCwicCI6IjM1YzJjN2FiZDE2ZTVjNzMwYjU4ODEyN2ZkNTdmN2QzYmUwZjEwN2YxNDE2MDc3YzIxNWM5MmVkZTc2Y2VjZTEiLCJrIjoiYjA3NzBjZmJiNGMxZDM2MDQzMDRhOTNiODAyMmNmODA4MDBhODkxZjdiOTlhMjZlMjdjYTk4YTQ1MGVmZDY0OCIsIm4iOiJyZWd0ZXN0IiwibSI6ImJzYiB6ayBlcG9jaCAxNzAiLCJ4IjoxNzkyNTEyMzU5LCJzIjoiZGU4MzkxODNmOGEyMzMzNmZkYTVlYTg2MDBlMGUxNmQxZTE0Mzk0ZTM4ZjljZDM2ZWM5MjY4Mjg3YjAxZjU2ZjkzMGM5ODQ1NTI2YjBhNDcxNGI2Y2YwODA1ZTkxZmRhN2M4ODg5NzUwMGMxODdhY2Q3NGUwZTc4ODg0MjFkMjcifQ",
+              "bsbonchain1eyJoIjoiNWRlMGFjY2E3YWJjNmQwMDc3ZDYzMmQ0MDRkZjg2OWRiNmQxYzY1NTNlZmUyMGU1OWYyNmY1MzQzZDdkYTMyZiIsImEiOjUxMjAwMCwicCI6IjM1YzJjN2FiZDE2ZTVjNzMwYjU4ODEyN2ZkNTdmN2QzYmUwZjEwN2YxNDE2MDc3YzIxNWM5MmVkZTc2Y2VjZTEiLCJrIjoiYjA3NzBjZmJiNGMxZDM2MDQzMDRhOTNiODAyMmNmODA4MDBhODkxZjdiOTlhMjZlMjdjYTk4YTQ1MGVmZDY0OCIsIm4iOiJyZWd0ZXN0IiwibSI6ImJzYiB6ayBlcG9jaCAxODAiLCJ4IjoxNzkyNTEyNTA2LCJzIjoiNGM4OTk0ZGU4Y2I0YzhkNmFkNmYyNjFhOWU3NDc1YmExNWI1ZWZiYTNiM2UzN2ViYmQyNGEwNjkyZjk0ZWE4ZDQ0NWNlNWUyZTEwNTQ3ZjY3NjY5ZWI1YjVmZGYwNmE0NDA0ZWU2MmEzODAzMzg1ZjY0NTk2NDI2MDEyNTM0M2QifQ"
+            ]
+          }
+        ],
+        "chain": {
+          "kind": "headers-standin",
+          "mirror": "http://127.0.0.1:65422/headers"
+        }
+      }
+    }
+  ],
+  "final_check": {
+    "headers": 1615,
+    "total_work": "0xc9e",
+    "receipts": [
+      {
+        "txid": "2cad7cc2b4c597868e119b4a229239a6668a28ca38fc7cd0a4649c3066f7218e",
+        "ok": true,
+        "confirmations": 1418,
+        "payments": 6,
+        "verify_ms": 705.7847
+      }
+    ]
+  },
+  "watchtower": [
+    {
+      "t": 1792508739863,
+      "watchtower": true,
+      "event": "attest",
+      "provider": "6fa6c8436d33",
+      "height": 170,
+      "side": "stored",
+      "result": "valid",
+      "proofEvent": "b951e2db10bd26dc45709145242200aeab450fe9b9991f76fffc680060d39196",
+      "proof": "8c11c7fe40edb692cb7e9d1857ef07a2cea4219f765fab9c694a1871f79b1025",
+      "deals": 3,
+      "q": 16,
+      "verify_s": 138.389
+    },
+    {
+      "t": 1792508747984,
+      "watchtower": true,
+      "event": "attest",
+      "provider": "9b9eecc0eab2",
+      "height": 170,
+      "side": "stored",
+      "result": "valid",
+      "proofEvent": "17d1448ecebcfc0c237b4f1a03ea6eda8c1707ea9e848d45ee9599106c5f64f1",
+      "proof": "96dc5170a329d9783ee1f5f92677d1d304c151aee14a9aa52a74dbd9e3a45a00",
+      "deals": 3,
+      "q": 16,
+      "verify_s": 7.43
+    },
+    {
+      "t": 1792508756284,
+      "watchtower": true,
+      "event": "attest",
+      "provider": "35c2c7abd16e",
+      "height": 170,
+      "side": "stored",
+      "result": "valid",
+      "proofEvent": "88e6ec800d7016a06e9fa5f9f0bd6ad3cf0ba9a6bf8974cb02e146bdc8cab45a",
+      "proof": "fe31dfe399b956d1844e8e20eab922b8148e6d0c85609cb0ba25b8229a83f905",
+      "deals": 3,
+      "q": 16,
+      "verify_s": 7.656
+    },
+    {
+      "t": 1792508911454,
+      "watchtower": true,
+      "event": "attest",
+      "provider": "35c2c7abd16e",
+      "height": 180,
+      "side": "stored",
+      "result": "valid",
+      "proofEvent": "449535ddf9452a74803144b1b222a2c09db2f605de0c9130fae6f49aeeaf2ba6",
+      "proof": "57cfa76672b9a1cfb7469ea4e1570abd59083fdd4f358fe3162be21a6db8c162",
+      "deals": 3,
+      "q": 16,
+      "verify_s": 94.399
+    },
+    {
+      "t": 1792508920749,
+      "watchtower": true,
+      "event": "attest",
+      "provider": "9b9eecc0eab2",
+      "height": 180,
+      "side": "stored",
+      "result": "valid",
+      "proofEvent": "784241fb88be1d7fda766b406237acc2afeaf47fb1270283dcacf8b9bfb063d2",
+      "proof": "4b1f2f4a7d4bed67f6c4e2a58da4068118b6d6fef95f62b26f2be03d3f31bf32",
+      "deals": 3,
+      "q": 16,
+      "verify_s": 8.931
+    },
+    {
+      "t": 1792508920934,
+      "watchtower": true,
+      "event": "attest",
+      "provider": "6fa6c8436d33",
+      "height": 180,
+      "side": "stored",
+      "result": "missing",
+      "why": "no proof 6 blocks after the boundary"
+    },
+    {
+      "t": 1792509019861,
+      "watchtower": true,
+      "event": "attest",
+      "provider": "9b9eecc0eab2",
+      "height": 190,
+      "side": "stored",
+      "result": "valid",
+      "proofEvent": "bf3383ebecd56086239a7c96a9a4f3c6fb33af94567eecdac20c6c0115a12def",
+      "proof": "d5cdc934a802a17e1773b45c3d206e32be4e280729806fe5883df20da17f90ad",
+      "deals": 3,
+      "q": 16,
+      "verify_s": 4.457
+    },
+    {
+      "t": 1792509020331,
+      "watchtower": true,
+      "event": "attest",
+      "provider": "35c2c7abd16e",
+      "height": 190,
+      "side": "stored",
+      "result": "missing",
+      "why": "no proof 6 blocks after the boundary"
+    },
+    {
+      "t": 1792509020682,
+      "watchtower": true,
+      "event": "attest",
+      "provider": "6fa6c8436d33",
+      "height": 190,
+      "side": "stored",
+      "result": "missing",
+      "why": "no proof 6 blocks after the boundary"
+    },
+    {
+      "t": 1792509029904,
+      "watchtower": true,
+      "event": "attest",
+      "provider": "6fa6c8436d33",
+      "height": 170,
+      "side": "paid",
+      "result": "paid",
+      "receiptEvent": "e3f0d6a7561d64f4ad6009970e36f5c07120f04642bc9240942a273734352ee1",
+      "txid": "2cad7cc2b4c597868e119b4a229239a6668a28ca38fc7cd0a4649c3066f7218e",
+      "vout": 0,
+      "block": 197,
+      "blockHash": "3c1380bada8526ba2cf7d5ad13cb88b161d98222497b40f4a7424d43c74778b6",
+      "confirmations": 1,
+      "amount_msat": 512000,
+      "paymentHash": "8c19bdd807ba3dbeb3acab8b724901c6f9b1859e21543758744fd6987dfb6cf6",
+      "late": false,
+      "receipt_bytes": 4999,
+      "verify_ms": 1072.1896,
+      "chain": "headers-standin: 198 headers checked from genesis, work 396"
+    },
+    {
+      "t": 1792509030113,
+      "watchtower": true,
+      "event": "attest",
+      "provider": "9b9eecc0eab2",
+      "height": 170,
+      "side": "paid",
+      "result": "paid",
+      "receiptEvent": "e3f0d6a7561d64f4ad6009970e36f5c07120f04642bc9240942a273734352ee1",
+      "txid": "2cad7cc2b4c597868e119b4a229239a6668a28ca38fc7cd0a4649c3066f7218e",
+      "vout": 1,
+      "block": 197,
+      "blockHash": "3c1380bada8526ba2cf7d5ad13cb88b161d98222497b40f4a7424d43c74778b6",
+      "confirmations": 1,
+      "amount_msat": 512000,
+      "paymentHash": "6a40d3f7fa7c6f4430e87f08e2d740bb88cb08fe0acb3333e7705596452df92a",
+      "late": false,
+      "receipt_bytes": 4999,
+      "verify_ms": 1072.1896,
+      "chain": "headers-standin: 198 headers checked from genesis, work 396"
+    },
+    {
+      "t": 1792509030413,
+      "watchtower": true,
+      "event": "attest",
+      "provider": "9b9eecc0eab2",
+      "height": 180,
+      "side": "paid",
+      "result": "paid",
+      "receiptEvent": "e3f0d6a7561d64f4ad6009970e36f5c07120f04642bc9240942a273734352ee1",
+      "txid": "2cad7cc2b4c597868e119b4a229239a6668a28ca38fc7cd0a4649c3066f7218e",
+      "vout": 1,
+      "block": 197,
+      "blockHash": "3c1380bada8526ba2cf7d5ad13cb88b161d98222497b40f4a7424d43c74778b6",
+      "confirmations": 1,
+      "amount_msat": 512000,
+      "paymentHash": "a512d3175447833b686a21c17b6f42c0e5bc0607470cffe276cdb7951ccf0729",
+      "late": false,
+      "receipt_bytes": 4999,
+      "verify_ms": 1072.1896,
+      "chain": "headers-standin: 198 headers checked from genesis, work 396"
+    },
+    {
+      "t": 1792509030770,
+      "watchtower": true,
+      "event": "attest",
+      "provider": "9b9eecc0eab2",
+      "height": 190,
+      "side": "paid",
+      "result": "paid",
+      "receiptEvent": "e3f0d6a7561d64f4ad6009970e36f5c07120f04642bc9240942a273734352ee1",
+      "txid": "2cad7cc2b4c597868e119b4a229239a6668a28ca38fc7cd0a4649c3066f7218e",
+      "vout": 1,
+      "block": 197,
+      "blockHash": "3c1380bada8526ba2cf7d5ad13cb88b161d98222497b40f4a7424d43c74778b6",
+      "confirmations": 1,
+      "amount_msat": 512000,
+      "paymentHash": "c095b68a8bfd76ec5cc997a4329ceb2d7331ac8d9bc30966de89e1734c29c80c",
+      "late": false,
+      "receipt_bytes": 4999,
+      "verify_ms": 1072.1896,
+      "chain": "headers-standin: 198 headers checked from genesis, work 396"
+    },
+    {
+      "t": 1792509031046,
+      "watchtower": true,
+      "event": "attest",
+      "provider": "35c2c7abd16e",
+      "height": 170,
+      "side": "paid",
+      "result": "paid",
+      "receiptEvent": "e3f0d6a7561d64f4ad6009970e36f5c07120f04642bc9240942a273734352ee1",
+      "txid": "2cad7cc2b4c597868e119b4a229239a6668a28ca38fc7cd0a4649c3066f7218e",
+      "vout": 2,
+      "block": 197,
+      "blockHash": "3c1380bada8526ba2cf7d5ad13cb88b161d98222497b40f4a7424d43c74778b6",
+      "confirmations": 1,
+      "amount_msat": 512000,
+      "paymentHash": "7e3e6e46dbf24ff5d093f3cc71fae56c8b8b14be42a85d70b5e6d2b8ddb9ac9f",
+      "late": false,
+      "receipt_bytes": 4999,
+      "verify_ms": 1072.1896,
+      "chain": "headers-standin: 198 headers checked from genesis, work 396"
+    },
+    {
+      "t": 1792509031423,
+      "watchtower": true,
+      "event": "attest",
+      "provider": "35c2c7abd16e",
+      "height": 180,
+      "side": "paid",
+      "result": "paid",
+      "receiptEvent": "e3f0d6a7561d64f4ad6009970e36f5c07120f04642bc9240942a273734352ee1",
+      "txid": "2cad7cc2b4c597868e119b4a229239a6668a28ca38fc7cd0a4649c3066f7218e",
+      "vout": 2,
+      "block": 197,
+      "blockHash": "3c1380bada8526ba2cf7d5ad13cb88b161d98222497b40f4a7424d43c74778b6",
+      "confirmations": 1,
+      "amount_msat": 512000,
+      "paymentHash": "5de0acca7abc6d0077d632d404df869db6d1c6553efe20e59f26f5343d7da32f",
+      "late": false,
+      "receipt_bytes": 4999,
+      "verify_ms": 1072.1896,
+      "chain": "headers-standin: 198 headers checked from genesis, work 396"
+    }
+  ]
+}

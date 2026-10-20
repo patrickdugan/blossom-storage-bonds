@@ -25,8 +25,10 @@ export interface Payer {
   readonly nodeId: string;
   /** Parse without paying, so the caller can check amount and payee first. */
   decode(paymentRequest: string): Invoice;
-  /** Pay at most maxMsat. Resolves with the preimage, which the caller should check against the hash. */
-  pay(paymentRequest: string, maxMsat: number): Promise<{ preimage: string }>;
+  /** Pay at most maxMsat. Resolves with the preimage, which the caller should check against the hash.
+   *  The on-chain backend (layer1/onchain.ts) has no hash lock: it resolves with an empty preimage and
+   *  the txid, and its proof of payment is a receipt built once the transaction confirms. */
+  pay(paymentRequest: string, maxMsat: number): Promise<{ preimage: string; txid?: string }>;
 }
 
 export const preimageMatches = (paymentHash: string, preimage: string): boolean =>

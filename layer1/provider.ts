@@ -4,11 +4,13 @@
 // transaction itself.
 //
 //   node layer1/provider.ts --name <slug> --seed <seed> --dir <dir> --relay <ws url> --admin-token <t>
-//                           [--price <msat per chunk-epoch>] [--rpc <url>] [--pay channel|ln] [--lnd <path>]
+//                           [--price <msat per chunk-epoch>] [--rpc <url>] [--pay channel|ln|onchain] [--lnd <path>]
 //
 // With --pay channel (the default) the payee is the one-way Bitcoin channel (layer1/channel.ts). With
 // --pay ln this process starts its own lnd under <dir>/lnd, with its own wallet and macaroon, and bills
-// each epoch with a BOLT 11 invoice from that node (layer1/lnd.ts).
+// each epoch with a BOLT 11 invoice from that node (layer1/lnd.ts). With --pay onchain it bills with
+// invoices signed by its Nostr key and paid to taproot outputs tweaked from its own pay key
+// (layer1/onchain.ts); /admin/sweep spends what the published receipts paid it into its fee address.
 //
 // It prints one JSON line, {"ready": true, ...}, and then one JSON line per event. Its keys come from
 // --seed and never leave this process: the Nostr key, the bond and channel key (bsb-bond, BSB_SEED), and
@@ -26,6 +28,7 @@ import { BondTool, rpc } from "./bondtool.ts";
 import { ChannelPayee } from "./channel.ts";
 import type { Payee } from "./lightning.ts";
 import { LndNode, LndPayee, lndExe } from "./lnd.ts";
+import { KIND_PAYMENT_RECEIPT, OnchainPayee, type PaymentReceipt } from "./onchain.ts";
 import { servePdpOverNostr } from "./nostr-pdp.ts";
 import { RelayClient } from "./relay.ts";
 import { startZkEpochs } from "./zk-provider.ts";
@@ -39,7 +42,8 @@ const arg = (name: string, dflt?: string) => {
 const NAME = arg("name"), SEED = arg("seed"), DIR = arg("dir"), RELAY = arg("relay"), TOKEN = arg("admin-token");
 const PRICE = Number(arg("price", "2000"));
 const PAY = arg("pay", "channel");
-if (PAY !== "channel" && PAY !== "ln") throw new Error("--pay must be channel or ln");
+if (PAY !== "channel" && PAY !== "ln" && PAY !== "onchain") throw new Error("--pay must be channel, ln or onchain");
+const NETWORK = arg("network", "regtest");
 const RPC = arg("rpc", process.env.BSB_RPC ?? "http://127.0.0.1:18543");
 // --zk: prove holdings every --epoch-blocks blocks from --zk-from on, with --zk-q challenges.
 const ZK = process.argv.includes("--zk");
@@ -55,8 +59,9 @@ const tool = new BondTool(SEED, RPC);
 const me = await tool.run("info");
 const lnNode = PAY === "ln" ? await LndNode.start({ bin: arg("lnd", lndExe()), dir: join(DIR, "lnd"), alias: `bsb-${NAME}` }) : undefined;
 const lnPayee = lnNode && new LndPayee(lnNode);
-const chanPayee = lnNode ? undefined : new ChannelPayee(me.x, tool, DIR);
-const payee: Payee = lnPayee ?? chanPayee!;
+const chainPayee = PAY === "onchain" ? new OnchainPayee(nostrKey, keyFromSeed(`onchain|${SEED}`), NETWORK) : undefined;
+const chanPayee = PAY === "channel" ? new ChannelPayee(me.x, tool, DIR) : undefined;
+const payee: Payee = lnPayee ?? chainPayee ?? chanPayee!;
 const bonds = new Map<string, { path: string; next: number; k: number; last?: string }>();
 
 let zk: ReturnType<typeof startZkEpochs> | undefined;
@@ -82,7 +87,7 @@ async function lnRoute(req: IncomingMessage, res: ServerResponse, url: URL): Pro
 }
 
 async function bondRoute(req: IncomingMessage, res: ServerResponse, url: URL): Promise<boolean> {
-  if (chanPayee ? await chanPayee.route(req, res, url) : await lnRoute(req, res, url)) return true;
+  if (chanPayee ? await chanPayee.route(req, res, url) : lnNode ? await lnRoute(req, res, url) : false) return true;
   if (zk && (await zk.route(req, res, url))) return true;
   const m = /^\/bond\/([0-9a-f]{64})\/(fund|presigs)$/.exec(url.pathname);
   if (req.method !== "POST" || !m) return false;
@@ -119,7 +124,7 @@ async function bondRoute(req: IncomingMessage, res: ServerResponse, url: URL): P
 
 const provider = await startProvider({
   dir: join(DIR, "blobs"), key: nostrKey, payee, priceMsatPerChunkEpoch: PRICE, routes: bondRoute,
-  info: { bond_x: me.x, channel_payee: payee.nodeId, ...(lnNode ? { ln_uri: lnNode.uri } : {}) },
+  info: { bond_x: me.x, channel_payee: payee.nodeId, ...(lnNode ? { ln_uri: lnNode.uri } : {}), ...(chainPayee ? { onchain_key: chainPayee.payKey.x, network: NETWORK } : {}) },
 });
 chanPayee?.setBaseUrl(provider.url);
 const rc = await RelayClient.connect(RELAY);
@@ -160,6 +165,17 @@ const admin = createServer(async (req, res) => {
       else throw new Error("kind must be delete or outsource");
       log({ event: "misbehave", kind: body.kind });
       return json(res, 200, { ok: true });
+    }
+    if (u.pathname === "/admin/sweep") {
+      // The receipts naming this provider, from the relay; the wallet's own rescan is the check that
+      // each output exists.
+      if (!chainPayee) throw new Error("not paid on chain");
+      const evs = await rc.query({ kinds: [KIND_PAYMENT_RECEIPT], "#p": [nostrKey.x] });
+      const receipts = evs.map((e) => JSON.parse(e.content) as PaymentReceipt);
+      const wallet = `bsb-${NAME}-paid`;
+      const s = await chainPayee.sweep((m, p) => rpc(m, p, RPC), (m, p) => rpc(m, p, `${RPC}/wallet/${wallet}`), wallet, receipts, me.fee_address, Number(body.fee_rate ?? 5));
+      log({ event: "onchain-sweep", ...s, receipts: receipts.length });
+      return json(res, 200, s);
     }
     if (u.pathname === "/admin/close-channel") return json(res, 200, chanPayee ? await chanPayee.close(String(body.client_x)) : await lnPayee!.close(String(body.peer)));
     if (u.pathname === "/admin/stop") { json(res, 200, { ok: true }); void shutdown(); return; }
