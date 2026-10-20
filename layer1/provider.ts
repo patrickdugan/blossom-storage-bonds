@@ -163,6 +163,7 @@ const admin = createServer(async (req, res) => {
     }
     if (u.pathname === "/admin/close-channel") return json(res, 200, chanPayee ? await chanPayee.close(String(body.client_x)) : await lnPayee!.close(String(body.peer)));
     if (u.pathname === "/admin/stop") { json(res, 200, { ok: true }); void shutdown(); return; }
+    if (u.pathname === "/admin/zk-stop") { zk?.stop(); log({ event: "zk-stopped" }); return json(res, 200, { ok: true }); }
     if (u.pathname === "/admin/ln-stop") { await lnNode?.stop(); log({ event: "ln-stopped" }); return json(res, 200, { ok: true }); }
     if (u.pathname === "/admin/refund") {
       const b = bonds.get(String(body.sha));
