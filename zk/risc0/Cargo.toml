@@ -1,0 +1,14 @@
+[workspace]
+resolver = "2"
+members = ["host", "methods"]
+
+# Versions follow chainwayxyz/risc0-to-bitvm2 (efc448e), whose Groth16 circuit only takes RISC Zero
+# 2.x receipts; Cargo.lock started as a copy of theirs.
+[workspace.dependencies]
+risc0-zkvm = { version = "2.0.1", default-features = false }
+risc0-zkp = "2.0.0"
+risc0-groth16 = { version = "2.0.0", features = ["prove"] }
+risc0-to-bitvm2-core = { git = "https://github.com/chainwayxyz/risc0-to-bitvm2", rev = "efc448e" }
+
+[profile.release]
+debug = false

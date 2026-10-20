@@ -2,7 +2,7 @@
 
 *The client is the verifier, so most of what Filecoin needs a chain for, this design does not.*
 
-Design note, 2026-10-19; phase 1, 1b, 2a, 2b, 3a (§4.1, `zk/`) and 3b (§4.3) results added 2026-10-20. The model is `model/storage_bonds.ts`
+Design note, 2026-10-19; phase 1, 1b, 2a, 2b, 3a (§4.1, `zk/`) and 3b (§4.3) results added 2026-10-20, and the phase 6 BitVM2 spike (§4.6) the same day. The model is `model/storage_bonds.ts`
 (`node --test model/*.test.ts`, 15 passing). Layer 1 runs end to end on localhost in `layer1/` (12 more
 tests, Lightning stubbed; see the README). The regtest harness in `regtest/` runs the same bond chain as
 real transactions against Bitcoin Core 31.1 (21 checks passing, results in `results/regtest.json`). It
@@ -23,7 +23,7 @@ who each layer relies on.
 | Nostr | Deal offers, acceptance, epoch challenges and answers | Any one relay that carries the messages; both sides can run their own |
 | Lightning | Pay each epoch after the proof checks | Channel peers, for routing only |
 | Bitcoin, sentinel bond | Forfeit the provider's collateral if it cannot show a chunk | Bitcoin consensus only |
-| Bitcoin, BitVM bond (phase 3) | One bond backing many clients, publicly checked | The BitVM setup committee (1-of-n honest), one honest online challenger, and the header-chain proof |
+| Bitcoin, BitVM bond (phase 3) | One bond backing many clients, publicly checked | The BitVM setup committee (1-of-n honest), one honest online challenger, the header-chain proof, the Groth16 key's phase-2 contributors, and a miner for non-standard dispute transactions (§4.6) |
 
 Phases 0–2 trust no committee, no oracle and no auditor. Phase 3 brings a committee back in. That is its
 cost, and it is worth paying only for what phases 0–2 cannot do: one bond pooled across many clients.
@@ -97,6 +97,18 @@ cost, and it is worth paying only for what phases 0–2 cannot do: one bond pool
     a Blake2s tree. A 1 TiB provider in 1 GiB deals at q = 8 needs 18 h of that box per epoch with
     SHA-256 and 31 min with Blake2s. Bitcoin can enforce the proof only through BitVM2 (a committee
     and a Groth16 wrap) or OP_CAT (a soft fork) (§4.2).
+
+12. **BitVM2 can carry the storage proof, but not yet with anything a bond should trust.** Proved
+    again in RISC Zero, where SHA-256 is an accelerator, the holdings statement costs about 14,100
+    cycles per challenged chunk, so q = 64 over 64 deals is 8 minutes and 9.1 GiB on four cores.
+    Bound to a proven regtest header chain and wrapped through risc0-to-bitvm2, a three-epoch term
+    becomes one 256-byte Groth16 proof with one public input. BitVM's chunked verifier accepts it,
+    and BitVM's own bridge test mined a disprove of a wrong assertion of it on regtest. A contested
+    term costs about 610,000 vB, against 696 vB per sentinel challenge. What stops it is trust more
+    than cost: the proving key in risc0-to-bitvm2's prover image records one phase-2 contribution
+    and a public beacon, upstream's glue let a forged chain through and signed assertions under the
+    wrong keys, and the largest assert transaction and every disprove are past the standard size, so
+    a dispute needs a miner (§4.6).
 
 ## 1. Layer 1: pay per proof
 
@@ -833,6 +845,335 @@ floor is the regtest chain's own work at startup, which proves nothing. The mirr
 own node, which a regtest verifier cannot tell apart from a forger. The payer is a Core wallet on the
 shared node. The 1-confirmation depth would be unsafe on mainnet.
 
+### 4.6 Phase 6: the storage proof through BitVM2, a feasibility spike (`zk/risc0`, `zk/bitvm-check`)
+
+Both upstream projects say what they are, and everything in this section inherits it.
+chainwayxyz/risc0-to-bitvm2: "This software is experimental and should not be used in production",
+and its header chain "does not necessarily prevent the malicious actors to generate proofs for their
+private forks". BitVM/BitVM: "DO NOT USE IN PRODUCTION!" Nothing here touched mainnet or real funds,
+and every key in it, the Winternitz secrets included, is a test value.
+
+§4.2 stopped at "wrap the STARK in a SNARK", with no wrap for stwo-cairo proofs to be found. The one
+working path from a STARK to BitVM's Groth16 verifier is risc0-to-bitvm2, whose circuit verifies a
+RISC Zero receipt and nothing else: RISC Zero's Circom STARK verifier, a Blake3 binding of the
+claim, Citrea's proving key, rapidsnark in Docker. So the 11 MB Cairo proof cannot go through it,
+and the spike proves the same statement again in RISC Zero, binds each epoch's seed to a proven
+header chain, wraps the result in Groth16, and checks it with BitVM's verifier. Everything ran on an
+Anthropic cloud VM with 4 vCPUs, 15 GB of RAM, no swap and no GPU; the numbers are in
+`results/bitvm2-spike.json`.
+
+**Milestone 1: the holdings guest** (`zk/risc0/methods/guest/src/bin/hold.rs`, risc0-zkvm 2.0.1, the
+versions risc0-to-bitvm2 pins). It is mode 1 of §4.3 on the protocol's SHA-256 tree, with the "sha"
+tags of `model/zk_pdp.ts`: D over the deal list, nonce = H_hold(seed ‖ D), g_j over N = Σ n_i mapped
+to a deal and an index, and each 4 KiB chunk's path climbed with the `storage_bonds.ts` prefixes,
+depth checked as `merkleVerify` checks it. Every hash goes through the zkVM's SHA-256 accelerator.
+The journal is statementOutput's 19 felts, each a big-endian u32 (`zk_pdp.ts journalBytes`), so on
+SHA-256 it reads seed ‖ q ‖ mode ‖ deal count ‖ D, 76 bytes with the seed and D as raw bytes.
+`risc0Witness` writes the guest's input, and `zk/risc0/check-journal.ts` recomputes the expected
+journal from the deal list alone and compares bytes.
+
+| deals | q | cycles | segments | prove, composite | prove, succinct | peak RSS | seal, composite / succinct |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 | 8 | 117 k | 1 (2^18) | 79 s | 112 s | 2.3 GiB | 256 kB / 223 kB |
+| 1 | 16 | 231 k | 1 (2^19) | 175 s | 202 s | 4.6 GiB | 268 kB / 223 kB |
+| 1 | 64 | 909 k | 1 (2^20) | 367 s | 411 s | 9.1 GiB | 281 kB / 223 kB |
+| 64 | 8 | 145 k | 1 (2^18) | 79 s | 108 s | 2.3 GiB | 256 kB / 223 kB |
+| 64 | 16 | 262 k | 1 (2^19) | 168 s | 197 s | 4.6 GiB | 268 kB / 223 kB |
+| 64 | 64 | 961 k | 2 (2^20 + 2^16) | 403 s | 484 s | 9.1 GiB | 502 kB / 223 kB |
+
+Deals are 256 chunks (1 MiB) each; `zk/risc0/bench.sh`, `results/bitvm2-spike-m1.jsonl`. Every
+journal matched `journalBytes` byte for byte, and `node --test model/*.test.ts` covers the encoding
+and the witness layout (32 passing). A challenged chunk costs about 14,100 cycles, nearly all of it
+the 65 compressions of its leaf, against roughly 1.4 M Cairo steps in §4.1, because SHA-256 here is
+an accelerator call and not interpreted arithmetic. Sixty-four deals add 27 k cycles at q = 8, the
+deal list hashed into D, and nothing else. Time and memory follow the padded segment size: a
+2^18-cycle segment proves in about 80 s and 2.3 GiB, and each doubling doubles both, so q = 64 is 6
+minutes and 9.1 GiB on four cores. Memory stops there, since RISC Zero splits longer runs into
+2^20-cycle segments by default (the last row), so q can grow at a cost in time, not RAM. The
+succinct receipt, which milestones 2 and 3 need, adds 30 to 80 s of recursion and is 223 kB whatever
+q is. Against the Stwo proof on the 8-core box (§4.1, 7.6 s and 1.7 GB per SHA-256 chunk), q = 64
+here is 5.7 s and 0.14 GiB per chunk on half the cores; a STARK of a VM with a SHA-256 circuit beats
+one of SHA-256 written in Cairo, which is the point §4.1 made about Blake2s from the other side.
+
+Two failing cases, both on 64 deals at q = 16 (`results/bitvm2-spike.json`, `m1.failing`):
+
+- A provider that lost the chunk challenge 5 selects, and sends zeros with the right path in its
+  place, gets no receipt. The guest panics with `root mismatch`, `exec-hold` and `prove-hold` both
+  exit 1, and no receipt file is written.
+- A provider that answers a seed of its choosing gets a valid receipt for it, whose journal differs
+  from the statement built from the real seed in its first 32 bytes, so `check-journal.ts` rejects
+  it from byte 0. The seed is public output, not something the proof can be checked against without
+  a chain, which is what milestone 2 is for.
+
+**Milestone 2: the seed is a block hash.** risc0-to-bitvm2 compiles one header-chain source per
+network (`BITCOIN_NETWORK` at build time) and ships the ELFs. The regtest build fixes the target at
+0x7fffff·2^232, requires bits 0x207fffff, never retargets, keeps the median-time rule, and is its
+own pinned image: the first, second and fifth of the five things §4.5 found missing from
+`chain_segment`. It checks no version rules on any network, so the third does not arise, and it pins
+no genesis at all (below). So it does accept regtest headers. Its published
+`elfs/regtest-header-chain-guest.bin` has image ID `5cb173ee…`, the value upstream's final-spv guest
+pins for regtest, and the host refuses any other ELF. Run as published on a fresh Bitcoin Core v30.2
+regtest chain (`zk/risc0/headers.ts` exports heights 0–200 over RPC), it proved all 201 headers in
+1.15 M cycles, about 5,700 per header against roughly 81 k Cairo steps in §4.5's `chain_segment`:
+two segments, 625 s to a succinct receipt, 9.2 GiB. Its journal ends at tip 200, hash `4ae51974…`,
+total work 0x192, two per block, which is what regtest work is worth.
+
+The term guest (`zk/risc0/methods/term/src/bin/term.rs`) takes that receipt and three holdings
+receipts, for seeds equal to the hashes of blocks 170, 180 and 190 (3 deals, q = 16, as in §4.4;
+3:15 and 4.6 GiB each), and proves in one receipt that:
+
+- the header-chain receipt verifies under the pinned image, and its journal names that same image;
+- leaf 0 of the chain's block-hash MMR is regtest's genesis;
+- each holdings receipt verifies under the holdings image, with the term's q, mode 1, deal count and
+  D;
+- each seed, reversed into internal byte order (layer 1 seeds are RPC display-order hashes), is leaf
+  h_i = 170 + 10·i of the MMR, at a position the path length and peak both follow from, so a block
+  at another height cannot stand in for it;
+- h_i + 6 ≤ the tip.
+
+Its journal is SHA-256 of a 216-byte preimage carrying both image IDs, q, the deal count, D, the
+first height, step, epoch count, depth, tip height, tip hash and total work, since the Groth16
+circuit takes exactly 32 bytes. Composing four receipts costs 71 k cycles and 188 s, nearly all of
+it resolving the assumptions, at 1.5 GiB. A holdings receipt for block 181 offered as epoch 180
+panics with `seed is not the block hash at its height`, and a depth of 11 with `seed block too
+shallow`.
+
+Two checks in that list are there because upstream's own composition lacks them, and both gaps
+reproduce with upstream's published regtest ELFs (`bsb-r0 forge-demo`):
+
+1. The header-chain guest verifies its predecessor under the `method_id` its input carries and
+   copies that value into its journal, and final-spv verifies the outer receipt under the pinned
+   image without comparing the journal's `method_id` to it. A guest of a dozen lines (`forge.rs`)
+   committed a chain state with total work 2^256 − 1 and a fabricated block at height 170; one step
+   of the genuine image with that as its predecessor and zero headers produced a receipt that
+   verifies under `5cb173ee…`. Upstream's regtest final-spv accepted, in the executor, a payment in
+   the fabricated block on that chain. The term guest rejects the same receipt with `header chain
+   proven under another image`.
+2. final-spv calls `spv.verify(...)`, which returns whether the block is in the MMR, and discards
+   the result. Over the honest chain, final-spv accepted a fabricated block whose MMR path is seven
+   zero hashes. BitVM's copies of both guests have the same lines.
+
+Neither is a flaw in BitVM2 or in RISC Zero. They are glue, which is where a statement like "this
+seed is a block hash" is actually decided, and nothing on chain reads it.
+
+**Milestone 3: Groth16.** `bsb-r0 groth16` takes the term receipt through risc0-to-bitvm2's pipeline
+as its `host/src/docker.rs` (`stark_to_succinct`) runs it. `identity_p254` re-proves the succinct
+receipt with Poseidon over BN254's scalar field, which the Circom verifier can afford (133 s); the
+seal and the claim's pre-state, post-state, journal and control IDs become the circuit's input bits;
+and the prover image runs the witness generator and rapidsnark against Citrea's proving key. The
+image is pinned by digest (`ozancw/risc0-to-bitvm2-groth16-prover@sha256:840b8331…`, 8.2 GB
+unpacked, the zkey alone 3.77 GB with SHA-256 `df6809b3…`). It ran in 79 s, and its cgroup's
+high-water mark was 8.4 GiB, which counts the page cache of the zkey it reads as well as the
+prover's own memory. `docker.rs` has no license, so `zk/risc0/host/src/wrap.rs` is written from the
+circuit's inputs rather than copied; the proof it led to verifies with exactly the output the
+formula below predicts, which a misplaced input bit would not give. The proof is the usual 256 bytes
+(A and C in G1, B in G2), the whole step 3 min 32 s.
+
+The one public output is the first 248 bits of
+
+    Blake3( SHA256( bitrev(control_root) ‖ pre_state ‖ post_state ‖ id_bn254 ) ‖ journal )
+
+where pre_state is the term guest's image ID (`b484d033…`), post_state the digest of a run that
+halted normally, control_root the succinct verifier's root with each byte's bits reversed, id_bn254
+the BN254 identity control ID, and journal the 32-byte term digest. For this run it is
+`0x2afe4d2b…f7f602`. It was computed three ways and they agree: by the circuit (public.json); by the
+host in Rust; and by `zk/risc0/check-groth16.ts` from public data alone, rebuilding the 216-byte
+preimage from the deal list, the term parameters and the regtest block hashes, SHA-256 into the
+journal, SHA-256 of the constants, and a 20-line Blake3 of the one 64-byte block. The verifying key
+came out of the image's own zkey (`snarkjs zkey export verificationkey`) and matches all 18
+coordinates of the constants in upstream's test; the key, the proof and its public input are in
+`results/bitvm2-spike-groth16/`.
+
+`zk/bitvm-check` then checks the proof with BitVM's code rather than the prover's: arkworks' Groth16
+verifier as BitVM uses it (it accepts the proof, and rejects it for the public output of a journal
+with one bit flipped), and BitVM's chunked verifier, which compiled Citrea's verifying key into 364
+disprove tapscripts, 1.11 GB in all and 0.34 to 3.95 MB each (158 s). Signing the honest assertion
+(15 field elements and 363 intermediate 16-byte Blake3 hashes, 286,771 bytes of Winternitz
+signatures) and running it against all 364 took 214 s, and none of them succeeds, which is what
+BitVM's "valid proof" means. Two invalid assertions were then caught, as BitVM2 needs them to be:
+
+| asserted | caught at | disprove script + witness | runs |
+| --- | --- | --- | --- |
+| the same proof, for the public output of a journal with one bit flipped | tap 363, `PostMillerFinalVerify`, the final pairing check | 947,271 + 7,738 bytes | succeeds, 0.08 s |
+| the honest assertion with intermediate hash 181 corrupted | tap 181, a Miller-loop point step | 3,472,345 + 3,339 bytes | succeeds, 0.15 s |
+
+Both fit the 4 MB block less BitVM's 16 kB reserve. The whole check took 17 minutes and 5.7 GiB. It
+runs in BitVM's script interpreter (rust-bitcoin-scriptexec), not in Bitcoin Core, so the step after
+it is a mined disprove. BitVM's own regtest test `test_disprove_success` (kick-off 2, the four
+assert transactions and a disprove, through esplora) was run with this proof, Citrea's key and its
+public input in place of the test's dummy circuit (`zk/bitvm-check/bridge-regtest.patch`); as in
+that test, the asserted proof has A replaced by a random point. Three things in the bridge at
+7d1ca36 stood in the way, each a finding about that code:
+
+1. The assert signer passes `hex(secret_key)` to a Winternitz signer that hex-encodes its input
+   again, so it signs under keys connector E does not hold, and assert-commit-1 fails
+   `OP_EQUALVERIFY` before it is broadcast. The unmodified test fails the same way with BitVM's own
+   dummy proof. One line fixes it.
+2. Connector C compiles its 364 disprove leaves from `RawProof::default()`, a fixed mock key,
+   whatever key the graph is meant for, and its lock-script cache id leaves the key out. As written
+   the bridge cannot disprove a proof under any other key. The patch compiles the leaves for the
+   proof's own key.
+3. Current esplora images answer 413 to request bodies over electrs' limit, and assert-commit-1 is
+   1.13 MB; BitVM's script raises only nginx's limit. `zk/bitvm-check/esplora-relay.ts` hands
+   `POST /tx` to the container's bitcoind, which also meant waiting for a block before the test looks up
+   the reward.
+
+With those, every transaction was mined on Bitcoin Core 30.2 regtest with `acceptnonstdtxn=1`. The
+disprove spends connector C's leaf for tap 363 (`PostMillerFinalVerify`) with a 475-item witness and
+pays the challenger's reward output, and with the reward lookup waiting for that block the test
+passes (`test result: ok`, 8 min 17 s, 4.2 GiB). Sizes are in (c).
+
+**(a) A bond as a BitVM2 graph.** BitVM2's bridge has an operator who fronts a withdrawal and is
+reimbursed from the peg-in unless someone disproves its claim. A storage bond is the same machine
+with the money pointed the other way: the collateral is the peg-in, and what the provider is
+reimbursed with is its own bond.
+
+1. Setup. The provider's collateral goes into an n-of-n MuSig2 output, and before it confirms the
+   committee presigns that UTXO's graph: kick-off, challenge, assert, the 364 disprove leaves, take
+   and timeout. The graph pins the statement. The term guest's image ID is the Groth16 pre-state,
+   and the term preimage holds the holdings and header-chain image IDs, q, the deal count, D, the
+   first epoch height, the step, the number of epochs and the depth.
+2. During the term nothing changes. The provider proves each epoch, publishes it, and is paid per
+   verified epoch (§2.6, §4.5). The bond is not touched.
+3. At term end the provider folds the epoch receipts and a header-chain receipt into one term proof,
+   wraps it, and kicks off. If challenged it asserts: Winternitz signatures over the Groth16 public
+   input, the 14 field elements and 363 intermediate hashes of BitVM's chunked verifier, and the
+   chain values the graph cannot know in advance (tip height, tip hash, total work). A graph could
+   demand the assertion every term instead; that is the 370,000 vB of (c) whether or not anyone
+   objects, which is why BitVM2 makes it the challenger's call.
+4. Anyone who finds a chunk whose signed inputs and outputs disagree spends that disprove leaf, and
+   the bond is slashed. A challenger who thinks the asserted chain is not the heaviest must be able
+   to say so too (d).
+5. If the provider has not kicked off by the deadline, a presigned, timelocked spend pays the bond
+   to the client. With no successful disprove by the end of the window, the provider takes it back.
+
+A provider that lost data in any epoch cannot make the term proof at all. At term end its choices
+are silence, which times out to the client, or a false assertion, which is disproved. That is
+stricter than the sentinel bond, where each on-chain challenge catches a 10% deleter with
+probability 0.81 at m = 16 (§4.4), but it acts only at term end.
+
+**(b) What BitVM's repository provides, and what is missing.** It provides the Groth16 verifier as
+Bitcoin script ("around 1 GB"), the chunker that splits it into 364 disprove tapscripts with
+Winternitz-committed intermediate values, and a bridge whose peg-in and peg-out graphs are presigned
+by verifiers with MuSig2 and run on regtest against esplora. Its copies of the header-chain and
+final-spv guests are Citrea's. Missing for this design:
+
+- A storage graph. The bridge pays a withdrawer and reimburses an operator; a bond needs refund,
+  slash and timeout-to-client around a term deadline, with the client as a party to the timeout.
+- A binding of the public input to the statement. The chunker treats the public input as one
+  committed value (NUM_PUBS = 1). Nothing in the script checks that it equals Blake3(constants ‖
+  SHA256(term preimage)) for the graph's pinned constants and the committed chain values, so a graph
+  needs one more leaf that does.
+- Aggregation. The term guest here is that piece, for a fixed D and q: it verifies N epoch receipts
+  as assumptions in one proof. Per-epoch deal digests D_e committed on chain before each seed block
+  (§4.2) are not built.
+- The chain-work challenge. The bridge's answer to a private fork is `disprove_chain` with a
+  "superblock", and `find_superblock()` returns a hard-coded mainnet header under a TODO.
+- The committee, which is a social object, not code: who the n signers are for a storage bond.
+
+**(c) Dispute costs.** BitVM's README puts the Groth16 verifier at "around 1 GB" of script before
+chunking. For Citrea's key the chunker produced 364 disprove tapscripts totalling 1.11 GB, the
+largest 3.95 MB; they sit as leaves of one taproot output, and a dispute reveals one. The sizes
+below were read back from the regtest run of BitVM's bridge test with this proof (milestone 3) as
+weight / 4. Beside them is the fixed fee BitVM's bridge pays each transaction
+(`bridge/src/transactions/base.rs`, at 1 sat/vB), which for the three large assertions is 2.6 to 6.7
+times their size, and whether Core 30.2 with default policy would relay it (`testmempoolaccept` on a
+node without the inputs, so only the checks before input lookup).
+
+| transaction | vB, measured | BitVM's fixed fee, sats | default policy |
+| --- | --- | --- | --- |
+| kick-off 2 | 5,758 | 5,461 | passes |
+| assert-initial (379 outputs) | 16,402 | 48,953 | passes |
+| assert-commit-1 (300 inputs) | 282,371 | 739,137 | rejected, `tx-size` |
+| assert-commit-2 (78 inputs) | 70,426 | 470,440 | passes |
+| assert-final | 352 | 352 | passes |
+| disprove, tap 363 | 239,057 | 238,785 | rejected, `tx-size` |
+
+A contested term is about 370,000 vB of assertion and, at the cheapest leaf seen here, 239,000 vB of
+disprove: 610,000 vB, about 880 sentinel challenges at 696 vB. An uncontested one is about 12,500 vB
+by BitVM's constants (kick-off 1 6,231, start time 407, kick-off 2 5,461, take 1 380), against the
+sentinel bond's 308. At 5 sat/vB the assertion costs about 1.85 M sats and the disprove 1.2 M. The
+assertion Winternitz-signs 378 values, 15 of 256 bits and 363 of 128, and reveals the scripts that
+check them; the signatures alone are 286,771 bytes. The provider pays for it, so a challenge has to
+carry enough to cover it, as BitVM2's challenger does for its operator; otherwise anyone can make a
+provider spend 0.02 BTC for the price of a challenge.
+
+A disprove's size depends on which chunk is wrong. The two run off chain carry 0.96 MB and 3.48 MB
+of script and witness, about 240,000 and 870,000 vB, and the largest of the 364 leaves alone is 3.95
+MB, nearly a block; the 3.48 MB one costs about 4.3 M sats at 5 sat/vB. The provider chooses what to
+assert, so it also chooses where its assertion is wrong, and with that what a challenger pays to
+disprove it. The bond has to cover all of this before it is worth anything as a stick.
+
+**(d) Trust.** Phases 0–2 trust no committee, no oracle and no auditor (the table at the top). This
+route brings back four things, and the spike found the third weaker than assumed.
+
+1. The committee. The graph is presigned by an n-of-n MuSig2 set for each bond UTXO. One honest
+   signer who deletes its key keeps the graph the only way to spend the bond; all n together can
+   sign it anywhere. Every member must also be online at setup, so any one of them can stall a bond
+   from being made. Who those n are for a storage market (the client, the provider, some
+   independents) is the open question §4 named.
+2. One honest challenger, online within every window and funded to pay the disprove fee (about 1.2 M
+   sats at 5 sat/vB for the leaf mined here, more for a larger one). The bond can pay the reward,
+   but someone has to be watching, which is the watchtower's job today under a different name.
+3. The Groth16 trusted setup. A Groth16 key is sound only if nobody kept the toxic waste of its
+   circuit-specific phase 2. `run_ceremony.sh` in risc0-to-bitvm2 is a demonstration: one "pretend
+   contribution" (`echo 'Entropy' | snarkjs zkey contribute`, which snarkjs mixes with system
+   randomness, so whoever ran it holds the only secret) and a beacon from the fixed public value
+   `0102…1f`, which adds nothing secret. A key made with it is forgeable by whoever ran it and kept
+   that randomness. The key in the pinned prover image, which its Dockerfile downloads from
+   static.testnet.citrea.xyz, records exactly that transcript in its own mpcParams
+   (`zk/risc0/zkey-contributions.js`): one contribution named "1st Contributor Name", then the
+   beacon "Final Beacon phase2" with hash `0102…1f` and 2^10 iterations (zkey SHA-256 `df6809b3…`).
+   So the key is sound only if the one party that made that contribution discarded its randomness;
+   if it did not, it can prove any public input, and a bond enforced with this key is as safe as
+   that party. Whether Citrea now serves a different key could not be checked, because that host is
+   not reachable from here; a real deployment needs a multi-party phase 2 that its committee, or
+   anyone, can verify against the circuit.
+4. The header chain. The circuit proves that a chain of headers has valid proof of work from an
+   all-zero parent, not that it is Bitcoin's chain. The term guest pins regtest's genesis hash,
+   which upstream's guests do not, but a fork from genesis is still a valid proof, and on regtest a
+   block costs about two hashes. The term preimage therefore carries tip height, tip hash and total
+   work, and the graph needs a challenge in which anyone shows a heavier chain; BitVM's version of
+   that is the placeholder above. Upstream's README says as much ("does not necessarily prevent the
+   malicious actors to generate proofs for their private forks").
+
+Two more come from Bitcoin's relay policy, the point finding 4a made about 520-byte answers.
+Assert-commit-1 (282,371 vB) and every disprove (239,057 vB at the cheapest leaf here) are over the
+100,000 vB (400,000 WU) standard transaction limit, and Core 30.2 with default policy rejects both
+for `tx-size`. BitVM's regtest script starts Core with `acceptnonstdtxn=1`, and the run here did the
+same. On mainnet both would go to a miner directly, which is a trusted party for the length of the
+window, and a disprove that cannot reach a miner in time is lost. And the glue around both upstream
+projects had gaps that only running it showed: a receipt of the genuine header-chain image can carry
+another image's chain state, final-spv drops the result of its MMR check (milestone 2), and the
+bridge signs its assertions under the wrong keys and compiles its disprove leaves for a mock key
+(milestone 3). None is a BitVM2 property, but they show how much of this route's security sits in a
+few lines that nothing on chain reads.
+
+**(e) Against the watchtower trigger.** Today (§4.4, §4.5) the watchtower verifies each epoch's
+STARK off chain and signs valid, invalid or missing; a missing or invalid attestation makes the
+client reveal sentinels, and Bitcoin Core enforces the answer to each one.
+
+| | watchtower attestation + sentinel bond (today) | BitVM2 term bond (this spike) |
+| --- | --- | --- |
+| What Bitcoin checks | one 80-byte item per challenge against a precommitted hash | the Groth16 verifier, chunked, only if someone disputes |
+| Who can trigger | the client, holding the sentinel secrets | anyone watching, without secrets |
+| Catches a 10% deleter | an epoch fails with probability 1 − 0.9^16 = 0.81 at q = 16, then each challenge forfeits with 0.81 at m = 16 | the term proof cannot exist once any epoch failed: 1 − 0.9^(16E) over E epochs, 0.994 at E = 3 |
+| When | in the epoch after the attestation, within Δ = 144 blocks | at term end, after the challenge window |
+| Bonds | one per (client, provider) pair, 308 vB to open and close | one per provider for every deal in D |
+| Cost of a dispute | 696 vB per challenge (§2.4) | about 370,000 vB to assert, then 239,000 to 990,000 vB to disprove |
+| Relay | standard, every transaction through the mempool | assert-commit-1 and every disprove non-standard |
+| Trusted | nobody but Bitcoin; the watchtower only for timeliness, and its claims are rechecked from public data | the committee (1 of n), one funded challenger, the Groth16 setup's one contributor, a miner for non-standard transactions, a chain-work challenge not yet built |
+| Prover cost per epoch | STARK of the holdings statement (§4.3) | the same in RISC Zero (milestone 1), plus one term proof and one Groth16 wrap at term end |
+
+BitVM2 takes the client out of enforcement, pools bonds across deals, and removes the precommitted
+sentinels along with the cut and choose that guards them. It pays for that with four trusted
+parties, one of which, as shipped, is a single contributor to a proving key, and with disputes in
+transactions that Bitcoin's relay policy will not carry. The attestation trigger keeps every stick
+in standard script and needs nothing from anyone but the client's being online. Until there is a
+Groth16 key with a real phase 2, a storage graph with a public-input check and a chain-work
+challenge, and a relay path for megabyte witnesses, the sentinel bond triggered by attestations is
+the mechanism that works on mainnet, and BitVM2 is what would widen who can enforce it.
+
 ## 5. Retrieval
 
 Possession proofs do not make the provider serve the file. What helps:
@@ -877,6 +1218,7 @@ Blossom servers already authorize uploads with kind 24242 events, and users list
 | 3b | Holdings mode (cost independent of the number of deals) and public proofs in the market: block-hash seeds, proofs on Blossom, Nostr announcements, an independent watchtower, pay only for verified epochs (§4.3) | Done on regtest; proofs verified off chain |
 | 4 | The whole stack in one run: bonds, public proofs, Lightning payment per verified epoch, and watchtower attestations that trigger on-chain sentinel challenges (§4.4) | Done on regtest: both cheaters forfeit, the honest provider is paid and refunded |
 | 5 | On-chain pay per proof: signed invoices, pay-to-contract outputs committing to payment hashes, batching, receipts (txid + Merkle inclusion proof) checked from a header chain with no node; a watchtower that attests both "stored" and "paid" from public data (§4.5) | Done on regtest with a header-replay stand-in for the ZeroSync-style STARK; a regtest `chain_segment` is next |
+| 6 | BitVM2 feasibility spike: the holdings statement in RISC Zero, seeds bound to risc0-to-bitvm2's regtest header-chain proof, one term proof, the Groth16 wrap, BitVM's verifier and chunked disprove; the bond as a BitVM2 graph (§4.6) | Done as a spike, regtest and test keys only: every milestone ran, and BitVM's bridge mined a disprove of a wrong assertion of this proof. The graph of §4.6(a) is not built |
 
 ## What is and is not tested
 
@@ -897,7 +1239,12 @@ What neither covers yet:
 - A STARK of the header chain behind payment receipts. `chain_segment` cannot take regtest headers
   (§4.5), so receipts are checked against a replayed header chain, and on regtest the work floor proves
   nothing. On-chain payments are untested on any network but regtest, and at depths beyond 1.
+- BitVM2 on anything but regtest, and the storage graph of §4.6(a), which is not built. The disprove
+  that was mined went through BitVM's peg-out graph with three local fixes (§4.6, milestone 3), and
+  through a relay because esplora would not take the assert transactions. The Groth16 key is
+  Citrea's, which records one phase-2 contribution (§4.6 d), and the header chain proves work, not
+  canonicality.
 - NIP-17 gift wrapping, offers and deals as Nostr events, and any relay other than the bundled minimal
   one. The epoch challenge and answer are NIP-44 v2 events (§2.5).
 
-The fixed keys and MuSig2 nonce seeds in `regtest/` are test values. Never use them for real funds.
+The fixed keys and MuSig2 nonce seeds in `regtest/`, and the Winternitz secrets in `zk/bitvm-check`, are test values. Never use them for real funds.

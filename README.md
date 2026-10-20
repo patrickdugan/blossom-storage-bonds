@@ -35,6 +35,7 @@ The full design, findings and plan are in [docs/design.md](docs/design.md).
 | `layer1/zk.ts`, `zk-provider.ts`, `watchtower.ts`, `public-pdp.ts` | Phase 3b: prove and verify through WSL; a provider's unprompted epoch proofs and their Nostr announcements; an independent watchtower; the end-to-end run |
 | `layer1/full-stack.ts`, `results/full-stack.json` | Phase 4: the whole stack in one run, and its outcomes read back from the chain |
 | `layer1/onchain.ts`, `headerchain.ts`, `results/full-stack-onchain.json` | Phase 5: on-chain pay per proof (signed invoices, pay-to-contract outputs, batching, receipts = txid + Merkle inclusion proof), the header-chain check that stands in for a ZeroSync-style STARK, and the whole stack paid that way |
+| `zk/risc0/`, `zk/bitvm-check/`, `results/bitvm2-spike.json` | Phase 6, a BitVM2 feasibility spike: the holdings statement as a RISC Zero guest, a term guest that binds each seed to risc0-to-bitvm2's regtest header-chain proof, the Groth16 wrap through its prover image, and BitVM's verifier and chunked disprove on the result (design §4.6) |
 | `results/public-pdp.json` | Last phase-3b run: per provider and epoch, what it proved, what the client verified and paid, the watchtower's attestation, and every channel close |
 | `results/zk-pdp.md`, `zk-pdp-vps.md` | Phase 3a benchmark tables, fits and the 1 GiB / 1 TiB extrapolation, on the laptop (4.5 GB WSL) and on an 8-core 31 GB box (raw runs in the `.jsonl` files; soundness cases in `zk-pdp-adversarial.jsonl`) |
 | `scripts/regtest-node.sh` | Starts a throwaway regtest node on RPC port 18543 |
@@ -342,6 +343,48 @@ sats in fees. The design note has the fee arithmetic. `results/full-stack-onchai
 `results/full-stack-onchain-batched.json` hold every payment, receipt and sweep, read back from
 bitcoind.
 
+### The storage proof through BitVM2 (phase 6 spike)
+
+Both upstream projects are marked for experiments only: chainwayxyz/risc0-to-bitvm2 ("experimental
+and should not be used in production") and BitVM ("DO NOT USE IN PRODUCTION"). Everything here runs
+on regtest with test keys. It needs Docker, an x86-64 host with about 10 GB of free RAM, RISC Zero's
+guest toolchain (`rzup install rust 1.85.0` and `rzup install cpp`), and a checkout of
+risc0-to-bitvm2 at `efc448e` for its published regtest ELFs.
+
+```bash
+cd zk/risc0 && cargo build --release -p bsb-r0 && cd ../..
+node zk/risc0/witness.ts --out /tmp/w --deals 64 --q 16             # holdings witness, sha tree, mode 1
+zk/risc0/target/release/bsb-r0 prove-hold /tmp/w/witness.bin /tmp/w/r.bin --succinct > /tmp/w/r.json
+node zk/risc0/check-journal.ts /tmp/w/statement.json /tmp/w/r.json  # journal against model/zk_pdp.ts
+zk/risc0/bench.sh                                                    # q 8/16/64 x deals 1/64
+```
+
+For milestones 2 and 3, start `scripts/regtest-node.sh <datadir> <bitcoind>`, create a wallet and
+mine 200 blocks, then:
+
+```bash
+WORK=/tmp/term zk/risc0/term-run.sh <risc0-to-bitvm2 checkout>
+```
+
+It proves 201 regtest headers with upstream's header-chain image, three holdings receipts seeded by
+the hashes of blocks 170, 180 and 190, and the term receipt that binds them; runs the failing cases
+(a seed one block off, a depth past the tip, and `forge-demo`, which launders a made-up chain
+through upstream's image and runs upstream's final-spv on it); wraps the term receipt in Groth16
+with the prover image pinned by digest; and recomputes the public input from public data
+(`check-groth16.ts`). `zk/bitvm-check` (`cargo build`, BitVM 7d1ca36) then verifies that proof with
+arkworks and BitVM's chunked verifier and disproves two wrong assertions in BitVM's interpreter:
+
+```bash
+target/debug/bsb-bitvm-check <dir with vk.json, proof.json, public.json> --wrong-public <decimal> --out result.json
+```
+
+The mined disprove uses a BitVM checkout at 7d1ca36 with `zk/bitvm-check/bridge-regtest.patch`
+applied, esplora started as BitVM's `regtest/start.sh` does but on port 8095, and
+`node zk/bitvm-check/esplora-relay.ts` on 8094 in front of it; then
+`BSB_GROTH16_DIR=<that dir> cargo test -p bridge --test mod bridge::integration::peg_out::disprove::test_disprove_success`.
+`zk/bitvm-check/bridge-txs.ts` reads the transactions back, and `zk/risc0/collect.ts` gathers
+everything into `results/bitvm2-spike.json`.
+
 ## Status
 
 - Phase 0 (model): done, 16 tests.
@@ -373,6 +416,11 @@ bitcoind.
   stand-in. `--pay onchain` pays verified epochs in batched transactions and publishes a receipt per
   payment; a watchtower with no node checks both the storage proof and the payment receipt of every
   epoch from public data (design §4.5, below).
+- Phase 6 (BitVM2 spike): the storage proof goes through on regtest, as a RISC Zero receipt bound to a
+  proven header chain, wrapped in Groth16 and checked by BitVM's verifier, and BitVM's own bridge test mined a disprove of a wrong assertion of it. It is not a
+  mechanism to trust yet: the Groth16 key records a single phase-2 contribution, upstream's
+  composition code let a forged chain through, and the dispute transactions are non-standard
+  (design §4.6).
 - Next: a regtest build of Raito's `chain_segment` so receipts carry a real header-chain STARK
   (design §4.5 lists what it needs), a zk setup proof replacing cut and choose (2), and verifying the storage proof on Bitcoin itself (BitVM2 or OP_CAT, §4.2).
 

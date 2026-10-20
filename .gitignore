@@ -4,3 +4,7 @@ node_modules/
 /zk/runs/
 /zk/cairo/target/
 /zk/prover/target/
+/zk/risc0/target/
+/zk/risc0/methods/guest/target/
+/zk/risc0/methods/term/target/
+/zk/bitvm-check/target/

@@ -5,7 +5,8 @@ import { sha256 } from "./schnorr.ts";
 import { blake2s } from "./blake2s.ts";
 import { buildTree, CHUNK, merkleVerify, merkleProof } from "./storage_bonds.ts";
 import {
-  challengeIndices, dealsDigest, holdingsChallenges, statementOutput, syntheticDeal, verifyNatively, witnessFelts, type Backend,
+  challengeIndices, dealsDigest, holdingsChallenges, journalBytes, risc0Witness, statementOutput, syntheticDeal, verifyNatively,
+  witnessFelts, type Backend,
 } from "./zk_pdp.ts";
 
 const seed = sha256("test seed");
@@ -26,6 +27,36 @@ test("sha synthetic deals are exactly the storage_bonds chunk tree", () => {
   const chunks = Array.from({ length: 5 }, (_, i) => d.chunk(i)!);
   assert.ok(buildTree(chunks).root.equals(d.tree.root));
   assert.ok(merkleVerify(d.tree.root, 5, 4, chunks[4], merkleProof(d.tree, 4)));
+});
+
+test("risc0 journal is the sha statement as big-endian words: raw seed and D", () => {
+  const d0 = syntheticDeal("sha", "j0", 5), d1 = syntheticDeal("sha", "j1", 9);
+  const refs = [d0, d1].map((d) => ({ root: d.tree.root, n: d.tree.n }));
+  const j = journalBytes(seed, 16, refs);
+  assert.equal(j.length, 76);
+  assert.ok(j.subarray(0, 32).equals(seed));
+  assert.deepEqual([j.readUInt32BE(32), j.readUInt32BE(36), j.readUInt32BE(40)], [16, 1, 2]);
+  assert.ok(j.subarray(44).equals(dealsDigest("sha", refs)));
+  assert.deepEqual(statementOutput("sha", seed, 16, refs, 1),
+    Array.from({ length: 19 }, (_, i) => "0x" + j.readUInt32BE(4 * i).toString(16)));
+  assert.notDeepEqual(journalBytes(sha256("other"), 16, refs), j, "seed is in the journal");
+});
+
+test("risc0 witness layout, and the missing-chunk case", () => {
+  const d0 = syntheticDeal("sha", "r0", 7), d1 = syntheticDeal("sha", "r1", 3);
+  const w = risc0Witness(seed, 4, [d0, d1]);
+  // seed, q, count; two deals of root + n; per challenge deal + chunk + path len + path (depth 3 or 2)
+  const refs = [d0, d1].map((d) => ({ root: d.tree.root, n: d.tree.n }));
+  const cs = holdingsChallenges("sha", seed, refs, 4);
+  const depth = (n: number) => Math.ceil(Math.log2(n));
+  assert.equal(w.length, 32 + 4 + 4 + 2 * 36 + cs.reduce((a, c) => a + 4 + CHUNK + 4 + 32 * depth(refs[c.deal].n), 0));
+  assert.equal(w.readUInt32LE(32), 4);
+  assert.equal(w.readUInt32LE(112), cs[0].deal);
+  assert.ok(w.subarray(116, 116 + CHUNK).equals([d0, d1][cs[0].deal].chunk(cs[0].idx)!));
+  const lost = cs[1];
+  const deals = [d0, d1].map((d, i) => ({ tree: d.tree, chunk: (k: number) => (i === lost.deal && k === lost.idx ? undefined : d.chunk(k)) }));
+  assert.throws(() => risc0Witness(seed, 4, deals), /not held/);
+  assert.equal(risc0Witness(seed, 4, deals, () => Buffer.alloc(CHUNK)).length, w.length);
 });
 
 for (const b of BACKENDS) {

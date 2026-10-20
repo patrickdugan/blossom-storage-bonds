@@ -1,0 +1,740 @@
+{
+ "generated": "2026-10-20T19:28:13.652Z",
+ "note": "Phase 6 BitVM2 feasibility spike, docs/design.md §4.6. Test keys only, regtest only, no real funds.",
+ "warnings": {
+  "risc0-to-bitvm2": [
+   "This software is experimental and should not be used in production. (README)",
+   "It does not necessarily prevent the malicious actors to generate proofs for their private forks. (README, on the header chain)"
+  ],
+  "BitVM": [
+   "DO NOT USE IN PRODUCTION! (README)"
+  ]
+ },
+ "environment": {
+  "machine": "4 vCPU (Intel(R) Xeon(R) Processor @ 2.80GHz), 15.7 GiB RAM, no swap, no GPU",
+  "kernel": "Linux 6.18.44-fc-v139",
+  "docker": "29.9.1",
+  "rust_host": "rustc 1.97.0 (2d8144b78 2026-07-07)",
+  "risc0_guest_toolchain": "risc0 rust 1.85.0, cpp 2024.1.5 (rzup layout, fetched from GitHub releases)",
+  "risc0_crates": {
+   "risc0-zkvm": "2.0.1",
+   "risc0-groth16": "2.0.0",
+   "risc0-build": "2.1.0",
+   "risc0-circuit-rv32im": "2.0.2"
+  },
+  "bitcoind": "Bitcoin Core daemon version v30.2.0 bitcoind",
+  "bitcoind_source": "copied out of docker.io/blockstream/esplora:latest (BitVM's regtest image); bitcoincore.org is not reachable from this VM",
+  "upstream": {
+   "risc0-to-bitvm2": "chainwayxyz/risc0-to-bitvm2@efc448e",
+   "BitVM": "BitVM/BitVM@7d1ca36"
+  }
+ },
+ "image_ids": {
+  "hold": "2ed618aa3231ba01749ec59d9172e4381eab81dbf900d0567160626372b116db",
+  "term": "b484d0334620b87f4f2327e553784841fe3265cf2ec2126911d893def81a597a",
+  "header_chain": "5cb173ee191a3edca1f448066bf16eb1071c828d55141889a3365a93ff22917d"
+ },
+ "m1": {
+  "statement": "holdings mode (model/zk_pdp.ts mode 1), sha tree, journal = statementOutput felts as u32be (76 bytes)",
+  "runs": [
+   {
+    "deals": 1,
+    "q": 8,
+    "chunks_per_deal": 256,
+    "kind": "composite",
+    "witness_bytes": 34956,
+    "user_cycles": 117465,
+    "total_cycles": 262144,
+    "paging_cycles": 28103,
+    "segments": 1,
+    "exec_s": 0.028455998,
+    "prove_s": 78.949763476,
+    "verify_s": 0.023590362,
+    "wall": "1:18.98",
+    "peak_rss_mb": 2346,
+    "receipt_bytes": 255998,
+    "seal_bytes": 255592,
+    "journal_matches_model": true,
+    "image_id": "2ed618aa3231ba01749ec59d9172e4381eab81dbf900d0567160626372b116db"
+   },
+   {
+    "deals": 1,
+    "q": 8,
+    "chunks_per_deal": 256,
+    "kind": "succinct",
+    "witness_bytes": 34956,
+    "user_cycles": 117465,
+    "total_cycles": 262144,
+    "paging_cycles": 28103,
+    "segments": 1,
+    "exec_s": 0.028455998,
+    "prove_s": 111.559315383,
+    "verify_s": 0.019058249,
+    "wall": "1:51.58",
+    "peak_rss_mb": 2346,
+    "receipt_bytes": 223327,
+    "seal_bytes": 222668,
+    "journal_matches_model": true,
+    "image_id": "2ed618aa3231ba01749ec59d9172e4381eab81dbf900d0567160626372b116db"
+   },
+   {
+    "deals": 1,
+    "q": 16,
+    "chunks_per_deal": 256,
+    "kind": "composite",
+    "witness_bytes": 69836,
+    "user_cycles": 230545,
+    "total_cycles": 524288,
+    "paging_cycles": 38179,
+    "segments": 1,
+    "exec_s": 0.03294342,
+    "prove_s": 175.384979428,
+    "verify_s": 0.023851783,
+    "wall": "2:55.41",
+    "peak_rss_mb": 4672,
+    "receipt_bytes": 268222,
+    "seal_bytes": 267816,
+    "journal_matches_model": true,
+    "image_id": "2ed618aa3231ba01749ec59d9172e4381eab81dbf900d0567160626372b116db"
+   },
+   {
+    "deals": 1,
+    "q": 16,
+    "chunks_per_deal": 256,
+    "kind": "succinct",
+    "witness_bytes": 69836,
+    "user_cycles": 230545,
+    "total_cycles": 524288,
+    "paging_cycles": 38179,
+    "segments": 1,
+    "exec_s": 0.03294342,
+    "prove_s": 202.279455588,
+    "verify_s": 0.020462295,
+    "wall": "3:22.31",
+    "peak_rss_mb": 4671,
+    "receipt_bytes": 223327,
+    "seal_bytes": 222668,
+    "journal_matches_model": true,
+    "image_id": "2ed618aa3231ba01749ec59d9172e4381eab81dbf900d0567160626372b116db"
+   },
+   {
+    "deals": 1,
+    "q": 64,
+    "chunks_per_deal": 256,
+    "kind": "composite",
+    "witness_bytes": 279116,
+    "user_cycles": 909025,
+    "total_cycles": 1048576,
+    "paging_cycles": 98531,
+    "segments": 1,
+    "exec_s": 0.083225064,
+    "prove_s": 366.962530762,
+    "verify_s": 0.024005144,
+    "wall": "6:06.99",
+    "peak_rss_mb": 9353,
+    "receipt_bytes": 281470,
+    "seal_bytes": 281064,
+    "journal_matches_model": true,
+    "image_id": "2ed618aa3231ba01749ec59d9172e4381eab81dbf900d0567160626372b116db"
+   },
+   {
+    "deals": 1,
+    "q": 64,
+    "chunks_per_deal": 256,
+    "kind": "succinct",
+    "witness_bytes": 279116,
+    "user_cycles": 909025,
+    "total_cycles": 1048576,
+    "paging_cycles": 98531,
+    "segments": 1,
+    "exec_s": 0.083225064,
+    "prove_s": 410.611920803,
+    "verify_s": 0.019701852,
+    "wall": "6:50.64",
+    "peak_rss_mb": 9352,
+    "receipt_bytes": 223327,
+    "seal_bytes": 222668,
+    "journal_matches_model": true,
+    "image_id": "2ed618aa3231ba01749ec59d9172e4381eab81dbf900d0567160626372b116db"
+   },
+   {
+    "deals": 64,
+    "q": 8,
+    "chunks_per_deal": 256,
+    "kind": "composite",
+    "witness_bytes": 37224,
+    "user_cycles": 144643,
+    "total_cycles": 262144,
+    "paging_cycles": 30835,
+    "segments": 1,
+    "exec_s": 0.034671691,
+    "prove_s": 79.245474003,
+    "verify_s": 0.020888671,
+    "wall": "1:19.27",
+    "peak_rss_mb": 2348,
+    "receipt_bytes": 255998,
+    "seal_bytes": 255592,
+    "journal_matches_model": true,
+    "image_id": "2ed618aa3231ba01749ec59d9172e4381eab81dbf900d0567160626372b116db"
+   },
+   {
+    "deals": 64,
+    "q": 8,
+    "chunks_per_deal": 256,
+    "kind": "succinct",
+    "witness_bytes": 37224,
+    "user_cycles": 144643,
+    "total_cycles": 262144,
+    "paging_cycles": 30835,
+    "segments": 1,
+    "exec_s": 0.034671691,
+    "prove_s": 108.088657602,
+    "verify_s": 0.020423691,
+    "wall": "1:48.12",
+    "peak_rss_mb": 2348,
+    "receipt_bytes": 223327,
+    "seal_bytes": 222668,
+    "journal_matches_model": true,
+    "image_id": "2ed618aa3231ba01749ec59d9172e4381eab81dbf900d0567160626372b116db"
+   },
+   {
+    "deals": 64,
+    "q": 16,
+    "chunks_per_deal": 256,
+    "kind": "composite",
+    "witness_bytes": 72104,
+    "user_cycles": 261935,
+    "total_cycles": 524288,
+    "paging_cycles": 40885,
+    "segments": 1,
+    "exec_s": 0.03634304,
+    "prove_s": 167.53116244,
+    "verify_s": 0.022971696,
+    "wall": "2:47.56",
+    "peak_rss_mb": 4674,
+    "receipt_bytes": 268222,
+    "seal_bytes": 267816,
+    "journal_matches_model": true,
+    "image_id": "2ed618aa3231ba01749ec59d9172e4381eab81dbf900d0567160626372b116db"
+   },
+   {
+    "deals": 64,
+    "q": 16,
+    "chunks_per_deal": 256,
+    "kind": "succinct",
+    "witness_bytes": 72104,
+    "user_cycles": 261935,
+    "total_cycles": 524288,
+    "paging_cycles": 40885,
+    "segments": 1,
+    "exec_s": 0.03634304,
+    "prove_s": 197.030341847,
+    "verify_s": 0.019472771,
+    "wall": "3:17.06",
+    "peak_rss_mb": 4674,
+    "receipt_bytes": 223327,
+    "seal_bytes": 222668,
+    "journal_matches_model": true,
+    "image_id": "2ed618aa3231ba01749ec59d9172e4381eab81dbf900d0567160626372b116db"
+   },
+   {
+    "deals": 64,
+    "q": 64,
+    "chunks_per_deal": 256,
+    "kind": "composite",
+    "witness_bytes": 281384,
+    "user_cycles": 960747,
+    "total_cycles": 1114112,
+    "paging_cycles": 116997,
+    "segments": 2,
+    "exec_s": 0.114001955,
+    "prove_s": 403.016321585,
+    "verify_s": 0.042227969,
+    "wall": "6:43.06",
+    "peak_rss_mb": 9355,
+    "receipt_bytes": 502473,
+    "seal_bytes": 501904,
+    "journal_matches_model": true,
+    "image_id": "2ed618aa3231ba01749ec59d9172e4381eab81dbf900d0567160626372b116db"
+   },
+   {
+    "deals": 64,
+    "q": 64,
+    "chunks_per_deal": 256,
+    "kind": "succinct",
+    "witness_bytes": 281384,
+    "user_cycles": 960747,
+    "total_cycles": 1114112,
+    "paging_cycles": 116997,
+    "segments": 2,
+    "exec_s": 0.114001955,
+    "prove_s": 483.983196134,
+    "verify_s": 0.019015613,
+    "wall": "8:04.02",
+    "peak_rss_mb": 9354,
+    "receipt_bytes": 223327,
+    "seal_bytes": 222668,
+    "journal_matches_model": true,
+    "image_id": "2ed618aa3231ba01749ec59d9172e4381eab81dbf900d0567160626372b116db"
+   }
+  ],
+  "failing": {
+   "missing_chunk": {
+    "config": "64 deals x 256 chunks, q = 16, challenge 5's chunk replaced by zeros with a valid path",
+    "exec_exit": 1,
+    "prove_exit": 1,
+    "receipt_written": false,
+    "guest_panic": "Guest panicked: assertion `left == right` failed: root mismatch"
+   },
+   "wrong_seed": {
+    "config": "64 deals x 256 chunks, q = 16, provider answers its own seed",
+    "match": false,
+    "bytes": 76,
+    "first_diff_byte": 0,
+    "felts_match": false,
+    "expected": "0120f4714fddb2812f5c9bd2a8529a0873313a61b84db87df7422c7b336186f40000001000000001000000402da4d1795193d0253c24988f003c1ad98a00ee871d949a63c76d3c486410c941",
+    "got": "d85bb9ab1f3256d9cc475bc7c2f31cd5c907591a9db7643a830285ff850d12910000001000000001000000402da4d1795193d0253c24988f003c1ad98a00ee871d949a63c76d3c486410c941"
+   }
+  }
+ },
+ "m2": {
+  "header_chain": {
+   "headers": 201,
+   "network": "regtest",
+   "elf": "elfs/regtest-header-chain-guest.bin (upstream, as published)",
+   "cmd": "prove-chain",
+   "from": 0,
+   "journal": "5cb173ee191a3edca1f448066bf16eb1071c828d55141889a3365a93ff22917dc800000000000000000000000000000000000000000000000000000000000000000001922680f9c1b0a1e117b09801c362060ab091499e8dead327fde4425cca7419e54affff7f20000000003c94d76a3c94d76a3d94d76a3b94d76a3b94d76a3b94d76a3b94d76a3c94d76a3c94d76a3c94d76a3c94d76a04000000e22d13863c1674f93d970c7717458ad1a1c3a15841407847d046a0d9a65cf15bd06e1a781ab3c5777cf1f695ca21c2e8dfccb3df9dbdfad497907501aad0c37b7f361c80fa3b84dd1b706b6c4f5c0f19f91e32ea589533064db5744f3609405b2680f9c1b0a1e117b09801c362060ab091499e8dead327fde4425cca7419e54ac9000000",
+   "paging_cycles": 62805,
+   "prove_s": 624.834339631,
+   "receipt_bytes": 223751,
+   "reserved_cycles": 94784,
+   "seal_bytes": 222668,
+   "segments": 2,
+   "tip_hash": "4ae51974ca5c42e4fd27d3ea8d9e4991b00a0662c30198b017e1a1b0c1f98026",
+   "tip_height": 200,
+   "total_cycles": 1310720,
+   "total_work": "0000000000000000000000000000000000000000000000000000000000000192",
+   "user_cycles": 1153131,
+   "peak_rss_mib": 9376,
+   "wall": "10:24.95",
+   "timing_note": "the first ~2 minutes of this proof overlapped a nice-19 rebuild of the host"
+  },
+  "holds": [
+   {
+    "height": 170,
+    "cmd": "prove-hold",
+    "image_id": "2ed618aa3231ba01749ec59d9172e4381eab81dbf900d0567160626372b116db",
+    "journal": "0b39710bf0d237e89e8714acd0896f6b942ce5af7143421a9a32ee3beab66dbb000000100000000100000003dc1982a84c9196e4b22ab706cb33b754130c43c919b42a95f6eb676948d880cc",
+    "kind": "succinct",
+    "paging_cycles": 38179,
+    "prove_s": 198.897312508,
+    "receipt_bytes": 223327,
+    "reserved_cycles": 254641,
+    "seal_bytes": 222668,
+    "segments": 1,
+    "total_cycles": 524288,
+    "user_cycles": 231468,
+    "verify_s": 0.020997819,
+    "witness_bytes": 69908,
+    "peak_rss_mib": 4671,
+    "wall": "3:18.92",
+    "check": {
+     "match": true,
+     "bytes": 76,
+     "felts_match": true,
+     "expected": "0b39710bf0d237e89e8714acd0896f6b942ce5af7143421a9a32ee3beab66dbb000000100000000100000003dc1982a84c9196e4b22ab706cb33b754130c43c919b42a95f6eb676948d880cc",
+     "got": "0b39710bf0d237e89e8714acd0896f6b942ce5af7143421a9a32ee3beab66dbb000000100000000100000003dc1982a84c9196e4b22ab706cb33b754130c43c919b42a95f6eb676948d880cc"
+    }
+   },
+   {
+    "height": 180,
+    "cmd": "prove-hold",
+    "image_id": "2ed618aa3231ba01749ec59d9172e4381eab81dbf900d0567160626372b116db",
+    "journal": "0a9d0ff8dc992f5040f522399326caebb05073b9bd35f0025fb463066a99ced6000000100000000100000003dc1982a84c9196e4b22ab706cb33b754130c43c919b42a95f6eb676948d880cc",
+    "kind": "succinct",
+    "paging_cycles": 38179,
+    "prove_s": 195.91862591,
+    "receipt_bytes": 223327,
+    "reserved_cycles": 254641,
+    "seal_bytes": 222668,
+    "segments": 1,
+    "total_cycles": 524288,
+    "user_cycles": 231468,
+    "verify_s": 0.019562569,
+    "witness_bytes": 69908,
+    "peak_rss_mib": 4671,
+    "wall": "3:15.94",
+    "check": {
+     "match": true,
+     "bytes": 76,
+     "felts_match": true,
+     "expected": "0a9d0ff8dc992f5040f522399326caebb05073b9bd35f0025fb463066a99ced6000000100000000100000003dc1982a84c9196e4b22ab706cb33b754130c43c919b42a95f6eb676948d880cc",
+     "got": "0a9d0ff8dc992f5040f522399326caebb05073b9bd35f0025fb463066a99ced6000000100000000100000003dc1982a84c9196e4b22ab706cb33b754130c43c919b42a95f6eb676948d880cc"
+    }
+   },
+   {
+    "height": 190,
+    "cmd": "prove-hold",
+    "image_id": "2ed618aa3231ba01749ec59d9172e4381eab81dbf900d0567160626372b116db",
+    "journal": "5804ea57dcd7b2291d16025afa5746db527774e0584c340d28f8160f8a4a2f17000000100000000100000003dc1982a84c9196e4b22ab706cb33b754130c43c919b42a95f6eb676948d880cc",
+    "kind": "succinct",
+    "paging_cycles": 38179,
+    "prove_s": 194.145595667,
+    "receipt_bytes": 223327,
+    "reserved_cycles": 254680,
+    "seal_bytes": 222668,
+    "segments": 1,
+    "total_cycles": 524288,
+    "user_cycles": 231429,
+    "verify_s": 0.019635315,
+    "witness_bytes": 69908,
+    "peak_rss_mib": 4671,
+    "wall": "3:14.17",
+    "check": {
+     "match": true,
+     "bytes": 76,
+     "felts_match": true,
+     "expected": "5804ea57dcd7b2291d16025afa5746db527774e0584c340d28f8160f8a4a2f17000000100000000100000003dc1982a84c9196e4b22ab706cb33b754130c43c919b42a95f6eb676948d880cc",
+     "got": "5804ea57dcd7b2291d16025afa5746db527774e0584c340d28f8160f8a4a2f17000000100000000100000003dc1982a84c9196e4b22ab706cb33b754130c43c919b42a95f6eb676948d880cc"
+    }
+   }
+  ],
+  "term": {
+   "cmd": "prove-term",
+   "depth": 6,
+   "epochs": 3,
+   "first": 170,
+   "header_chain_id": "5cb173ee191a3edca1f448066bf16eb1071c828d55141889a3365a93ff22917d",
+   "hold_id": "2ed618aa3231ba01749ec59d9172e4381eab81dbf900d0567160626372b116db",
+   "image_id": "b484d0334620b87f4f2327e553784841fe3265cf2ec2126911d893def81a597a",
+   "journal": "85b913f92c411211e62c6bc1fcb432bd3d4051ed9700850e5427d43c3066399a",
+   "paging_cycles": 31157,
+   "preimage": "6273622f72302d7465726d7c76312ed618aa3231ba01749ec59d9172e4381eab81dbf900d0567160626372b116db5cb173ee191a3edca1f448066bf16eb1071c828d55141889a3365a93ff22917d0000001000000003dc1982a84c9196e4b22ab706cb33b754130c43c919b42a95f6eb676948d880cc000000aa0000000a0000000300000006000000c82680f9c1b0a1e117b09801c362060ab091499e8dead327fde4425cca7419e54a0000000000000000000000000000000000000000000000000000000000000192",
+   "prove_s": 187.528558306,
+   "receipt_bytes": 223239,
+   "reserved_cycles": 28957,
+   "seal_bytes": 222668,
+   "segments": 1,
+   "step": 10,
+   "total_cycles": 131072,
+   "user_cycles": 70958,
+   "peak_rss_mib": 1535,
+   "wall": "3:07.65"
+  },
+  "failing": {
+   "seed_one_block_off": "Guest panicked: seed is not the block hash at its height",
+   "depth_beyond_tip": "Guest panicked: seed block too shallow"
+  },
+  "forge_demo": {
+   "cmd": "forge-demo",
+   "final_spv_block_not_in_mmr": {
+    "accepted": true,
+    "exec_s": 0.0801768,
+    "journal": "d12ed1f3f5fb255704903d6f67b95324b1e777a86d09b1b8cf7bf0c8ef576a0e",
+    "padded_cycles": 524288,
+    "segments": 1,
+    "user_cycles": 331761
+   },
+   "final_spv_on_laundered_chain": {
+    "accepted": true,
+    "exec_s": 0.046791109,
+    "journal": "4f3986c80402a009c09ada625b1f751ad203e8db02d05609680edf432b544cd6",
+    "padded_cycles": 524288,
+    "segments": 1,
+    "user_cycles": 319802
+   },
+   "forge": {
+    "journal": "3925802bc42d0cff9d48eba8d145b8bfcaa3c67970267d42be87ef34241ac901c8000000ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff2680f9c1b0a1e117b09801c362060ab091499e8dead327fde4425cca7419e54affff001d00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000004000000e22d13863c1674f93d970c7717458ad1a1c3a15841407847d046a0d9a65cf15b7ac092e636173533464bcbe174e3c66512b5853da2522940b60f2653c12cd46e7f361c80fa3b84dd1b706b6c4f5c0f19f91e32ea589533064db5744f3609405b2680f9c1b0a1e117b09801c362060ab091499e8dead327fde4425cca7419e54ac9000000",
+    "paging_cycles": 16053,
+    "prove_s": 38.904180914,
+    "receipt_bytes": 223751,
+    "reserved_cycles": 8734,
+    "seal_bytes": 222668,
+    "segments": 1,
+    "total_cycles": 32768,
+    "user_cycles": 7981
+   },
+   "laundered": {
+    "journal": "3925802bc42d0cff9d48eba8d145b8bfcaa3c67970267d42be87ef34241ac901c8000000ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff2680f9c1b0a1e117b09801c362060ab091499e8dead327fde4425cca7419e54affff001d00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000004000000e22d13863c1674f93d970c7717458ad1a1c3a15841407847d046a0d9a65cf15b7ac092e636173533464bcbe174e3c66512b5853da2522940b60f2653c12cd46e7f361c80fa3b84dd1b706b6c4f5c0f19f91e32ea589533064db5744f3609405b2680f9c1b0a1e117b09801c362060ab091499e8dead327fde4425cca7419e54ac9000000",
+    "paging_cycles": 28542,
+    "prove_s": 77.494231919,
+    "receipt_bytes": 223751,
+    "reserved_cycles": 13947,
+    "seal_bytes": 222668,
+    "segments": 1,
+    "total_cycles": 65536,
+    "user_cycles": 23047
+   },
+   "laundered_journal_method_id": "3925802bc42d0cff9d48eba8d145b8bfcaa3c67970267d42be87ef34241ac901",
+   "laundered_receipt_verifies_under_header_chain_id": true,
+   "laundered_total_work": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+   "spv_elf_id": "0b297cbd5c24395fd1614679ae79182ab28f7f687cfeba48c2621b5e355ac52b",
+   "term_on_laundered_chain": {
+    "accepted": false,
+    "error": "Guest panicked: assertion `left == right` failed: header chain proven under another image\n  left: [729818425, 4278988228, 2833991837, 3216524753, 2043061194, 1115498096, 888113086, 29956644]\n right: [4000559452, 3695057433, 105444513, 2976837995, 2374114311, 2300056661, 2472162979, 2106663679]"
+   },
+   "peak_rss_mib": 1521,
+   "wall": "1:56.75"
+  }
+ },
+ "m3": {
+  "groth16": {
+   "bn254_control_id": "c07a65145c3cb48b6101962ea607a4dd93c753bb26975cb47feb00d3666e4404",
+   "cmd": "groth16",
+   "constants_digest": "0b97516f5793ae9b58d2b1b29d11ed0b6127a0bb3798479791839a2b750986bd",
+   "control_root": "539032186827b06719244873b17b2d4c122e2d02cfb1994fe958b2523b844576",
+   "docker_peak_mem_mb": 8598,
+   "docker_s": 78.934773079,
+   "expected_output_hex": "2afe4d2be40046b0426d46ac3b3ae84a3e6aeb6be5dbed1eb299f934f7f602",
+   "identity_p254_s": 132.911901938,
+   "identity_seal_bytes": 222668,
+   "image": "ozancw/risc0-to-bitvm2-groth16-prover@sha256:840b833190a86c87eb71473cd72bcaa3e3b90cefa9bf4ae785ab2de61bc9d262",
+   "journal": "85b913f92c411211e62c6bc1fcb432bd3d4051ed9700850e5427d43c3066399a",
+   "output_matches": true,
+   "post_state": "a3acc27117418996340b84e5a90f3ef4c49d22c79e44aad822ec9c313e1eb8e2",
+   "pre_state": "b484d0334620b87f4f2327e553784841fe3265cf2ec2126911d893def81a597a",
+   "public_output_dec": "75962700830893060878030234075829344411357043628980348055174887586835985922",
+   "public_output_hex": "2afe4d2be40046b0426d46ac3b3ae84a3e6aeb6be5dbed1eb299f934f7f602",
+   "wrong_journal_output_dec": "368273417168593696652797646279880822294790577740032147681851914925797114426",
+   "peak_rss_mib": 1424,
+   "wall": "3:32.17"
+  },
+  "proof_json": {
+   "pi_a": [
+    "17567808989584695830503628292309830574715657925604451012734801365743802962853",
+    "8492495554247164414916379477083301500591488649429828117122877258540225839216",
+    "1"
+   ],
+   "pi_b": [
+    [
+     "5921697675366568541727162659274390378568117741403489263890962656571051364816",
+     "15636469047080889771064595466972774318751998507153773462848168381731640810897"
+    ],
+    [
+     "20121626952989065214750653981250014759565778985487618356340553659821632423365",
+     "19735936548373906024404470443203134483842251435246843219718741497417584633193"
+    ],
+    [
+     "1",
+     "0"
+    ]
+   ],
+   "pi_c": [
+    "1001715068177803356385061906589843102627747581804668537504307298240934606901",
+    "14176083830734715795920207759297788550756296256989944543563695516554656721459",
+    "1"
+   ],
+   "protocol": "groth16"
+  },
+  "proof_bytes": 256,
+  "public_output_recomputed_in_ts": {
+   "preimage_matches": true,
+   "journal_matches": true,
+   "constants_match": true,
+   "public_matches": true,
+   "public_input": "75962700830893060878030234075829344411357043628980348055174887586835985922"
+  },
+  "prover_image": {
+   "ref": "ozancw/risc0-to-bitvm2-groth16-prover@sha256:840b833190a86c87eb71473cd72bcaa3e3b90cefa9bf4ae785ab2de61bc9d262",
+   "files": [
+    "df6809b3ef72962ed5454527418ab69dfcd9aca809d91ff3ea4bb89afb6baf52  /app/verify_for_guest_final.zkey",
+    "ad58cfd4971d5d1559314377e7109e288830ac451c671fdb8e77bb2eda87bcfd  /app/verify_for_guest",
+    "b9810c5a5028c2452f655ffa0e21a9684e96cd287c44310431a09032582387e1  /app/verify_for_guest.dat",
+    "f439eb67bf33cb38f0a8ca2163600d1a1cd427bb630c007a1d8ee3847fd82f52  /usr/local/sbin/rapidsnark"
+   ],
+   "zkey_contributions": {
+    "protocol": "groth16",
+    "csHash": "893c1ef1c45d1c4910060344fd14e995db7406e3aeb0f5c4dd199d42af1441bcc7f0b6a2d4f985a92c158abe2dea108710700f72e078c4b5d40251fc6c532bdd",
+    "contributions": [
+     {
+      "type": "contribution",
+      "transcript": "85fe53997b8b9d8cbf493d22dedd26db63b8be3769b8b6c53e2afe8806a833fe7f5d8cd13363cfc5f2d1e4ec8c77345e4049438bfecaadf2019393f9714a58c2",
+      "name": "1st Contributor Name"
+     },
+     {
+      "type": "beacon",
+      "transcript": "d004a882a4e236b7de67c1116db0497756d5234755b161dd47f39109393cc5e9a42a53d16f3058a92e90e66984a83f2dde570965cb6883698b2910fa46291d94",
+      "name": "Final Beacon phase2",
+      "numIterationsExp": 10,
+      "beaconHash": "0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
+     }
+    ]
+   },
+   "vk_from_zkey_vs_upstream_test": {
+    "upstream_test_constants": 18,
+    "from_zkey": 18,
+    "equal_in_order": true
+   }
+  },
+  "bitvm": {
+   "arkworks": {
+    "verifies": true,
+    "verify_s": 0.002688974,
+    "wrong_public_verifies": false
+   },
+   "bitvm_rev": "7d1ca36",
+   "corrupted_intermediate": {
+    "exec_s": 0.150260576,
+    "executes": true,
+    "found": true,
+    "locking_script_bytes": 3472345,
+    "max_stack_items": 946,
+    "script_plus_witness_bytes": 3475684,
+    "tap_index": 181,
+    "under_4mb_less_16k": true,
+    "validate_s": 89.093450223,
+    "witness_script_bytes": 3339
+   },
+   "honest": {
+    "all_disprove_scripts_fail": true,
+    "assertion_witness_bytes": 286771,
+    "assertions": {
+     "hash": 363,
+     "u256": 15
+    },
+    "sign_and_execute_all_s": 214.110025248,
+    "validate": {
+     "found": false,
+     "s": 181.372181445,
+     "validate_s": 181.371813738
+    }
+   },
+   "tapscripts": {
+    "compile_s": 158.362784223,
+    "count": 364,
+    "largest_bytes": 3948063,
+    "smallest_bytes": 338312,
+    "total_bytes": 1110838305
+   },
+   "warning": "BitVM: DO NOT USE IN PRODUCTION. Winternitz secrets are test values.",
+   "wrong_public_input": {
+    "exec_s": 0.077348482,
+    "executes": true,
+    "found": true,
+    "locking_script_bytes": 947271,
+    "max_stack_items": 744,
+    "script_plus_witness_bytes": 955009,
+    "tap_index": 363,
+    "under_4mb_less_16k": true,
+    "validate_s": 177.728370855,
+    "witness_script_bytes": 7738
+   },
+   "peak_rss_mib": 5815,
+   "wall": "17:14.23"
+  }
+ },
+ "bridge_regtest_disprove": {
+  "what": "BitVM's bridge::integration::peg_out::disprove::test_disprove_success on esplora regtest (Bitcoin Core 30.2, acceptnonstdtxn=1), with the term Groth16 proof, Citrea's verifying key and its public input in place of the test's dummy circuit; the asserted proof has A replaced by a random point, as in the test",
+  "bitvm_rev": "7d1ca36",
+  "patch": "zk/bitvm-check/bridge-regtest.patch",
+  "relay": "zk/bitvm-check/esplora-relay.ts (esplora's electrs answers 413 to the 1.13 MB assert-commit-1)",
+  "upstream_issues_found": [
+   "sign_assert_tx_with_groth16_proof passes hex(secret_key) to a signer that hex-encodes again: signs under keys connector E does not hold; assert-commit-1 fails OP_EQUALVERIFY before broadcast. The unmodified test with BitVM's dummy proof fails identically (control run).",
+   "connector C compiles its disprove leaves from RawProof::default() (a fixed mock key) regardless of the graph's key, and its lock-script cache id omits the key: with any other key, generate_disprove_witness panics (api_runtime_utils.rs:419) on the first MSM chunk.",
+   "esplora's current image rejects transaction bodies over electrs' REST limit with 413; BitVM's regtest script raises only nginx's limit."
+  ],
+  "runs": {
+   "unmodified_control": "failed at assert_commit_1 sign: OP_EQUALVERIFY on Groth16IntermediateValues 0",
+   "ours_before_signer_fix": "failed identically",
+   "ours_signer_fixed_no_relay": "assert-commit-1 signed (300 inputs), broadcast refused with HTTP 413",
+   "ours_with_relay_mock_vk_leaves": "all four assert transactions mined; generate_disprove_witness panicked: connector C's leaves were for the mock key",
+   "ours_leaves_for_our_key": "disprove mined; the test's immediate reward lookup raced the relay (UTXO confirmed in the next block)",
+   "ours_final": "test result: ok. 1 passed"
+  },
+  "final": {
+   "test": "bridge::integration::peg_out::disprove::test_disprove_success",
+   "passed": true,
+   "disprove_broadcast_ok": true,
+   "public_input_loaded": "75962700830893060878030234075829344411357043628980348055174887586835985922",
+   "disprove_leaf": [
+    "363",
+    "PostMillerFinalVerify"
+   ],
+   "from_height": 891,
+   "tip": 989,
+   "txs": [
+    {
+     "label": "kick_off_2",
+     "txid": "b43a09f0fa682d1e0e817216222e8d1f2b6e4f8223f27d3c3559f59aec783ac1",
+     "height": 896,
+     "weight": 23032,
+     "vsize": 5758,
+     "size": 22621,
+     "fee": 5461,
+     "inputs": 1,
+     "outputs": 2,
+     "max_witness_items": 463,
+     "default_policy_testmempoolaccept": "passes checks before input lookup (missing-inputs on a node without them)"
+    },
+    {
+     "label": "assert_initial",
+     "txid": "7ce5cfeef324d78d3c1794ad318016945cb9b38d1ce2619518ed9e7441ec583b",
+     "height": 900,
+     "weight": 65605,
+     "vsize": 16402,
+     "size": 16555,
+     "fee": 48953,
+     "inputs": 1,
+     "outputs": 379,
+     "max_witness_items": 3,
+     "default_policy_testmempoolaccept": "passes checks before input lookup (missing-inputs on a node without them)"
+    },
+    {
+     "label": "assert_commit_1",
+     "txid": "11752a73b14caec336094ebf5246df8912911176c374c30339ebb76ff23b1ffd",
+     "height": 942,
+     "weight": 1129483,
+     "vsize": 282371,
+     "size": 1092418,
+     "fee": 739137,
+     "inputs": 300,
+     "outputs": 1,
+     "max_witness_items": 136,
+     "default_policy_testmempoolaccept": "rejected: tx-size"
+    },
+    {
+     "label": "assert_commit_2",
+     "txid": "9b13e1490de2bfd31a38853fb85a74b70a74ab2566c0539c03ed30a72928b56d",
+     "height": 943,
+     "weight": 281701,
+     "vsize": 70426,
+     "size": 271948,
+     "fee": 470440,
+     "inputs": 78,
+     "outputs": 1,
+     "max_witness_items": 72,
+     "default_policy_testmempoolaccept": "passes checks before input lookup (missing-inputs on a node without them)"
+    },
+    {
+     "label": "assert_final",
+     "txid": "e529d0af2eb28665c359690daa11416fe12bfef544d4580300eb34ceb49893c2",
+     "height": 946,
+     "weight": 1406,
+     "vsize": 352,
+     "size": 620,
+     "fee": 352,
+     "inputs": 3,
+     "outputs": 3,
+     "max_witness_items": 3,
+     "default_policy_testmempoolaccept": "passes checks before input lookup (missing-inputs on a node without them)"
+    },
+    {
+     "label": "disprove",
+     "txid": "ffad63351e3e1aa7c577202074b0566b17cc2d8741ada279ab860e272e245368",
+     "height": 987,
+     "weight": 956225,
+     "vsize": 239057,
+     "size": 955691,
+     "fee": 238785,
+     "inputs": 2,
+     "outputs": 2,
+     "max_witness_items": 475,
+     "default_policy_testmempoolaccept": "rejected: tx-size"
+    }
+   ],
+   "wall": "8:16.64",
+   "peak_rss_mib": 4250
+  }
+ }
+}

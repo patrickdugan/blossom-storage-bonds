@@ -1,0 +1,98 @@
+diff --git a/bridge/src/connectors/connector_c.rs b/bridge/src/connectors/connector_c.rs
+index 063a2c7..8c1d0a9 100644
+--- a/bridge/src/connectors/connector_c.rs
++++ b/bridge/src/connectors/connector_c.rs
+@@ -325,7 +325,14 @@ fn generate_assert_leaves(
+         .map(|f| &f.1.public_key)
+         .collect::<Vec<&winternitz::PublicKey>>();
+ 
+-    let default_proof = RawProof::default(); // mock a default proof to generate scripts
++    // blossom-storage-bonds phase 6 spike: compile the leaves for the verifying key of the proof under
++    // test when BSB_GROTH16_DIR names one; upstream always uses the mock key below, and its lock-script
++    // cache id does not include the key, so the cache must be cleared when the key changes.
++    let default_proof = if std::env::var("BSB_GROTH16_DIR").is_ok() {
++        crate::proof::get_proof()
++    } else {
++        RawProof::default() // mock a default proof to generate scripts
++    };
+     let partial_scripts = api_generate_partial_script(&default_proof.vk);
+     let pks: PublicKeys = utils_typed_pubkey_from_raw(sorted_pks);
+     let locks = api_generate_full_tapscripts(pks, &partial_scripts);
+diff --git a/bridge/src/proof.rs b/bridge/src/proof.rs
+index 18fa2a3..4f2c20c 100644
+--- a/bridge/src/proof.rs
++++ b/bridge/src/proof.rs
+@@ -12,6 +12,11 @@ use rand::{RngCore, SeedableRng};
+ 
+ // TODO: replace with actual implementation
+ pub fn get_proof() -> RawProof {
++    // blossom-storage-bonds phase 6 spike: use a snarkjs-format Groth16 proof (vk.json, proof.json,
++    // public.json) from BSB_GROTH16_DIR instead of the dummy circuit, when set. Test use only.
++    if let Ok(dir) = std::env::var("BSB_GROTH16_DIR") {
++        return bsb_groth16(&dir);
++    }
+     type E = Bn254;
+     let k = 6;
+     let mut rng = ark_std::rand::rngs::StdRng::seed_from_u64(test_rng().next_u64());
+@@ -89,3 +94,29 @@ impl<F: PrimeField> ConstraintSynthesizer<F> for DummyCircuit<F> {
+         Ok(())
+     }
+ }
++
++fn bsb_groth16(dir: &str) -> RawProof {
++    use ark_bn254::{Fq, Fq2, Fr, G2Affine};
++    use std::str::FromStr;
++    let read = |f: &str| -> serde_json::Value {
++        serde_json::from_str(&std::fs::read_to_string(format!("{dir}/{f}")).unwrap()).unwrap()
++    };
++    let fq = |v: &serde_json::Value| Fq::from_str(v.as_str().unwrap()).unwrap();
++    let g1 = |v: &serde_json::Value| G1Affine::new(fq(&v[0]), fq(&v[1]));
++    let g2 = |v: &serde_json::Value| {
++        G2Affine::new(Fq2::new(fq(&v[0][0]), fq(&v[0][1])), Fq2::new(fq(&v[1][0]), fq(&v[1][1])))
++    };
++    let v = read("vk.json");
++    let vk = ark_groth16::VerifyingKey::<Bn254> {
++        alpha_g1: g1(&v["vk_alpha_1"]),
++        beta_g2: g2(&v["vk_beta_2"]),
++        gamma_g2: g2(&v["vk_gamma_2"]),
++        delta_g2: g2(&v["vk_delta_2"]),
++        gamma_abc_g1: v["IC"].as_array().unwrap().iter().map(g1).collect(),
++    };
++    let p = read("proof.json");
++    let proof = ark_groth16::Proof::<Bn254> { a: g1(&p["pi_a"]), b: g2(&p["pi_b"]), c: g1(&p["pi_c"]) };
++    let public = vec![Fr::from_str(read("public.json")[0].as_str().unwrap()).unwrap()];
++    eprintln!("bsb: Groth16 proof from {dir}, public input {}, IC len {}", public[0], vk.gamma_abc_g1.len());
++    RawProof { proof, public, vk }
++}
+diff --git a/bridge/src/transactions/assert_transactions/utils.rs b/bridge/src/transactions/assert_transactions/utils.rs
+index a58a847..2a7ec1a 100644
+--- a/bridge/src/transactions/assert_transactions/utils.rs
++++ b/bridge/src/transactions/assert_transactions/utils.rs
+@@ -74,7 +74,12 @@ pub fn sign_assert_tx_with_groth16_proof(
+     commitment_secrets.clone().into_iter().for_each(|(k, v)| {
+         if let CommitmentMessageId::Groth16IntermediateValues((name, _)) = k {
+             let index = u32::from_str_radix(&name, 10).unwrap();
+-            sorted_secrets.push((index, v.secret_key.to_lower_hex_string()));
++            // blossom-storage-bonds phase 6 spike: the signer's secret_from_str hex-encodes its input,
++            // and secret_key is already that encoding (WinternitzSecret::from_string), so pass the
++            // string it came from. Upstream passes hex(secret_key), which signs under another key
++            // and fails connector E's OP_EQUALVERIFY.
++            let original = <Vec<u8> as bitcoin::hex::FromHex>::from_hex(std::str::from_utf8(&v.secret_key).unwrap()).unwrap();
++            sorted_secrets.push((index, String::from_utf8(original).unwrap()));
+         }
+     });
+ 
+diff --git a/bridge/tests/bridge/integration/peg_out/disprove.rs b/bridge/tests/bridge/integration/peg_out/disprove.rs
+index d1bb404..3f8f63a 100644
+--- a/bridge/tests/bridge/integration/peg_out/disprove.rs
++++ b/bridge/tests/bridge/integration/peg_out/disprove.rs
+@@ -310,6 +310,9 @@ async fn test_disprove_success() {
+     assert!(disprove_result.is_ok());
+ 
+     // reward balance
++    // blossom-storage-bonds phase 6 spike: the relay in front of esplora broadcasts through bitcoind,
++    // so electrs sees the disprove only once it is mined; wait for that before looking it up.
++    wait_for_confirmation(config.network).await;
+     let reward_utxos = config
+         .client_0
+         .esplora

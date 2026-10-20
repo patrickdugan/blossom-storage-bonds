@@ -132,6 +132,38 @@ export function statementOutput(backend: Backend, seed: Buffer, q: number, deals
   return [...H.words(seed), q, mode, deals.length, ...H.words(H.dset(deals))].map(hex);
 }
 
+/** The RISC Zero guest's journal (zk/risc0, phase 6): statementOutput's 19 felts, each as a
+ *  big-endian u32, 76 bytes. For "sha" the seed and D come out as their raw bytes, so the journal
+ *  is seed ‖ u32be(q) ‖ u32be(mode) ‖ u32be(deal count) ‖ D. */
+export function journalBytes(seed: Buffer, q: number, deals: DealRef[], mode: Mode = 1): Buffer {
+  return Buffer.concat(statementOutput("sha", seed, q, deals, mode).map((h) => {
+    const b = Buffer.alloc(4); b.writeUInt32BE(Number(h)); return b;
+  }));
+}
+
+/** The RISC Zero holdings guest's input stream (zk/risc0/methods/guest/src/bin/hold.rs): seed,
+ *  u32le q, u32le deal count, per deal (root, u32le n), then per challenge j (u32le deal, the
+ *  4 KiB chunk, u32le path length, path). Mode 1 and "sha" only. Like witnessFelts, it throws on a
+ *  missing chunk unless `substitute` supplies bytes to send in its place. */
+export function risc0Witness(seed: Buffer, q: number, deals: HeldDeal[],
+  substitute?: (deal: number, idx: number) => Buffer): Buffer {
+  if (seed.length !== 32) throw new Error("seed must be 32 bytes");
+  const refs = deals.map((d) => ({ root: d.tree.root, n: d.tree.n }));
+  const parts: Buffer[] = [seed, u32le(q), u32le(deals.length)];
+  for (const r of refs) parts.push(r.root, u32le(r.n));
+  for (const c of holdingsChallenges("sha", seed, refs, q)) {
+    let chunk = deals[c.deal].chunk(c.idx);
+    if (!chunk) {
+      if (!substitute) throw new Error(`deal ${c.deal}: challenged chunk ${c.idx} is not held`);
+      chunk = substitute(c.deal, c.idx);
+    }
+    if (chunk.length !== CHUNK) throw new Error("chunk size");
+    const path = merkleProof(deals[c.deal].tree, c.idx);
+    parts.push(u32le(c.deal), chunk, u32le(path.length), ...path);
+  }
+  return Buffer.concat(parts);
+}
+
 /** One deal as the provider holds it: the tree, and whatever chunks it still has. */
 export interface HeldDeal { readonly tree: Tree; readonly chunk: (i: number) => Buffer | undefined }
 
