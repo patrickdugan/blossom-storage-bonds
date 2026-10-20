@@ -13,7 +13,7 @@
 // Not implemented: BUD-04 mirror, BUD-06 HEAD /upload, BUD-12 list/delete, quotas, rate limits. Two
 // misbehaviours exist for the demo and tests, set through methods on the returned object, never over HTTP.
 
-import { createHash } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { closeSync, existsSync, mkdirSync, openSync, readFileSync, readSync, renameSync, rmSync, writeFileSync, writeSync } from "node:fs";
 import { join } from "node:path";
@@ -38,6 +38,11 @@ export interface ProviderConfig {
   host?: string;
   maxUploadBytes?: number;
   uploaders?: string[];          // pubkeys allowed to upload; omitted means anyone with a valid token
+  /** Extra routes tried before the built-in ones (the provider process adds bond and channel endpoints).
+   *  Return true if the request was handled. */
+  routes?: (req: IncomingMessage, res: ServerResponse, url: URL) => Promise<boolean>;
+  /** Extra fields for GET / (for example the provider's on-chain key). */
+  info?: Record<string, unknown>;
 }
 
 export interface Descriptor {
@@ -61,6 +66,14 @@ export interface Provider {
   /** Delete the replica's bytes and answer PDP by fetching the same chunk indices from another server's
    *  blob (outsourcing, design finding 3). The leaves of the provider's own replica are kept. */
   outsource(sha: string, from: { url: string; sha256: string }): void;
+  /** The PDP answer for a nonce, from whatever the provider holds: what the sidecar serves over HTTP and
+   *  the provider process sends over NIP-44. */
+  pdpAnswer(sha: string, nonce: string, q: number, epoch: number): Promise<PdpAnswer | { error: string }>;
+  /** The commitments left unopened by the last completed cut and choose for a blob, if any. */
+  bondTerms(sha: string): { s: string; h: string; hs?: string[] }[] | undefined;
+  /** Hold a body for one GET at an unguessable /pdp-answer/<id> URL: how an answer too large for one
+   *  NIP-44 message (65,535 bytes) is delivered. The Nostr message then carries the URL and its hash. */
+  stash(body: string): string;
   close(): Promise<void>;
 }
 
@@ -75,16 +88,16 @@ const CORS = {
   "Access-Control-Max-Age": "86400",
 };
 
-function fail(res: ServerResponse, status: number, reason: string) {
+export function fail(res: ServerResponse, status: number, reason: string) {
   res.writeHead(status, { ...CORS, "X-Reason": reason, "Content-Type": "text/plain" });
   res.end(reason + "\n");
 }
-function json(res: ServerResponse, status: number, body: unknown) {
+export function json(res: ServerResponse, status: number, body: unknown) {
   res.writeHead(status, { ...CORS, "Content-Type": "application/json" });
   res.end(JSON.stringify(body));
 }
 
-function readBody(req: IncomingMessage, max: number): Promise<Buffer | null> {
+export function readBody(req: IncomingMessage, max: number): Promise<Buffer | null> {
   return new Promise((ok, bad) => {
     const parts: Buffer[] = [];
     let n = 0;
@@ -204,14 +217,17 @@ export async function startProvider(cfg: ProviderConfig): Promise<Provider> {
   }
 
   async function onPdp(res: ServerResponse, sha: string, params: URLSearchParams) {
+    const a = await pdpAnswer(sha, params.get("nonce") ?? "", Number(params.get("q")), Number(params.get("epoch") ?? 0));
+    if ("error" in a) return fail(res, a.error === "blob not found" ? 404 : 400, a.error);
+    json(res, 200, a);
+  }
+
+  async function pdpAnswer(sha: string, nonce: string, q: number, epoch: number): Promise<PdpAnswer | { error: string }> {
     const m = meta(sha);
-    if (!m) return fail(res, 404, "blob not found");
-    const nonce = params.get("nonce") ?? "";
-    const q = Number(params.get("q"));
-    const epoch = Number(params.get("epoch") ?? 0);
-    if (!/^[0-9a-f]{64}$/.test(nonce)) return fail(res, 400, "nonce must be 32 bytes of lowercase hex");
-    if (!Number.isSafeInteger(q) || q < 1 || q > MAX_Q) return fail(res, 400, `q must be an integer in 1..${MAX_Q}`);
-    if (!Number.isSafeInteger(epoch) || epoch < 0) return fail(res, 400, "epoch must be a non-negative integer");
+    if (!m) return { error: "blob not found" };
+    if (!/^[0-9a-f]{64}$/.test(nonce)) return { error: "nonce must be 32 bytes of lowercase hex" };
+    if (!Number.isSafeInteger(q) || q < 1 || q > MAX_Q) return { error: `q must be an integer in 1..${MAX_Q}` };
+    if (!Number.isSafeInteger(epoch) || epoch < 0) return { error: "epoch must be a non-negative integer" };
     const t = tree(sha);
     const indices = epochIndices(Buffer.from(nonce, "hex"), t.n, q);
     const chunks = await Promise.all(indices.map((i) => readChunk(sha, m.size, i)));
@@ -222,7 +238,7 @@ export async function startProvider(cfg: ProviderConfig): Promise<Provider> {
       paths: indices.map((i) => merkleProof(t, i).map((p) => p.toString("hex"))),
       invoice: invoice.paymentRequest,
     };
-    json(res, 200, answer);
+    return answer;
   }
 
   // ── layer 2 support: sentinel answers and cut and choose ──
@@ -256,6 +272,8 @@ export async function startProvider(cfg: ProviderConfig): Promise<Provider> {
    *  open, from its secret key and the commitments, so the client cannot predict or grind the choice. */
   type Commitment = { s: string; h: string; hs?: string[] };
   const pending = new Map<string, { commitments: Commitment[]; open: number[]; k: number }>();
+  const terms = new Map<string, Commitment[]>();
+  const stashed = new Map<string, string>();
 
   async function onCommit(req: IncomingMessage, res: ServerResponse, sha: string) {
     if (!meta(sha)) return fail(res, 404, "blob not found");
@@ -304,7 +322,9 @@ export async function startProvider(cfg: ProviderConfig): Promise<Provider> {
     pending.delete(sha);
     if (bad.length) return json(res, 200, { ok: false, bad });
     const opened = new Set(p.open);
-    json(res, 200, { ok: true, kept: p.commitments.map((_, j) => j).filter((j) => !opened.has(j)) });
+    const kept = p.commitments.map((_, j) => j).filter((j) => !opened.has(j));
+    terms.set(sha, kept.map((j) => p.commitments[j]));
+    json(res, 200, { ok: true, kept });
   }
 
   const hostname = (req: IncomingMessage) => String(req.headers.host ?? "").replace(/:\d+$/, "").toLowerCase();
@@ -313,7 +333,16 @@ export async function startProvider(cfg: ProviderConfig): Promise<Provider> {
     const u = new URL(req.url ?? "/", "http://x");
     const run = async () => {
       if (req.method === "OPTIONS") { res.writeHead(204, CORS); return res.end(); }
+      if (cfg.routes && (await cfg.routes(req, res, u))) return;
       if (req.method === "PUT" && u.pathname === "/upload") return onUpload(req, res);
+      const st = /^\/pdp-answer\/([0-9a-f]{32})$/.exec(u.pathname);
+      if (req.method === "GET" && st) {
+        const body = stashed.get(st[1]);
+        if (body === undefined) return fail(res, 404, "no such answer");
+        stashed.delete(st[1]);
+        res.writeHead(200, { ...CORS, "Content-Type": "application/json" });
+        return res.end(body);
+      }
       const pdp = /^\/pdp\/([0-9a-f]{64})$/.exec(u.pathname);
       if (req.method === "GET" && pdp) return onPdp(res, pdp[1], u.searchParams);
       const sen = /^\/sentinel\/([0-9a-f]{64})$/.exec(u.pathname);
@@ -323,7 +352,7 @@ export async function startProvider(cfg: ProviderConfig): Promise<Provider> {
       const g = SHA_PATH.exec(u.pathname);
       if ((req.method === "GET" || req.method === "HEAD") && g) return onGet(req, res, g[1]);
       if (req.method === "GET" && u.pathname === "/") {
-        return json(res, 200, { software: "blossom-storage-bonds/layer1", pubkey: cfg.key.x, pdp: { chunk: CHUNK, maxQ: MAX_Q, priceMsatPerChunkEpoch: cfg.priceMsatPerChunkEpoch, lightning: cfg.payee.nodeId } });
+        return json(res, 200, { software: "blossom-storage-bonds/layer1", pubkey: cfg.key.x, ...cfg.info, pdp: { chunk: CHUNK, maxQ: MAX_Q, priceMsatPerChunkEpoch: cfg.priceMsatPerChunkEpoch, lightning: cfg.payee.nodeId } });
       }
       fail(res, 404, "not found");
     };
@@ -354,6 +383,14 @@ export async function startProvider(cfg: ProviderConfig): Promise<Provider> {
       if (!meta(sha)) throw new Error("no such blob");
       rmSync(blobPath(sha), { force: true });
       outsourced.set(sha, from);
+    },
+    pdpAnswer,
+    bondTerms: (sha) => terms.get(sha),
+    stash(body) {
+      const id = randomBytes(16).toString("hex");
+      stashed.set(id, body);
+      setTimeout(() => stashed.delete(id), 600_000).unref();
+      return `${base}/pdp-answer/${id}`;
     },
     close: () => new Promise<void>((r) => { server.closeAllConnections(); server.close(() => r()); }),
   };

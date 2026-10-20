@@ -82,34 +82,34 @@ pub fn party(secp: &Secp256k1<All>, label: &str) -> Party {
     Party { kp, x: kp.x_only_public_key().0, sk }
 }
 
-pub fn challenge_leaf(c: &Party, p: &Party, s: [u8; 32]) -> ScriptBuf {
+pub fn challenge_leaf(c: &XOnlyPublicKey, p: &XOnlyPublicKey, s: [u8; 32]) -> ScriptBuf {
     Builder::new()
-        .push_x_only_key(&c.x).push_opcode(OP_CHECKSIGVERIFY)
-        .push_x_only_key(&p.x).push_opcode(OP_CHECKSIGVERIFY)
+        .push_x_only_key(c).push_opcode(OP_CHECKSIGVERIFY)
+        .push_x_only_key(p).push_opcode(OP_CHECKSIGVERIFY)
         .push_opcode(OP_SHA256).push_slice(s).push_opcode(OP_EQUAL)
         .into_script()
 }
-pub fn refund_leaf(p: &Party, t_end: u32) -> ScriptBuf {
+pub fn refund_leaf(p: &XOnlyPublicKey, t_end: u32) -> ScriptBuf {
     Builder::new()
         .push_int(t_end as i64).push_opcode(OP_CLTV).push_opcode(OP_DROP)
-        .push_x_only_key(&p.x).push_opcode(OP_CHECKSIG)
+        .push_x_only_key(p).push_opcode(OP_CHECKSIG)
         .into_script()
 }
 /// One h is the one-window leaf. More add `SHA256 <h_j> EQUALVERIFY` per window; the witness then carries
 /// item_{m-1} … item_0 under the two signatures, so item_0 is checked first.
-pub fn respond_leaf(p: &Party, c: &Party, hs: &[[u8; 32]]) -> ScriptBuf {
+pub fn respond_leaf(p: &XOnlyPublicKey, c: &XOnlyPublicKey, hs: &[[u8; 32]]) -> ScriptBuf {
     let mut b = Builder::new()
-        .push_x_only_key(&p.x).push_opcode(OP_CHECKSIGVERIFY)
-        .push_x_only_key(&c.x).push_opcode(OP_CHECKSIGVERIFY);
+        .push_x_only_key(p).push_opcode(OP_CHECKSIGVERIFY)
+        .push_x_only_key(c).push_opcode(OP_CHECKSIGVERIFY);
     for (j, h) in hs.iter().enumerate() {
         b = b.push_opcode(OP_SHA256).push_slice(*h).push_opcode(if j + 1 < hs.len() { OP_EQUALVERIFY } else { OP_EQUAL });
     }
     b.into_script()
 }
-pub fn forfeit_leaf(c: &Party, delta: u16) -> ScriptBuf {
+pub fn forfeit_leaf(c: &XOnlyPublicKey, delta: u16) -> ScriptBuf {
     Builder::new()
         .push_int(delta as i64).push_opcode(OP_CSV).push_opcode(OP_DROP)
-        .push_x_only_key(&c.x).push_opcode(OP_CHECKSIG)
+        .push_x_only_key(c).push_opcode(OP_CHECKSIG)
         .into_script()
 }
 
@@ -195,7 +195,18 @@ impl Node {
     /// The largest confirmed, mature output paying the fee key.
     pub fn fee_utxo(&self) -> (OutPoint, TxOut) {
         let tip = self.rpc.height() as u64;
-        let r = self.rpc.call("scantxoutset", json!(["start", [format!("addr({})", self.fee_addr)]])).unwrap();
+        // Core runs one UTXO-set scan at a time; other parties' agents may be scanning on the same node.
+        let mut tries = 0;
+        let r = loop {
+            match self.rpc.call("scantxoutset", json!(["start", [format!("addr({})", self.fee_addr)]])) {
+                Ok(r) => break r,
+                Err(e) if e.contains("in progress") && tries < 100 => {
+                    tries += 1;
+                    std::thread::sleep(std::time::Duration::from_millis(50));
+                }
+                Err(e) => panic!("scantxoutset: {e}"),
+            }
+        };
         let best = r["unspents"]
             .as_array()
             .unwrap()
@@ -296,7 +307,7 @@ pub struct Chain {
     pub forfeit: ScriptBuf,
 }
 
-pub fn build_chain(secp: &Secp256k1<All>, internal: XOnlyPublicKey, p: &Party, c: &Party, sh: &[([u8; 32], Vec<[u8; 32]>)], t_end: u32) -> Chain {
+pub fn build_chain(secp: &Secp256k1<All>, internal: XOnlyPublicKey, p: &XOnlyPublicKey, c: &XOnlyPublicKey, sh: &[([u8; 32], Vec<[u8; 32]>)], t_end: u32) -> Chain {
     let refund = refund_leaf(p, t_end);
     let forfeit = forfeit_leaf(c, DELTA);
     let challenge_leaves: Vec<ScriptBuf> = sh.iter().map(|(s, _)| challenge_leaf(c, p, *s)).collect();
@@ -315,19 +326,52 @@ pub struct Presigned {
     pub sig_c_respond: Vec<Vec<u8>>,
 }
 
-pub fn presign_chain(secp: &Secp256k1<All>, ch: &Chain, p: &Party, c: &Party, fund_op: OutPoint) -> Presigned {
-    let (mut challenge, mut respond, mut sp, mut sc) = (vec![], vec![], vec![], vec![]);
+/// The unsigned presigned transactions of a chain funded at `fund_op`: every Challenge_i and Respond_i.
+/// Both parties compute the same bytes and txids from public data.
+pub fn chain_txs(ch: &Chain, fund_op: OutPoint) -> (Vec<Transaction>, Vec<Transaction>) {
+    let (mut challenge, mut respond) = (vec![], vec![]);
     let mut bond_op = fund_op;
     for i in 0..ch.challenge_leaves.len() {
         let ctx_tx = presigned(bond_op, &ch.challenged[i].spk);
-        sp.push(script_sig(secp, &ctx_tx, &TxOut { value: BOND, script_pubkey: ch.bonds[i].spk.clone() }, &ch.challenge_leaves[i], p));
         let rtx = presigned(OutPoint { txid: ctx_tx.compute_txid(), vout: 0 }, &ch.bonds[i + 1].spk);
-        sc.push(script_sig(secp, &rtx, &TxOut { value: BOND, script_pubkey: ch.challenged[i].spk.clone() }, &ch.respond_leaves[i], c));
         bond_op = OutPoint { txid: rtx.compute_txid(), vout: 0 };
         challenge.push(ctx_tx);
         respond.push(rtx);
     }
+    (challenge, respond)
+}
+
+pub fn presign_chain(secp: &Secp256k1<All>, ch: &Chain, p: &Party, c: &Party, fund_op: OutPoint) -> Presigned {
+    let (challenge, respond) = chain_txs(ch, fund_op);
+    let sp = (0..challenge.len()).map(|i| script_sig(secp, &challenge[i], &TxOut { value: BOND, script_pubkey: ch.bonds[i].spk.clone() }, &ch.challenge_leaves[i], p)).collect();
+    let sc = (0..respond.len()).map(|i| script_sig(secp, &respond[i], &TxOut { value: BOND, script_pubkey: ch.challenged[i].spk.clone() }, &ch.respond_leaves[i], c)).collect();
     Presigned { challenge, respond, sig_p_challenge: sp, sig_c_respond: sc }
+}
+
+/// BIP341 script-path sighash for input 0 of `tx`, spending `prev` through `leaf`.
+pub fn script_sighash(tx: &Transaction, prev: &TxOut, leaf: &ScriptBuf) -> Message {
+    let lh = TapLeafHash::from_script(leaf, LeafVersion::TapScript);
+    let sh = SighashCache::new(tx)
+        .taproot_script_spend_signature_hash(0, &Prevouts::All(&[prev.clone()]), lh, TapSighashType::Default)
+        .unwrap();
+    Message::from_digest(sh.to_byte_array())
+}
+
+/// Check a counterparty's BIP340 signature over that sighash: what each side does before it relies on a
+/// presigned transaction.
+pub fn verify_script_sig(secp: &Secp256k1<All>, tx: &Transaction, prev: &TxOut, leaf: &ScriptBuf, who: &XOnlyPublicKey, sig: &[u8]) -> bool {
+    match bitcoin::secp256k1::schnorr::Signature::from_slice(sig) {
+        Ok(s) => secp.verify_schnorr(&s, &script_sighash(tx, prev, leaf), who).is_ok(),
+        Err(_) => false,
+    }
+}
+
+/// BIP341's provably unspendable internal key (H = lift_x(SHA256(G))), for outputs with no keypath.
+pub fn nums() -> XOnlyPublicKey {
+    XOnlyPublicKey::from_slice(&[
+        0x50, 0x92, 0x9b, 0x74, 0xc1, 0xa0, 0x49, 0x54, 0xb7, 0x8b, 0x4b, 0x60, 0x35, 0xe9, 0x7a, 0x5e,
+        0x07, 0x8a, 0x5a, 0x0f, 0x28, 0xec, 0x96, 0xd5, 0x47, 0xbf, 0xee, 0x9a, 0xce, 0x80, 0x3a, 0xc0,
+    ]).unwrap()
 }
 
 /// Two-party MuSig2 over a keypath sighash, with the taproot tweak for `merkle`. Fixed nonce seeds mixed

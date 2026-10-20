@@ -1,0 +1,227 @@
+{
+  "generated": "2026-10-20T00:48:50.149Z",
+  "note": "Every party is a separate process with its own keys and wallet. Payments are a one-way Bitcoin payment channel per provider, not Lightning. Nonces are seeded.",
+  "params": {
+    "epochs": 10,
+    "q": 8,
+    "misbehaviourFrom": 4,
+    "m": 64,
+    "k": 4,
+    "windows": 16,
+    "bondBtc": 1,
+    "delta": 144,
+    "priceMsatPerChunkEpoch": 2000,
+    "channelSats": 50000,
+    "blobBytes": 1048576
+  },
+  "regtest": {
+    "heightBefore": 386,
+    "heightAfter": 2001
+  },
+  "summary": [
+    {
+      "role": "honest",
+      "pid": 4468,
+      "failedEpochs": 0,
+      "paidSats": 5120,
+      "paidOnChainSats": 5120,
+      "channel": {
+        "funding": "6e0fa3528fca722bee860f15fa94d6a6f0a8df98c2d94415ed9f64a37cb55289",
+        "close": "204e74c11cb6d8b20b3091bf7808b15e3ab8efda5a472af3643d5795a14badd1"
+      },
+      "bond": {
+        "funding": "d270f29ebee6da43471a63a24808bbf8dba92d89e05e5e0accca58658e4211ff",
+        "settlement": "dd6f80405430bfd7ea2e8050b4467244d22a2a1016234f9faa97f2d11681962c",
+        "to": "provider",
+        "confirmations": 4
+      },
+      "enforcement": [
+        {
+          "i": 0,
+          "challenge_txid": "2716610dad6ea263a9f53d5f1b9968066b1c35dbb3e15a8f04bb46ccf7bcd1a7",
+          "answered_after_blocks": 2,
+          "forfeit_txid": null
+        }
+      ],
+      "pForfeitIfAllChallenged": 0,
+      "providerAgentLog": [
+        {
+          "t": 1792457232973,
+          "provider": "honest",
+          "event": "bond-respond",
+          "sha": "347450468be2",
+          "i": 0,
+          "r": "810384cfdf66cf6c48b4d6b570edb40d",
+          "status": "responded",
+          "txid": "7621cdb5f768e53e0519927afad42610bda646a07cef363d47df9f07572c7dae",
+          "vsize": 639
+        }
+      ]
+    },
+    {
+      "role": "deletes 10%",
+      "pid": 16880,
+      "failedEpochs": 2,
+      "paidSats": 4096,
+      "paidOnChainSats": 4096,
+      "channel": {
+        "funding": "d8ed07ff058784139b5ff7f03a54ecaad91d3c6602f8eca7b5a87faf92513a14",
+        "close": "7239b1ea80d37d2f60a1cdf95ec133ea5c5768f4ed889fa2ce4d95b26b724fd6"
+      },
+      "bond": {
+        "funding": "07c7261c0515cf510c3a8c08b929edfc559c5f4c538ffa477d77eda1befd97f5",
+        "settlement": "d9d2753d53b4aa48728cacb06011fe000ece03fa1ff07e94a5952ee54e7345f4",
+        "to": "client",
+        "confirmations": 1348
+      },
+      "enforcement": [
+        {
+          "i": 0,
+          "challenge_txid": "5fd1faa5a10a0cae1e96533fd2b530bdf4cf97dd05091f8640af6da759a7aae6",
+          "answered_after_blocks": 2,
+          "forfeit_txid": null
+        },
+        {
+          "i": 1,
+          "challenge_txid": "bf98430fde0a3225bbe94dcce91cefe81d70247ebde1560408b58588e36bcfb4",
+          "answered_after_blocks": null,
+          "forfeit_txid": "d9d2753d53b4aa48728cacb06011fe000ece03fa1ff07e94a5952ee54e7345f4"
+        }
+      ],
+      "pForfeitIfAllChallenged": 0.9988209815422261,
+      "providerAgentLog": [
+        {
+          "t": 1792457233304,
+          "provider": "deletes10",
+          "event": "bond-respond",
+          "sha": "671ab1228037",
+          "i": 0,
+          "r": "6fc94129501a4fcd9888090ea5cbbf9e",
+          "status": "responded",
+          "txid": "4a1b86e4ad6c532acf681f80f85713cbe06dbbf6d9201194c58b2f449f155dd7",
+          "vsize": 639
+        },
+        {
+          "t": 1792457233672,
+          "provider": "deletes10",
+          "event": "bond-respond",
+          "sha": "671ab1228037",
+          "i": 1,
+          "error": "transaction failed: bad-txns-inputs-missingorspent; mempool-script-verify-flag-failed (Script failed an OP_EQUALVERIFY operation)",
+          "r": "a595f1074c8cd2c371e9fe2ba2b829ab",
+          "status": "rejected"
+        },
+        {
+          "t": 1792457260701,
+          "provider": "deletes10",
+          "event": "bond-respond",
+          "sha": "671ab1228037",
+          "i": 1,
+          "error": "transaction failed: bad-txns-inputs-missingorspent; bad-txns-inputs-missingorspent",
+          "r": "a595f1074c8cd2c371e9fe2ba2b829ab",
+          "status": "rejected"
+        }
+      ]
+    },
+    {
+      "role": "deletes 50%",
+      "pid": 32956,
+      "failedEpochs": 7,
+      "paidSats": 1536,
+      "paidOnChainSats": 1536,
+      "channel": {
+        "funding": "74bdd38d94df9d8fff9d0034509e2a95165b1156d4706a40d7fb97acf9633e24",
+        "close": "828a85460f7ca4baea32de46f5196b411740174c24a87b1621937b9ae9835f7b"
+      },
+      "bond": {
+        "funding": "58be0ec69dd9e508c37f4ab2fbcf2fa6a24f56f8499670450f39342f883c1182",
+        "settlement": "32706c1d2f54f7342086d8e8b8d5675b82b2ff5e956220baeb0ecfd9ccfabb7b",
+        "to": "client",
+        "confirmations": 1203
+      },
+      "enforcement": [
+        {
+          "i": 0,
+          "challenge_txid": "5ec5e5df8b1c58fc7c087f01294c6223e19e4be3a5815eb0e62658292ceca9c3",
+          "answered_after_blocks": null,
+          "forfeit_txid": "32706c1d2f54f7342086d8e8b8d5675b82b2ff5e956220baeb0ecfd9ccfabb7b"
+        }
+      ],
+      "pForfeitIfAllChallenged": 1,
+      "providerAgentLog": [
+        {
+          "t": 1792457260830,
+          "provider": "deletes50",
+          "event": "bond-respond",
+          "sha": "ac64d8568938",
+          "i": 0,
+          "error": "transaction failed: mempool-script-verify-flag-failed (Script failed an OP_EQUALVERIFY operation)",
+          "r": "58d2de13c0ffd1a33ae58f46982bf95e",
+          "status": "rejected"
+        },
+        {
+          "t": 1792457287820,
+          "provider": "deletes50",
+          "event": "bond-respond",
+          "sha": "ac64d8568938",
+          "i": 0,
+          "error": "transaction failed: bad-txns-inputs-missingorspent; bad-txns-inputs-missingorspent",
+          "r": "58d2de13c0ffd1a33ae58f46982bf95e",
+          "status": "rejected"
+        }
+      ]
+    },
+    {
+      "role": "outsources",
+      "pid": 16028,
+      "failedEpochs": 7,
+      "paidSats": 1536,
+      "paidOnChainSats": 1536,
+      "channel": {
+        "funding": "934dac62ef33ffbe91339784c97f002b839890487c1d02dbee800b539ce5414c",
+        "close": "24ce48b52310a092be84a4960ea9c68a9552ffa714cc29d284bc5909c9065de3"
+      },
+      "bond": {
+        "funding": "efb7a093017f644275f5c39d515ae1183b2ffdda23ea026c96caeab595171d3c",
+        "settlement": "c712d179a9d810f1599eb38f065fba675deeb16d11ac6e522aaf192566729aaa",
+        "to": "client",
+        "confirmations": 1058
+      },
+      "enforcement": [
+        {
+          "i": 0,
+          "challenge_txid": "093f46a9e6bab6ae6db748912b6c7210ad5fc24d9664f3f8b27c7ea3e3398ace",
+          "answered_after_blocks": null,
+          "forfeit_txid": "c712d179a9d810f1599eb38f065fba675deeb16d11ac6e522aaf192566729aaa"
+        }
+      ],
+      "pForfeitIfAllChallenged": 1,
+      "providerAgentLog": [
+        {
+          "t": 1792457288021,
+          "provider": "outsources",
+          "event": "bond-respond",
+          "sha": "9b2fc6f3d897",
+          "i": 0,
+          "error": "transaction failed: mempool-script-verify-flag-failed (Script failed an OP_EQUALVERIFY operation)",
+          "r": "101ec6569ef1ffc3a9fef55a5788694d",
+          "status": "rejected"
+        },
+        {
+          "t": 1792457316249,
+          "provider": "outsources",
+          "event": "bond-respond",
+          "sha": "9b2fc6f3d897",
+          "i": 0,
+          "error": "transaction failed: bad-txns-inputs-missingorspent; bad-txns-inputs-missingorspent",
+          "r": "101ec6569ef1ffc3a9fef55a5788694d",
+          "status": "rejected"
+        }
+      ]
+    }
+  ],
+  "receipts": {
+    "onRelay": 40,
+    "paidWithPreimage": 24
+  }
+}

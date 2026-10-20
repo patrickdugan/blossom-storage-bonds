@@ -186,11 +186,22 @@ export class RelayClient {
     return c;
   }
 
+  private live = new Map<string, (e: NostrEvent) => void>();
+
+  /** A live subscription: `onEvent` gets every stored match and then every new one, until close(). */
+  subscribe(filters: Filter[], onEvent: (e: NostrEvent) => void): { close(): void } {
+    const sid = `s${++this.n}`;
+    this.live.set(sid, onEvent);
+    this.ws.send(JSON.stringify(["REQ", sid, ...filters]));
+    return { close: () => { this.live.delete(sid); this.ws.send(JSON.stringify(["CLOSE", sid])); } };
+  }
+
   private onMessage(raw: string) {
     let m: unknown;
     try { m = JSON.parse(raw); } catch { return; }
     if (!Array.isArray(m)) return;
     if (m[0] === "OK") this.waiters.get(`ok:${m[1]}`)?.(m);
+    else if (m[0] === "EVENT" && verifyEvent(m[2]) && this.live.has(String(m[1]))) this.live.get(String(m[1]))!(m[2]);
     else if (m[0] === "EVENT" && verifyEvent(m[2])) this.found.get(String(m[1]))?.push(m[2]);
     else if (m[0] === "EOSE" || m[0] === "CLOSED") this.waiters.get(`sub:${m[1]}`)?.(m);
   }

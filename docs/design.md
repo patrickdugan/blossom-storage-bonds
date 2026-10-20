@@ -86,6 +86,10 @@ cost, and it is worth paying only for what phases 0–2 cannot do: one bond pool
    27 vB. At m = 16 the answer is 639 vB (measured). A 10% deleter survives one challenge 18.5% of the
    time and four 0.12% (model test 12). With m = 1 every script and size is unchanged from phase 1.
 
+10. **NIP-44's 65,535-byte limit decides how answers travel.** At q = 8 an answer is about 49 kB and goes
+    inline. At q = 64 it is over 256 kB. The provider then holds it for one GET at an unguessable URL,
+    and sends that URL and the answer's SHA-256 inside the encrypted, signed reply (layer1 tests).
+
 ## 1. Layer 1: pay per proof
 
 Upload. The client encrypts the blob once per provider, `AES-256-CTR(K_p)` with
@@ -200,41 +204,57 @@ image never reaches. Bond per (client, provider) pair over a root of the client'
 sized to the term. To add blobs, spend the old bond cooperatively straight into a new one: one
 transaction per rollover.
 
-## 2.5 Phase 2: both layers, end to end (`layer1/bonded.ts`)
+## 2.5 Phase 2: the market, with every party in its own process (`layer1/market.ts`)
 
-Real Blossom servers and a real bond per provider on Core 31.1 regtest. Lightning is still the in-memory
-stub.
+Bitcoin Core 31.1 regtest carries all the money, and a Nostr relay carries all the coordination. Four
+provider processes (`layer1/provider.ts`) and the client process each hold only their own keys: a Nostr
+key, a bond and channel key, and a fee wallet funded by its own coinbases. They see each other only
+through HTTP, the relay and the chain.
 
-1. Four providers run Blossom servers. The client uploads a 1 MiB blob encrypted per provider. While it
-   still holds each ciphertext, it commits to M = 64 sentinels of 16 windows each.
-2. Cut and choose runs over HTTP (`POST /bond/<sha>/commit`, `/reveal`). Each provider opens 60 of the
-   64, chosen from its own secret key so the client cannot grind the choice. It checks all 16 windows of
-   each against the bytes it stores. The bond is built on the 4 it did not open.
-3. `bsb-bond fund` locks 1 BTC per provider and presigns the chain.
-4. Ten paid epochs run at q = 8. From epoch 4 one provider zeroes 10% of its chunks, one 50%, and one
-   deletes its replica and answers from the honest provider's copy.
-5. The client challenges each provider that failed an epoch on its sentinels in turn, and the honest one
-   once as a spot check. The provider's agent fetches r ‖ window for all 16 windows from its own server
-   (`GET /sentinel/<sha>?r=&m=16`) and submits them. The tool does not compare the answer with h first,
-   so Core's script check is the only verifier. A rejected answer is followed by Δ = 144 blocks and the
+1. Storage. The client uploads a 1 MiB blob, encrypted per provider, to each provider's Blossom server
+   (BUD-02 with kind-24242 auth). While it still holds each ciphertext, it commits to M = 64 sentinels of
+   16 windows each.
+2. Bond. Cut and choose runs over HTTP. Each provider opens 60 of the 64, choosing them from its own
+   secret key, and checks every window against its stored bytes. The provider writes the deal from its
+   own record of the 4 unopened sentinels, funds a 1 BTC bond from its own wallet, and presigns every
+   Challenge_i. The client checks that the deal matches its own, that the bond output is confirmed at
+   the script both sides derive, and every provider signature, before it presigns the Respond_i
+   transactions. The provider then checks those signatures before it treats the bond as live. The
+   internal key is the BIP341 NUMS point, so there is no keypath.
+3. Payment. The client funds a 50,000-sat one-way channel to each provider (`layer1/channel.ts`, Spilman
+   style: a 2-of-2 leaf, and a client refund after `t_refund`). The provider checks the funding output on
+   chain. Each paid epoch is a new client-signed state for the running total, exchanged for the
+   invoice's preimage. The provider verifies each signature before releasing the preimage.
+4. Epochs. The nonce goes to the provider as a NIP-44 v2 encrypted event (kind 21242). The answer comes
+   back as one too (kind 21243). Answers over 60 kB carry an encrypted URL and SHA-256 instead, because
+   NIP-44 caps a message at 65,535 bytes. The client checks the answer against its own root and pays
+   only if it holds. From epoch 4 one provider zeroes 10% of its chunks, one 50%, and one deletes its
+   replica and answers from the honest provider's copy.
+5. Enforcement. The client reveals sentinels on chain and mines a block about every 150 ms. Each
+   provider's own process polls the chain. When a challenge confirms, it reads r from that
+   transaction's witness, takes the 16 windows from its own Blossom server, and submits Respond_i. Core's
+   script check is the only verifier. After Δ = 144 blocks with no valid answer, the client spends the
    forfeit leaf.
+6. Settlement. Each provider closes its channel on chain with the latest state. The honest provider
+   refunds its bond at `t_end`.
 
-Results (`results/bonded.json`):
+Results (`results/market.json`), all read back from the node:
 
-| Provider | Failed epochs (of 10) | Paid | On-chain challenges | Core's verdict | 1 BTC bond |
-| --- | --- | --- | --- | --- | --- |
-| honest | 0 | 2,560 msat | 1 | accepted (639 vB) | closed by MuSig2 keypath to the provider |
-| deletes 10% | 3 | 1,792 msat | 2 | accepted, then `OP_EQUALVERIFY` failed | forfeited to the client |
-| deletes 50% | 7 | 768 msat | 1 | `OP_EQUALVERIFY` failed | forfeited to the client |
-| outsources | 7 | 768 msat | 1 | `OP_EQUALVERIFY` failed | forfeited to the client |
+| Provider | Failed epochs (of 10) | Paid on chain | Its own agent's answers | 1 BTC bond |
+| --- | --- | --- | --- | --- |
+| honest | 0 | 5,120 sats | challenge 0 accepted 2 blocks after the challenge | refunded to the provider at `t_end` |
+| deletes 10% | 2 | 4,096 sats | challenge 0 accepted; challenge 1 rejected (`OP_EQUALVERIFY`) | forfeited to the client |
+| deletes 50% | 7 | 1,536 sats | challenge 0 rejected (`OP_EQUALVERIFY`) | forfeited to the client |
+| outsources | 7 | 1,536 sats | challenge 0 rejected (`OP_EQUALVERIFY`) | forfeited to the client |
 
-All four final transactions were checked on the node: one keypath spend to the provider's address, and
-three forfeit-leaf spends with nSequence 144 to the client's address. The same run with one window per
-sentinel let the 10% deleter keep its bond (finding 9).
+Every channel close was checked to pay the provider exactly the total the client signed. The relay
+held 40 receipts, and the 24 paid ones each carry a preimage that opens their invoice.
 
-What this demo does not show. One process plays both parties' on-chain agents, with keys derived from
-seeds in the deal file. The challenges run after the epochs rather than interleaved with them. The bond
-is 1 BTC against a 1 MiB blob, sized to make the outcome readable, not priced.
+What this run does not show. The parties are separate processes on one machine and one regtest node.
+The orchestrator also mines, and makes the providers misbehave through a token-protected admin port.
+Challenges run after the epochs rather than interleaved with them. The bond is 1 BTC against a 1 MiB
+blob, sized to make the outcome readable, not priced. Payment is a one-way Bitcoin channel, not
+Lightning. Lightning would let the client pay any provider without a channel per pair.
 
 ## 3. Replicas
 
@@ -306,7 +326,8 @@ Blossom servers already authorize uploads with kind 24242 events, and users list
 | 0 | This model: replica encryption, chunk tree, epoch PDP, sentinel leaves, cut and choose, sizes | Done, 15 tests |
 | 1 | Regtest with real transactions: BIP341 sighashes, MuSig2 internal key, TRUC + P2A, the full presigned chain, challenge/respond/forfeit/refund/close all broadcast (rust-bitcoin 0.32.7, musig2 0.4.1, Core 31.1) | Done, 21 checks; found the 80-byte limit (finding 4a) |
 | 1b | Blossom sidecar: `/pdp/<sha256>?nonce=` answering from stored replicas, plus a client that runs epochs, pays an invoice and publishes a receipt | Done on localhost, 12 tests; Lightning is an in-memory hash-lock stub behind an interface, and the nonce goes over HTTP rather than NIP-44 |
-| 2a | Both layers end to end: cut and choose over HTTP, a real bond per deal funded on regtest, paid epochs, and on-chain enforcement from each provider's stored bytes (`layer1/bonded.ts`, `bsb-bond`); multi-window sentinels | Done: every cheater forfeits, the honest provider closes (§2.5) |
+| 2a | The market: separate processes per party, NIP-44 epoch challenges (official vectors pass), a real 1 BTC bond per deal, one-way Bitcoin payment channels for pay per proof, and on-chain enforcement by each provider's own agent; multi-window sentinels | Done: every cheater forfeits, the honest provider is paid and refunded, all checked on chain (§2.5) |
+| 2b | Lightning in place of the per-pair channels (regtest LND or CLN behind the same Payee/Payer interface) | Next |
 | 2 | zk setup proof for sentinels (SHA-256 + Merkle path, CPU prover), replacing cut and choose | Next |
 | 3 | BitVM2-shaped pooled bond: registry, header-seeded challenges, aggregated proof; measure cost per deal against phase 1 | Research |
 
@@ -320,11 +341,11 @@ What neither covers yet:
 - Mainnet relay beyond Core defaults. Other node policies and pinning across a real network are
   untested.
 - Fee spikes during Δ.
-- Cut and choose between separate parties. It runs over HTTP (§2.5), but both sides are in one process
-  with test keys.
-- Lightning. Layer 1 runs a real Blossom server, PDP sidecar and Nostr relay on localhost (`layer1/`),
-  but payment is an in-memory stub with hash locks, not a Lightning node.
-- NIP-17/NIP-44 delivery of the nonce, offer and deal events, and any relay other than the bundled
-  minimal one.
+- Lightning. Pay per proof uses real bitcoin, through a one-way payment channel per pair (§2.5), not a
+  Lightning node. The in-memory stub is still the default in `layer1/demo.ts` and the unit tests.
+- Separate machines. The parties are separate processes with separate keys and wallets, but they share
+  one host and one regtest node.
+- NIP-17 gift wrapping, offers and deals as Nostr events, and any relay other than the bundled minimal
+  one. The epoch challenge and answer are NIP-44 v2 events (§2.5).
 
 The fixed keys and MuSig2 nonce seeds in `regtest/` are test values. Never use them for real funds.

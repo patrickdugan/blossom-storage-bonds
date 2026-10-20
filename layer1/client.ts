@@ -85,6 +85,9 @@ export interface ClientOptions {
   relay?: RelayClient;
   /** Deterministic nonces for reproducible demos: nonce = SHA-256(seed ‖ sha256 ‖ epoch). Omit in use. */
   nonceSeed?: string;
+  /** How the nonce reaches the provider and the answer comes back. Default: GET /pdp over HTTP.
+   *  layer1/nostr-pdp.ts sends it as NIP-44 encrypted events instead. */
+  transport?: (rep: Replica, epoch: number, nonce: string) => Promise<PdpAnswer>;
 }
 
 export class StorageClient {
@@ -163,9 +166,13 @@ export class StorageClient {
     const base = { epoch, provider: rep.offer.pubkey, nonce: nonce.toString("hex"), paidMsat: 0 };
     let a: PdpAnswer;
     try {
-      const r = await fetch(`${rep.offer.url}/pdp/${rep.sha256}?nonce=${base.nonce}&q=${rep.q}&epoch=${epoch}`, { signal: AbortSignal.timeout(10_000) });
-      if (r.status !== 200) return { ...base, outcome: "unreachable", detail: `HTTP ${r.status} ${r.headers.get("x-reason") ?? ""}`.trim() };
-      a = (await r.json()) as PdpAnswer;
+      if (this.opts.transport) {
+        a = await this.opts.transport(rep, epoch, base.nonce);
+      } else {
+        const r = await fetch(`${rep.offer.url}/pdp/${rep.sha256}?nonce=${base.nonce}&q=${rep.q}&epoch=${epoch}`, { signal: AbortSignal.timeout(10_000) });
+        if (r.status !== 200) return { ...base, outcome: "unreachable", detail: `HTTP ${r.status} ${r.headers.get("x-reason") ?? ""}`.trim() };
+        a = (await r.json()) as PdpAnswer;
+      }
     } catch (e) {
       return { ...base, outcome: "unreachable", detail: String((e as Error).message ?? e) };
     }

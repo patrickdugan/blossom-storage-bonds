@@ -122,10 +122,10 @@ fn main() {
         forfeit: ScriptBuf,
     }
     let build = |sen: &[Sentinel], t_end: u32| -> Chain {
-        let refund = refund_leaf(&p, t_end);
-        let forfeit = forfeit_leaf(&c, DELTA);
-        let challenge_leaves: Vec<ScriptBuf> = sen.iter().map(|s| challenge_leaf(&c, &p, s.s)).collect();
-        let respond_leaves: Vec<ScriptBuf> = sen.iter().map(|s| respond_leaf(&p, &c, &[s.h])).collect();
+        let refund = refund_leaf(&p.x, t_end);
+        let forfeit = forfeit_leaf(&c.x, DELTA);
+        let challenge_leaves: Vec<ScriptBuf> = sen.iter().map(|s| challenge_leaf(&c.x, &p.x, s.s)).collect();
+        let respond_leaves: Vec<ScriptBuf> = sen.iter().map(|s| respond_leaf(&p.x, &c.x, &[s.h])).collect();
         let mut bonds: Vec<State> = challenge_leaves.iter().map(|l| state(secp, internal, &[l, &refund])).collect();
         bonds.push(state(secp, internal, &[&refund]));
         let challenged = respond_leaves.iter().map(|l| state(secp, internal, &[l, &forfeit])).collect();
