@@ -1,7 +1,7 @@
 // The storage market on a Bitcoin stack, end to end on regtest, with every party in its own process.
 //
 //   scripts/regtest-node.sh <datadir> <bitcoind>      (another shell; RPC on 127.0.0.1:18543)
-//   node layer1/market.ts [--epochs 10] [--q 8] [--from 4] [--m 64] [--k 4] [--windows 16] [--out results/market.json]
+//   node layer1/market.ts [--pay channel|ln] [--epochs 10] [--q 8] [--from 4] [--m 64] [--k 4] [--windows 16] [--out <file>]
 //
 // This process is the client, with its own Nostr key, bond and channel key, and fee wallet. Four provider
 // processes (layer1/provider.ts) run beside it, each with its own keys and wallet. A Nostr relay carries
@@ -12,7 +12,10 @@
 //      presigns the challenges. The client checks the bond on chain and the provider's signatures before
 //      it presigns the responses, and the provider checks those before it relies on them.
 //   3. Payments: the client funds a 50,000-sat payment channel to each provider. Each epoch that proves
-//      is paid with a new client-signed channel state, in exchange for the invoice preimage.
+//      is paid with a new client-signed channel state, in exchange for the invoice preimage. With
+//      --pay ln the channel is a Lightning channel instead: the client and every provider each run their
+//      own lnd (layer1/lnd.ts), the client opens a private channel from its node to each provider's
+//      node, and each epoch is paid by a BOLT 11 invoice from the provider's node.
 //   4. Epochs: the nonce goes out as NIP-44, and the answer comes back the same way and is checked against
 //      the client's own root. From epoch 4 one provider zeroes 10% of its chunks, one 50%, and one
 //      deletes its replica and answers from the honest provider's copy.
@@ -20,9 +23,10 @@
 //      own process sees the challenge, reads r from the chain, answers from its own bytes, or fails.
 //      After Δ = 144 blocks without a valid answer, the client forfeits the bond.
 //   6. Settlement: every provider closes its channel on chain with the latest state, and the honest
-//      provider refunds its bond once the term ends.
+//      provider refunds its bond once the term ends. With --pay ln the closes are cooperative, from each
+//      provider's own node, and happen right after the last epoch; then every lnd stops (see below).
 //
-// Only Lightning is missing: payment is a one-way Bitcoin channel instead (layer1/channel.ts).
+// The default payment is the one-way Bitcoin channel (layer1/channel.ts); --pay ln uses Lightning.
 
 import { spawn, type ChildProcess } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
@@ -35,6 +39,8 @@ import { keyFromSeed } from "../model/schnorr.ts";
 import { sentinelSurvival } from "../model/storage_bonds.ts";
 import { BondTool, rpc } from "./bondtool.ts";
 import { ChannelPayer } from "./channel.ts";
+import type { Payer } from "./lightning.ts";
+import { LndNode, LndPayer, lndExe } from "./lnd.ts";
 import { StorageClient, KIND_EPOCH_RECEIPT, checkReceipt, type BondSentinel, type EpochResult, type Offer, type Replica } from "./client.ts";
 import { nostrTransport } from "./nostr-pdp.ts";
 import { RelayClient, startRelay } from "./relay.ts";
@@ -43,7 +49,11 @@ const here = dirname(fileURLToPath(import.meta.url));
 const arg = (name: string, dflt: string) => { const i = process.argv.indexOf(`--${name}`); return i > 0 ? process.argv[i + 1] : dflt; };
 const EPOCHS = Number(arg("epochs", "10")), Q = Number(arg("q", "8")), FROM = Number(arg("from", "4"));
 const M = Number(arg("m", "64")), K = Number(arg("k", "4")), W = Number(arg("windows", "16"));
-const OUT = arg("out", join(here, "..", "results", "market.json"));
+const PAY = arg("pay", "channel");
+if (PAY !== "channel" && PAY !== "ln") { console.error("--pay must be channel or ln"); process.exit(2); }
+const LN = PAY === "ln";
+const LND = arg("lnd", lndExe());
+const OUT = arg("out", join(here, "..", "results", LN ? "market-ln.json" : "market.json"));
 const PRICE = 2000;            // msat per chunk-epoch: 512 sats per epoch for a 1 MiB blob
 const CAPACITY = 50_000;       // sats per channel
 const DELTA = 144;
@@ -71,14 +81,15 @@ const ROLES: Role[] = [
   { name: "outsources", slug: "outsources", kept: 0, misbehave: (rep, honest) => ({ kind: "outsource", sha: rep.sha256, from: { url: honest.offer.url, sha256: honest.sha256 } }) },
 ];
 
-interface Proc { child: ChildProcess; url: string; admin: string; bond_x: string; fee_address: string; pid: number; log: any[] }
+interface Proc { child: ChildProcess; url: string; admin: string; bond_x: string; fee_address: string; pid: number; ln?: string; log: any[] }
 
 async function startProviderProcess(role: Role, relayUrl: string, dir: string, token: string): Promise<Proc> {
   const child = spawn(process.execPath, [join(here, "provider.ts"), "--name", role.slug, "--seed", `bsb/provider/${role.slug}`,
-    "--dir", join(dir, role.slug), "--relay", relayUrl, "--admin-token", token, "--price", String(PRICE)], { stdio: ["ignore", "pipe", "inherit"] });
+    "--dir", join(dir, role.slug), "--relay", relayUrl, "--admin-token", token, "--price", String(PRICE), "--pay", PAY, ...(LN ? ["--lnd", LND] : [])],
+    { stdio: ["ignore", "pipe", "inherit"] });
   const log: any[] = [];
   return new Promise((ok, bad) => {
-    const t = setTimeout(() => bad(new Error(`${role.slug} did not start`)), 20_000);
+    const t = setTimeout(() => bad(new Error(`${role.slug} did not start`)), LN ? 120_000 : 20_000);
     createInterface({ input: child.stdout! }).on("line", (line) => {
       let ev: any; try { ev = JSON.parse(line); } catch { return; }
       log.push(ev);
@@ -113,24 +124,45 @@ const dir = mkdtempSync(join(tmpdir(), "bsb-market-"));
 const token = randomBytes(16).toString("hex");
 const relay = await startRelay();
 const procs: Proc[] = [];
+let clientLn: LndNode | undefined;
+let finished = false;
 try {
   // ── parties ──
-  for (const role of ROLES) procs.push(await startProviderProcess(role, relay.url, dir, token));
   const SEED = "bsb/client/market";
   const tool = new BondTool(SEED);
   const me = await tool.run("info");
+  if (LN) {
+    // Core reports initial block download until it sees a recent block, and lnd waits for that.
+    await mine(1, me.fee_address);
+    const started = await Promise.all([
+      LndNode.start({ bin: LND, dir: join(dir, "client-lnd"), alias: "bsb-client" }),
+      ...ROLES.map((role) => startProviderProcess(role, relay.url, dir, token)),
+    ]);
+    clientLn = started[0] as LndNode;
+    procs.push(...(started.slice(1) as Proc[]));
+  } else {
+    for (const role of ROLES) procs.push(await startProviderProcess(role, relay.url, dir, token));
+  }
   const nostrKey = keyFromSeed(`nostr|${SEED}`);
   console.log(`regtest height ${height0}; relay ${relay.url}`);
   console.log(`client (this process, pid ${process.pid}): bond key ${me.x.slice(0, 16)}…  wallet ${me.fee_address.slice(0, 20)}…`);
-  for (const [i, p] of procs.entries()) console.log(`provider ${ROLES[i].name.padEnd(12)} pid ${String(p.pid).padEnd(6)} ${p.url}  bond key ${p.bond_x.slice(0, 16)}…  wallet ${p.fee_address.slice(0, 20)}…`);
+  if (clientLn) console.log(`client lnd (pid ${clientLn.child.pid}): node ${clientLn.pubkey.slice(0, 16)}…`);
+  for (const [i, p] of procs.entries()) console.log(`provider ${ROLES[i].name.padEnd(12)} pid ${String(p.pid).padEnd(6)} ${p.url}  bond key ${p.bond_x.slice(0, 16)}…  wallet ${p.fee_address.slice(0, 20)}…${p.ln ? `  lnd ${p.ln.slice(0, 16)}…` : ""}`);
 
   // Every party gets its own coins: two coinbases each, matured by 100 more blocks.
   for (const p of procs) await mine(2, p.fee_address);
   await mine(3, me.fee_address);
+  // With Lightning, the client's node gets its own coins: one coinbase per channel it will fund.
+  if (clientLn) await mine(ROLES.length, await clientLn.newAddress());
   await mine(100, me.fee_address);
+  if (clientLn) await clientLn.waitSynced(await rpc("getblockcount"));
 
   const rc = await RelayClient.connect(relay.url);
-  const payer = new ChannelPayer(me.x, tool);
+  const chanPayer = clientLn ? undefined : new ChannelPayer(me.x, tool);
+  const lnPayer = clientLn && new LndPayer(clientLn);
+  const payer: Payer = lnPayer ?? chanPayer!;
+  /** sats paid to a provider so far, by either backend. */
+  const paidSats = (payee: string) => (lnPayer ? lnPayer.paidMsatTo(payee) / 1000 : chanPayer!.paidTo(payee));
   const client = new StorageClient({
     key: nostrKey, secret: createHash("sha256").update("market client storage secret").digest(),
     payer, relay: rc, nonceSeed: "market", transport: nostrTransport(rc, nostrKey),
@@ -138,11 +170,11 @@ try {
   const blob = demoBlob();
 
   // ── storage, bonds, channels ──
-  console.log(`\nsetup: 1 MiB blob, M = ${M} sentinels of ${W} windows, k = ${K}; 1 BTC bonds; ${CAPACITY}-sat channels`);
+  console.log(`\nsetup: 1 MiB blob, M = ${M} sentinels of ${W} windows, k = ${K}; 1 BTC bonds; ${CAPACITY}-sat ${LN ? "Lightning" : "payment"} channels`);
   const reps: Replica[] = [], kept: BondSentinel[][] = [], deals: string[] = [], chans: string[] = [], fundTx: string[] = [], chanTx: string[] = [];
   const tEnd = (await rpc("getblockcount")) + 1500;
   for (const [i, p] of procs.entries()) {
-    const info = (await (await fetch(`${p.url}/`)).json()) as { pubkey: string; bond_x: string; channel_payee: string };
+    const info = (await (await fetch(`${p.url}/`)).json()) as { pubkey: string; bond_x: string; channel_payee: string; ln_uri?: string };
     const offer: Offer = { url: p.url, pubkey: info.pubkey, lightningNodeId: info.channel_payee, priceMsatPerChunkEpoch: PRICE };
     const rep = await client.store(blob, offer, Q, "application/octet-stream", M, W);
     const ks = await client.bond(rep, K);
@@ -158,23 +190,61 @@ try {
     await mine(1, me.fee_address);
     const c = await tool.run("bond-presign", dealPath);   // checks the bond on chain and every provider signature
     await post(`${p.url}/bond/${rep.sha256}/presigs`, { sig_c_respond: c.sig_c_respond });
-    const chanPath = join(dir, `client-chan-${ROLES[i].slug}.json`);
-    const ch = await payer.open(chanPath, { provider_x: info.bond_x, client_x: me.x, capacity_sats: CAPACITY, t_refund: tEnd + 1000 });
-    await mine(1, me.fee_address);
-    await post(`${p.url}/channel/open`, ch);
-    reps.push(rep); kept.push(ks); deals.push(dealPath); chans.push(chanPath); fundTx.push(f.fund_txid); chanTx.push(ch.funding_txid!);
-    console.log(`  ${ROLES[i].name.padEnd(12)} replica ${rep.sha256.slice(0, 12)}…  kept [${ks.map((s) => s.j).join(", ")}]  bond ${f.fund_txid.slice(0, 12)}… (${c.checked.provider_signatures} signatures checked)  channel ${ch.funding_txid!.slice(0, 12)}…`);
+    let chanTxid: string;
+    if (clientLn) {
+      // A private Lightning channel from the client's node to this provider's node, which then checks
+      // it from its own side. Both nodes must have seen the latest block, or lnd refuses the funding.
+      if (!info.ln_uri || !info.ln_uri.startsWith(info.channel_payee + "@")) throw new Error(`${ROLES[i].slug}: no Lightning node in its info`);
+      await clientLn.connect(info.ln_uri);
+      await clientLn.waitSynced(await rpc("getblockcount"));
+      await post(`${p.url}/channel/prepare`, {});
+      let point = "";
+      for (let tries = 0; !point; tries++) {
+        try { point = await clientLn.openChannel(info.channel_payee, CAPACITY); }
+        catch (e) { if (tries > 40 || !/sync/i.test((e as Error).message)) throw e; await sleep(250); }
+      }
+      await mine(1, me.fee_address);
+      await clientLn.waitActive(point);
+      await post(`${p.url}/channel/open`, { channel_point: point, client_pubkey: clientLn.pubkey });
+      chans.push(point); chanTxid = point.split(":")[0];
+    } else {
+      const chanPath = join(dir, `client-chan-${ROLES[i].slug}.json`);
+      const ch = await chanPayer!.open(chanPath, { provider_x: info.bond_x, client_x: me.x, capacity_sats: CAPACITY, t_refund: tEnd + 1000 });
+      await mine(1, me.fee_address);
+      await post(`${p.url}/channel/open`, ch);
+      chans.push(chanPath); chanTxid = ch.funding_txid!;
+    }
+    reps.push(rep); kept.push(ks); deals.push(dealPath); fundTx.push(f.fund_txid); chanTx.push(chanTxid);
+    console.log(`  ${ROLES[i].name.padEnd(12)} replica ${rep.sha256.slice(0, 12)}…  kept [${ks.map((s) => s.j).join(", ")}]  bond ${f.fund_txid.slice(0, 12)}… (${c.checked.provider_signatures} signatures checked)  ${LN ? "ln " : ""}channel ${chanTxid.slice(0, 12)}…`);
   }
 
   // ── epochs: NIP-44 challenges, channel payments ──
   const results: EpochResult[][] = ROLES.map(() => []);
   const mark: Record<string, string> = { "proved-paid": "pass", "failed": "FAIL", "proved-unpaid": "unpaid", "unreachable": "down" };
-  console.log(`\nepoch  ${ROLES.map((r) => r.name.padEnd(12)).join(" ")}   (nonce and answer over NIP-44; paid by channel state)`);
+  console.log(`\nepoch  ${ROLES.map((r) => r.name.padEnd(12)).join(" ")}   (nonce and answer over NIP-44; paid by ${LN ? "BOLT 11 over Lightning" : "channel state"})`);
   for (let e = 1; e <= EPOCHS; e++) {
     if (e === FROM) for (const [i, role] of ROLES.entries()) if (role.misbehave) await admin(procs[i], token, "/admin/misbehave", role.misbehave(reps[i], reps[0]));
     const row: string[] = [];
     for (const [i, rep] of reps.entries()) { const r = await client.runEpoch(rep, e); results[i].push(r); row.push(mark[r.outcome].padEnd(12)); }
     console.log(`${String(e).padStart(5)}  ${row.join(" ")}${e === FROM ? "  ← misbehaviour starts" : ""}`.trimEnd());
+  }
+
+  // ── Lightning settlement ──
+  // Pay per proof is over, so with Lightning each provider closes its channel now, from its own node, and
+  // every lnd stops. lnd opens a new RPC connection for every call and fetches every block, so five nodes
+  // following the ~1,500 blocks still to come (a block every 150 ms, then the jump to t_end) would exhaust
+  // Windows' ephemeral ports. The bond phase needs no Lightning.
+  const lnCloses: (string | null)[] = [];
+  if (clientLn) {
+    console.log("\nLightning settlement: each provider closes its channel cooperatively from its own node");
+    for (const [i, p] of procs.entries()) {
+      const close = await admin(p, token, "/admin/close-channel", { peer: clientLn.pubkey });
+      await mine(1, me.fee_address);
+      lnCloses.push(close.txid);
+      console.log(`  ${ROLES[i].name.padEnd(12)} close ${close.txid.slice(0, 16)}…  (${paidSats(reps[i].offer.lightningNodeId)} sats paid over Lightning)`);
+    }
+    for (const p of procs) await admin(p, token, "/admin/ln-stop", {});
+    await clientLn.stop();
   }
 
   // ── enforcement ──
@@ -212,9 +282,9 @@ try {
   console.log("\nsettlement");
   const settlement = [];
   for (const [i, p] of procs.entries()) {
-    const paid = payer.paidTo(reps[i].offer.lightningNodeId);
-    const close = paid > 0 ? await admin(p, token, "/admin/close-channel", { client_x: me.x }) : null;
-    await mine(1, me.fee_address);
+    const paid = paidSats(reps[i].offer.lightningNodeId);
+    const close = LN ? { txid: lnCloses[i] } : paid > 0 ? await admin(p, token, "/admin/close-channel", { client_x: me.x }) : null;
+    if (!LN) await mine(1, me.fee_address);
     let refund: string | null = null;
     if (!enforcement[i].forfeit) {
       const h = await rpc("getblockcount");
@@ -231,12 +301,19 @@ try {
   for (const [i, role] of ROLES.entries()) {
     const s = settlement[i], en = enforcement[i];
     let paidOnChain = 0;
-    if (s.channelClose) {
+    if (s.channelClose && LN) {
+      // The cooperative close must spend this channel's funding output and pay the provider exactly the
+      // sum of the invoices the client paid; the client, as funder, pays the closing fee.
       const t = await tx(s.channelClose);
-      const provAddr = t.vout[0].scriptPubKey.address;
+      const [ftxid, fvout] = chans[i].split(":");
+      if (t.confirmations < 1 || t.vin.length !== 1 || t.vin[0].txid !== ftxid || t.vin[0].vout !== Number(fvout)) throw new Error(`${role.slug}: close does not spend the channel`);
+      const outs = t.vout.map((o: any) => Math.round(o.value * 1e8));
+      paidOnChain = s.paidSats > 0 ? (outs.includes(s.paidSats) ? s.paidSats : -1) : 0;
+      if (paidOnChain < 0) throw new Error(`${role.slug}: channel close has no output of ${s.paidSats} sats (${outs.join(", ")})`);
+    } else if (s.channelClose) {
+      const t = await tx(s.channelClose);
       paidOnChain = Math.round(t.vout[0].value * 1e8);
       if (t.confirmations < 1 || paidOnChain !== s.paidSats) throw new Error(`${role.slug}: channel close does not pay what was signed`);
-      void provAddr;
     }
     const bondTxid = en.forfeit ?? s.bondRefund!;
     const bt = await tx(bondTxid);
@@ -254,23 +331,32 @@ try {
 
   const receipts = await rc.query({ kinds: [KIND_EPOCH_RECEIPT], authors: [nostrKey.x] });
   const checked = receipts.map((ev) => checkReceipt(ev, payer));
-  console.log(`\nrelay holds ${receipts.length} signed receipts; ${checked.filter((c) => c.ok && c.paid).length} carry a preimage that opens their invoice`);
+  console.log(`\nrelay holds ${receipts.length} signed receipts; ${checked.filter((c) => c.ok && c.paid).length} carry a preimage that opens their invoice${LN ? "'s BOLT 11 payment hash" : ""}`);
   rc.close();
 
   const height1 = await rpc("getblockcount");
   mkdirSync(dirname(OUT), { recursive: true });
   writeFileSync(OUT, JSON.stringify({
     generated: new Date().toISOString(),
-    note: "Every party is a separate process with its own keys and wallet. Payments are a one-way Bitcoin payment channel per provider, not Lightning. Nonces are seeded.",
-    params: { epochs: EPOCHS, q: Q, misbehaviourFrom: FROM, m: M, k: K, windows: W, bondBtc: 1, delta: DELTA, priceMsatPerChunkEpoch: PRICE, channelSats: CAPACITY, blobBytes: blob.length },
+    note: LN
+      ? "Every party is a separate process with its own keys and wallet, and its own lnd. Payments are BOLT 11 invoices paid over a private Lightning channel from the client's node to each provider's node. Nonces are seeded."
+      : "Every party is a separate process with its own keys and wallet. Payments are a one-way Bitcoin payment channel per provider, not Lightning. Nonces are seeded.",
+    params: { pay: PAY, epochs: EPOCHS, q: Q, misbehaviourFrom: FROM, m: M, k: K, windows: W, bondBtc: 1, delta: DELTA, priceMsatPerChunkEpoch: PRICE, channelSats: CAPACITY, blobBytes: blob.length },
     regtest: { heightBefore: height0, heightAfter: height1 },
     summary,
     receipts: { onRelay: receipts.length, paidWithPreimage: checked.filter((c) => c.ok && c.paid).length },
   }, null, 2) + "\n");
   console.log(`regtest height ${height0} → ${height1}; wrote ${OUT}`);
+  finished = true;
 } finally {
+  // Ask each provider to stop (and stop its lnd) before killing it: on Windows kill() skips its handlers.
+  await Promise.all(procs.map((p) => fetch(`${p.admin}/admin/stop`, { method: "POST", headers: { "x-admin-token": token } }).catch(() => undefined)));
+  await clientLn?.stop();
+  for (let i = 0; i < 40 && procs.some((p) => p.child.exitCode === null); i++) await sleep(250);
   for (const p of procs) p.child.kill("SIGTERM");
   await sleep(300);
   await relay.close();
-  rmSync(dir, { recursive: true, force: true });
+  // A failed run keeps its directory: every lnd log and provider file is in it.
+  if (finished) rmSync(dir, { recursive: true, force: true });
+  else console.error(`run failed; kept ${dir}`);
 }

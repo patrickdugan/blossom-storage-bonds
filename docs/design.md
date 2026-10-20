@@ -2,7 +2,7 @@
 
 *The client is the verifier, so most of what Filecoin needs a chain for, this design does not.*
 
-Design note, 2026-10-19; phase 1 and 1b results added 2026-10-20. The model is `model/storage_bonds.ts`
+Design note, 2026-10-19; phase 1, 1b, 2a and 2b results added 2026-10-20. The model is `model/storage_bonds.ts`
 (`node --test model/*.test.ts`, 15 passing). Layer 1 runs end to end on localhost in `layer1/` (12 more
 tests, Lightning stubbed; see the README). The regtest harness in `regtest/` runs the same bond chain as
 real transactions against Bitcoin Core 31.1 (21 checks passing, results in `results/regtest.json`). It
@@ -253,8 +253,79 @@ held 40 receipts, and the 24 paid ones each carry a preimage that opens their in
 What this run does not show. The parties are separate processes on one machine and one regtest node.
 The orchestrator also mines, and makes the providers misbehave through a token-protected admin port.
 Challenges run after the epochs rather than interleaved with them. The bond is 1 BTC against a 1 MiB
-blob, sized to make the outcome readable, not priced. Payment is a one-way Bitcoin channel, not
-Lightning. Lightning would let the client pay any provider without a channel per pair.
+blob, sized to make the outcome readable, not priced. Payment here is a one-way Bitcoin channel. §2.6
+runs the same market over Lightning.
+
+## 2.6 Phase 2b: pay per proof over Lightning (`node layer1/market.ts --pay ln`)
+
+Same market, same seeded nonces, same bonds and enforcement. Only the money path changes. The client
+process and each provider process run their own lnd (v0.21.4-beta) on the one regtest bitcoind, each
+with its own wallet, node key, TLS certificate and admin macaroon (`layer1/lnd.ts`, LND's REST API).
+lnd polls bitcoind over RPC, so the node needs no ZMQ.
+
+- Channels. The client's node is funded with four coinbases of its own and opens a private 50,000-sat
+  anchor channel to each provider's node (one confirmation). The provider's own node then checks that
+  the channel exists, that the client funded it, and that it is active, before the provider accepts it.
+- Invoices. Each epoch's answer carries a BOLT 11 invoice for 512,000 msat from the provider's node.
+  The provider checks that lnd's invoice matches the request (hash, amount, its own node id) before
+  sending it. The client decodes the invoice itself (`layer1/bolt11.ts`: Bech32 without the length
+  cap, amount multipliers, tagged fields, and ECDSA public-key recovery of the payee, checked against
+  every valid and invalid example in the BOLT 11 spec). It refuses another network, a missing amount,
+  an amount over the price, an expired invoice, or a payee that is not the provider's node from its
+  offer. Only then does it pay, with `/v2/router/send`, and it checks the preimage lnd returns against
+  the payment hash.
+- Receipts. A paid receipt carries the BOLT 11 string and the preimage. Anyone can decode the invoice,
+  recover the payee from its signature, and check that SHA-256(preimage) equals its payment hash, with
+  no node and no network.
+- Settlement. Right after the last epoch, each provider closes cooperatively from its own node, and
+  then every lnd stops; the bond phase runs as in §2.5. The client checks that the closing transaction
+  spends that channel's funding outpoint and has an output of exactly the sum of the invoices it paid
+  that provider. The funder pays the close fee, so the provider's output is exact.
+
+Results (`results/market-ln.json`, a fresh regtest chain, 161 s), read back from the node:
+
+| Provider | Failed epochs (of 10) | BOLT 11 invoices paid | Provider's output in the cooperative close | 1 BTC bond |
+| --- | --- | --- | --- | --- |
+| honest | 0 | 10 × 512 sats | 5,120 sats | refunded to the provider at `t_end` |
+| deletes 10% | 2 | 8 | 4,096 sats | forfeited to the client |
+| deletes 50% | 7 | 3 | 1,536 sats | forfeited to the client |
+| outsources | 7 | 3 | 1,536 sats | forfeited to the client |
+
+Every outcome matches §2.5 exactly, since the nonces are seeded and the bond phase is unchanged. Each
+channel's funding transaction is 165 vB. Each cooperative close is 193 vB, spends its funding outpoint,
+and pays a 1,093-sat fee out of the client's side. The relay held 40 receipts, and the 24 paid ones
+each carry a BOLT 11 invoice whose payment hash their preimage opens. Each payment took about 250 ms
+over a direct channel. No lnd process outlived the run.
+
+Four things lnd does that the code has to allow for:
+
+1. Load on bitcoind. lnd's RPC client opens a new TCP connection for every call. Each node fetches
+   every block with `getblockhash` and `getblock`, and a fresh wallet rescans from genesis, because
+   every regtest block falls inside its birthday margin. Each connection then sits in TIME_WAIT for two
+   minutes. The first full run kept all five nodes up through enforcement (a block every 150 ms) and
+   failed partway through, when `bsb-bond` could not connect to bitcoind (Windows error 10048): 13,806
+   sockets to the RPC port were in TIME_WAIT. The polling interval barely matters, since the cost is
+   per block. So the market closes the channels when pay per proof ends, and stops every node before
+   the bond phase and the ~1,500-block jump to `t_end`. The bond phase is near the limit on its own: a
+   channel-mode run with no lnd at all ends with about 14,000 sockets in TIME_WAIT, from `bsb-bond`
+   polling. With a block every ten minutes none of this arises. It comes from five nodes on one host
+   following a chain mined every 150 ms.
+2. A fundee that is behind refuses the channel, and tells the funder only "funding failed due to
+   internal error". This happened once, when the client opened a channel right after mining a block.
+   Before each open, the provider's node now confirms it has reached the current height
+   (`POST /channel/prepare`), and so does the client's.
+3. A channel that lnd has just reported active can still show zero outbound balance to its router for
+   a moment. A payment sent then fails as `INSUFFICIENT_BALANCE` before any HTLC leaves. lnd lets a
+   failed payment hash be sent again, so the payer retries that one reason for up to about five seconds,
+   and nothing else.
+4. A cooperative close sent right after a payment can find the last HTLC still on the commitment and be
+   refused. The close is retried for up to ten seconds.
+
+What Lightning changes, and what it does not. The provider is paid by preimage release under HTLC
+rules, rather than trusted to release the preimage after taking a channel signature (§2.5's one-way
+channel). And the client needs only a route, not a channel per provider. In this run each pair still
+has a direct channel, so routing through a hub, and its fees and privacy, is not exercised. The nodes
+share one host and one bitcoind. Their keys are separate, but nothing here tests separate machines.
 
 ## 3. Replicas
 
@@ -327,7 +398,7 @@ Blossom servers already authorize uploads with kind 24242 events, and users list
 | 1 | Regtest with real transactions: BIP341 sighashes, MuSig2 internal key, TRUC + P2A, the full presigned chain, challenge/respond/forfeit/refund/close all broadcast (rust-bitcoin 0.32.7, musig2 0.4.1, Core 31.1) | Done, 21 checks; found the 80-byte limit (finding 4a) |
 | 1b | Blossom sidecar: `/pdp/<sha256>?nonce=` answering from stored replicas, plus a client that runs epochs, pays an invoice and publishes a receipt | Done on localhost, 12 tests; Lightning is an in-memory hash-lock stub behind an interface, and the nonce goes over HTTP rather than NIP-44 |
 | 2a | The market: separate processes per party, NIP-44 epoch challenges (official vectors pass), a real 1 BTC bond per deal, one-way Bitcoin payment channels for pay per proof, and on-chain enforcement by each provider's own agent; multi-window sentinels | Done: every cheater forfeits, the honest provider is paid and refunded, all checked on chain (§2.5) |
-| 2b | Lightning in place of the per-pair channels (regtest LND or CLN behind the same Payee/Payer interface) | Next |
+| 2b | Lightning in place of the per-pair channels (regtest LND behind the same Payee/Payer interface) | Done: `--pay ln`, one lnd per party, BOLT 11 decoded and checked by the client, closes checked on chain (§2.6); the one-way channel stays the default |
 | 2 | zk setup proof for sentinels (SHA-256 + Merkle path, CPU prover), replacing cut and choose | Next |
 | 3 | BitVM2-shaped pooled bond: registry, header-seeded challenges, aggregated proof; measure cost per deal against phase 1 | Research |
 
@@ -341,8 +412,10 @@ What neither covers yet:
 - Mainnet relay beyond Core defaults. Other node policies and pinning across a real network are
   untested.
 - Fee spikes during Δ.
-- Lightning. Pay per proof uses real bitcoin, through a one-way payment channel per pair (§2.5), not a
-  Lightning node. The in-memory stub is still the default in `layer1/demo.ts` and the unit tests.
+- Lightning beyond direct channels. `--pay ln` pays real BOLT 11 invoices over regtest LND (§2.6),
+  but over one direct private channel per pair, on one host. Multi-hop routing, fees, MPP, NWC and Core
+  Lightning are untested. The in-memory stub is still the default in `layer1/demo.ts` and the unit
+  tests, and the LND backend's own unit tests use a fake node.
 - Separate machines. The parties are separate processes with separate keys and wallets, but they share
   one host and one regtest node.
 - NIP-17 gift wrapping, offers and deals as Nostr events, and any relay other than the bundled minimal
