@@ -5,3 +5,4 @@ pub mod graph_support;
 pub mod verifier_report;
 pub mod fork_binding;
 pub mod equivocation;
+pub mod subset_equivocation;

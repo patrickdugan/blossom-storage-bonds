@@ -687,3 +687,44 @@ commitments. My assessment is that changing when a scalar is chosen does not est
 of a challenger absent from setup or bind the provider to that observer's actual challenge.
 Neither proposal has been adopted, downloaded as a dependency or implemented here; both need
 a separate construction for our selected role and collateral requirements.
+
+
+### Subset-key overdisclosure penalty
+
+[Binohash section 6.4](https://robinlinus.com/binohash.pdf) uses subset preimage disclosures to
+authenticate the selected indices. Its 120-entry, eight-reveal example motivates a separate
+penalty experiment; the introspection construction itself has not been implemented here.
+
+`src/subset_equivocation.rs` fixes two disjoint 120-entry HASH160 banks. An honest signing
+instance may reveal eight distinct preimages in each bank. The new penalty requires nine
+authenticated 32-byte preimages from one bank, with strictly increasing absolute indices in
+range. The constructor rejects duplicate commitments within a bank and across rounds. Repeating,
+reordering or mixing an honest disclosure with the other round does not provide a ninth distinct
+preimage from that bank. This relies on preimage resistance and keeping unused secrets private;
+it is not a cryptographic security proof. A new signing instance must use new banks.
+
+`examples/subset-penalty.rs` creates fresh secrets in RAM and presigns two fixed payouts, one
+for each bank. The producer exits before funding is broadcast. Core 31.1, isolated with standard
+relay policy, mines both nine-preimage penalties and checks each 99,997,000-satoshi fixed payout.
+Fourteen attempts with repeated/reordered disclosures, cross-round secrets, negative/out-of-range
+indices, incorrect preimages or redirected payouts fail. All 24 native library tests pass,
+including both duplicate-setup guards and the upper index boundary. Public vectors and source
+hashes are recorded in `results/bitvm-subset-penalty.json`; the node stops cleanly.
+
+The protected leaf is 2,835 bytes and has 208 non-push opcodes. It is a separate Taproot leaf:
+this implementation exceeds the legacy 201-opcode limit and cannot be inserted unchanged into
+the legacy introspection program. Nine secrets prove overdisclosure, not two particular signed
+transactions. An eventual importer must bind the same setup commitments and canonical absolute
+index sets; arbitrary permutations or destructive-stack offsets must not become different
+authenticated messages merely by re-encoding one disclosure.
+
+The experiment supplies no Binohash pinning, transaction digest, actual-read authentication,
+challenger admission, candidate supersession or collateral withdrawal window. It is not wired
+into the funded storage graph or the earlier CSV escrow. In particular, the penalty must remain
+available until every relevant alternate payout has honored its response window; a bare
+overdisclosure leaf cannot recover collateral after an unrestricted withdrawal.
+
+```text
+cargo build --offline --locked --manifest-path zk/bitvm-check/Cargo.toml --example subset-penalty
+node zk/bitvm-check/subset-penalty-regtest.ts --bitcoind <core> --checker <subset-penalty> --dir <new-node-dir> --out <new-report.json>
+```

@@ -1,0 +1,172 @@
+{
+  "format": "bsb/subset-overdisclosure-regtest/v1",
+  "network": "regtest",
+  "core": "/Satoshi:31.1.0/",
+  "presignerExitedBeforeFunding": true,
+  "policy": {
+    "acceptnonstdtxn": false,
+    "peers": 0
+  },
+  "bankSize": 120,
+  "rounds": 2,
+  "honestRevealsPerBank": 8,
+  "penaltyDistinctReveals": 9,
+  "commitmentsDistinctWithinAndAcrossRounds": true,
+  "measurements": [
+    {
+      "nonPushOpcodes": 208,
+      "round": 0,
+      "scriptBytes": 2835
+    },
+    {
+      "nonPushOpcodes": 208,
+      "round": 1,
+      "scriptBytes": 2835
+    }
+  ],
+  "admitted": [
+    {
+      "name": "round-0-valid",
+      "txid": "ad5b1b8d7d49fccd728fd20fd884d0de4beb20810c099b28b9e1822475a4a814",
+      "wtxid": "f14329b9c61fa16e00583d67a0ac7ed48b71ef641384a592017d68dec6b6161b"
+    },
+    {
+      "name": "round-1-valid",
+      "txid": "f6da1050178695c7125b9bf94858b819f33371b0a205af1539fe4686f5cc66a8",
+      "wtxid": "eaace00a9fce2ce36415f63b553aa053a656896c8e788532bc464d2388549204"
+    }
+  ],
+  "rejected": [
+    {
+      "name": "round-0-same-disclosure",
+      "reason": "mempool-script-verify-flag-failed (Script failed an OP_VERIFY operation)"
+    },
+    {
+      "name": "round-0-reordered-disclosure",
+      "reason": "mempool-script-verify-flag-failed (Script failed an OP_VERIFY operation)"
+    },
+    {
+      "name": "round-0-mixed-round",
+      "reason": "mempool-script-verify-flag-failed (Script failed an OP_EQUALVERIFY operation)"
+    },
+    {
+      "name": "round-0-negative-index",
+      "reason": "mempool-script-verify-flag-failed (Script failed an OP_VERIFY operation)"
+    },
+    {
+      "name": "round-0-out-of-range",
+      "reason": "mempool-script-verify-flag-failed (Script failed an OP_VERIFY operation)"
+    },
+    {
+      "name": "round-0-wrong-preimage",
+      "reason": "mempool-script-verify-flag-failed (Script failed an OP_EQUALVERIFY operation)"
+    },
+    {
+      "name": "round-0-redirected",
+      "reason": "mempool-script-verify-flag-failed (Invalid Schnorr signature)"
+    },
+    {
+      "name": "round-1-same-disclosure",
+      "reason": "mempool-script-verify-flag-failed (Script failed an OP_VERIFY operation)"
+    },
+    {
+      "name": "round-1-reordered-disclosure",
+      "reason": "mempool-script-verify-flag-failed (Script failed an OP_VERIFY operation)"
+    },
+    {
+      "name": "round-1-mixed-round",
+      "reason": "mempool-script-verify-flag-failed (Script failed an OP_EQUALVERIFY operation)"
+    },
+    {
+      "name": "round-1-negative-index",
+      "reason": "mempool-script-verify-flag-failed (Script failed an OP_VERIFY operation)"
+    },
+    {
+      "name": "round-1-out-of-range",
+      "reason": "mempool-script-verify-flag-failed (Script failed an OP_VERIFY operation)"
+    },
+    {
+      "name": "round-1-wrong-preimage",
+      "reason": "mempool-script-verify-flag-failed (Script failed an OP_EQUALVERIFY operation)"
+    },
+    {
+      "name": "round-1-redirected",
+      "reason": "mempool-script-verify-flag-failed (Invalid Schnorr signature)"
+    }
+  ],
+  "mined": [
+    {
+      "name": "round-0-valid",
+      "txid": "ad5b1b8d7d49fccd728fd20fd884d0de4beb20810c099b28b9e1822475a4a814",
+      "wtxid": "f14329b9c61fa16e00583d67a0ac7ed48b71ef641384a592017d68dec6b6161b",
+      "weight": 3630,
+      "vsize": 908
+    },
+    {
+      "name": "round-1-valid",
+      "txid": "f6da1050178695c7125b9bf94858b819f33371b0a205af1539fe4686f5cc66a8",
+      "wtxid": "eaace00a9fce2ce36415f63b553aa053a656896c8e788532bc464d2388549204",
+      "weight": 3630,
+      "vsize": 908
+    }
+  ],
+  "payouts": [
+    {
+      "round": 0,
+      "txid": "ad5b1b8d7d49fccd728fd20fd884d0de4beb20810c099b28b9e1822475a4a814",
+      "sats": 99997000,
+      "address": "bcrt1p50rkrzvyvc3kg73w9ln4aqlaq6kw25uqg2w4ph8q4lj83rqfqa4szlmwxq"
+    },
+    {
+      "round": 1,
+      "txid": "f6da1050178695c7125b9bf94858b819f33371b0a205af1539fe4686f5cc66a8",
+      "sats": 99997000,
+      "address": "bcrt1p50rkrzvyvc3kg73w9ln4aqlaq6kw25uqg2w4ph8q4lj83rqfqa4szlmwxq"
+    }
+  ],
+  "generated": "2026-10-21T21:27:05.943Z",
+  "scope": "Separate setup-fixed Taproot penalty. Nine distinct preimages from one fixed bank open a presigned fixed payout; one eight-preimage disclosure plus repetition, reordering or an entry from the other round does not. No Binohash introspection, transaction pinning, production security level, window escrow or full storage/fork integration.",
+  "nodeStopped": true,
+  "provenance": {
+    "sources": {
+      "zk/bitvm-check/src/subset_equivocation.rs": "789e9669290db5dbfa4e83d71c191b0f9572a8c5375202bc797142a44f63cf31",
+      "zk/bitvm-check/src/lib.rs": "b9819d407b3d498bdfb74e395a66af23dceefc60e9d6fc936f64d95b3dc5fa6d",
+      "zk/bitvm-check/examples/subset-penalty.rs": "89f5dc2d546a03520db1354b955b7d6b9475b8a35c4971b158270e78240aba6a",
+      "zk/bitvm-check/subset-penalty-regtest.ts": "7097b945cd181477cbf1484851a199589b4e92af975d991284b72fb8c4b82c56"
+    },
+    "binarySha256": "eab8d539b1f35b0ec03a2aac2a467c93231bfe39c9da6ba8a6996ee7750dba60",
+    "archive": "bitvm-subset-penalty-vectors.tar.gz",
+    "archiveSha256": "79108db3876e884b99d1e716e20fcd8971820b4d2a77db2601357caefa5d9ddd",
+    "vectors": {
+      "funding.json": "ef27e7c341c4bdc16f2e45f18edaa012c9663a49ed3fb31753644de763f7bac5",
+      "metadata.json": "603f833dbef8d7deecef1c682e0fff2ecbcaaccba9a6005010e24d1823377b1d",
+      "round-0-mixed-round.json": "e6221779f1800062fc608fd5485f3b4949798dce7f97f088aebac3b9cc60a481",
+      "round-0-negative-index.json": "289960672b5dc4f3b468bc54434d98f15d5abec708f0550ed7c7e4baee787b1a",
+      "round-0-out-of-range.json": "6e2e6e1c31e83b2ebbc038342da4d508197b3fb33f88437c7d5f7ab20c5ec217",
+      "round-0-redirected.json": "96b21a497edac391fe07b5765e68fd2bc969a09cb95966a42a5d0fd7fb844718",
+      "round-0-reordered-disclosure.json": "eacbc81e9fc206d4042bcbb6f9bbdb224db773345377f1f58fa23f9b487f07f7",
+      "round-0-same-disclosure.json": "21fd43fcb1f1c134c71e90e7a2dc2dd444844f002b3e279b3452d9e2e5775c6d",
+      "round-0-valid.json": "3846ac102d964b67d0eb5c0f4b87b3855493faf66796f28a13139bba9a92e3f7",
+      "round-0-wrong-preimage.json": "e205390836c4ecfac884eaf8d5a2162a6a85a22cb423d9fb7566c96b867c2286",
+      "round-1-mixed-round.json": "a94a35a6197fcb097a1a45baa73ab9608e0dab337550777ae155955192a36de6",
+      "round-1-negative-index.json": "3e11415f0d4e47a4876346ca80bd859589b9557880277850b3f5b699bb30bbec",
+      "round-1-out-of-range.json": "4002330b59623588311699385674cff71242ab48cc752b60afa28316276c1509",
+      "round-1-redirected.json": "1cefec039f78dab9f7c14e102e0484334a4bd7c233b07a391dfb3f81ce650b30",
+      "round-1-reordered-disclosure.json": "b9d625b807665be433d30a5921ef5cf348a5f1176287b8c750c1bdf24e58e4db",
+      "round-1-same-disclosure.json": "2fbeb563781636c280d9b608dd0f6b37e4610138c59f9453a1d32427b9cdf42a",
+      "round-1-valid.json": "dfafb83d08360fe0053bad5a256b6d3f994387d1a5722ed3223de9dea834eb52",
+      "round-1-wrong-preimage.json": "eb55c5fa0e9e68601abdf5f37969241aeb6cddacbf99222cb53a1badb00f90df"
+    }
+  },
+  "nativeLibraryTests": {
+    "passed": 24,
+    "failed": 0,
+    "command": "cargo test --offline --locked --manifest-path zk/bitvm-check/Cargo.toml --lib"
+  },
+  "interpretation": {
+    "condition": "Knowledge of nine distinct authenticated 32-byte preimages from one fixed 120-entry bank; an honest single use is limited to eight distinct preimages per bank.",
+    "setup": "Commitments must be unique within and across the two banks. The constructor rejects both duplicate cases. Keys must not be reused for a second signing instance.",
+    "authentication": "Proves overdisclosure, not two specific transaction messages or actual Binohash execution. The importer would need canonical absolute-index sets and the same setup bank commitments.",
+    "limits": "Separate setup-fixed Taproot penalty only. Its 208 non-push opcodes exceed the legacy 201-opcode limit; no claim of inserting this leaf in the legacy Binohash program. Fixed payout is committee-presigned; candidate admission, actual-read binding and every withdrawal response window remain unimplemented."
+  }
+}

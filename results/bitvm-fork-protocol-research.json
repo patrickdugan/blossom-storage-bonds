@@ -41,9 +41,10 @@
     },
     {
       "requirement": "Enforce equivocation response before the relevant collateral can leave",
-      "status": "separate setup-fixed escrow experiment verified; full fork graph unimplemented",
+      "status": "separate WOTS escrow and subset-overdisclosure penalty verified; full fork graph unimplemented",
       "evidence": [
-        "results/bitvm-fork-equivocation.json"
+        "results/bitvm-fork-equivocation.json",
+        "results/bitvm-subset-penalty.json"
       ],
       "missing": "Every withdrawal and competing payout must honor the response window; this escrow is not integrated into the storage bond."
     },
@@ -131,9 +132,15 @@
       "finding": "A late-output parent can reuse SINGLE|ANYONECANPAY, but every presigned Taproot child signature mode rejects its changed outpoint.",
       "scope": "Rules out the tested naive graft; a different successor/payout construction remains open."
     },
-    "contestInvariant": "An earlier weaker or rebutted candidate must not permanently exclude a timely stronger candidate. Evidence: results/bitvm-fork-contest-model.json; abstract, not Bitcoin enforcement."
+    "contestInvariant": "An earlier weaker or rebutted candidate must not permanently exclude a timely stronger candidate. Evidence: results/bitvm-fork-contest-model.json; abstract, not Bitcoin enforcement.",
+    "subsetPenalty": {
+      "evidence": "results/bitvm-subset-penalty.json",
+      "status": "separate Taproot primitive verified",
+      "condition": "Nine distinct preimages in one fixed 120-entry bank; disjoint banks and one eight-preimage use per bank.",
+      "limitation": "Not Binohash, a message-binding proof, escrow integration or unknown challenger admission; 208 non-push opcodes exceed the legacy limit."
+    }
   },
-  "lastUpdatedUtc": "2026-10-21T21:17:43.885Z",
+  "lastUpdatedUtc": "2026-10-21T21:29:03.337Z",
   "userDecision": {
     "requirement": "Preserve permissionless fork challenges",
     "status": "explicitly confirmed",
