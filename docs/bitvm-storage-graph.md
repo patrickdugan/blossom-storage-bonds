@@ -216,3 +216,36 @@ Reproduce with the already installed dependencies:
 cargo run --offline --locked --manifest-path zk/bitvm-check/Cargo.toml --example chain-hash-cost
 node zk/bitvm-check/fork-work-regtest.ts --bitcoind <installed-bitcoind> --dir <new-data-dir> --out <new-report.json>
 ```
+
+### Input-binding experiments on Core
+
+`zk/bitvm-check/input-binding-regtest.ts` and the Rust `input-binding` example test three small
+designs on isolated Core 31.1. These deliberately use a scalar inequality and arbitrary 32-byte
+tags; they do not verify headers or ZK proofs. The ephemeral presigner exits before funding is
+broadcast, and the harness chooses its arbitrary tags only afterwards.
+
+* Ordinary witness data: a parent announces `(444, tag A)`, but its child can supply `(468, tag B)`
+  and satisfy the local `work > 466` check. Core mines both transactions. Both parent witness
+  variants have the same txid and different wtxids; signing the descendant's parent outpoint does
+  not authenticate the parent's ordinary witness. This reproduces a missing binding in the toy
+  design, not a vulnerability in the existing WOTS-bound storage graph.
+* Fixed commitment control: both scripts require the setup's `(468, fixed tag)`. Core mines the
+  matching parent and response; changed tags, changed work and a redirected payout are rejected.
+  This control binds input correctly, but fixes the input before the challenger observes a fork.
+* Output commitment: changing a presigned parent's data output changes its txid and invalidates
+  its signature. An independently presigned alternative parent can be mined, but its old descendant
+  has missing inputs; rewiring that descendant to the alternative parent invalidates its signature.
+
+`results/bitvm-input-binding.json` records five mined transactions, nine rejected spends and the
+actual public transaction bytes. The node stops cleanly. These results rule out these unbound
+shortcuts; they do not prove that every permissionless input-binding construction is impossible.
+The relevant [Taproot signature rules](https://github.com/bitcoin/bips/blob/master/bip-0341.mediawiki)
+commit transaction data and spending context; they do not make a child's outpoint identify a unique
+parent witness. [BitVMX's message linking](https://bitvmx.org/knowledge/bitvmx-a-cpu-for-universal-computation-on-bitcoin)
+instead uses one-time keys fixed during setup. Its two-party construction is useful context, but
+does not by itself supply an after-setup challenger's positive certificate path for this graph.
+
+```text
+cargo build --offline --locked --manifest-path zk/bitvm-check/Cargo.toml --example input-binding
+node zk/bitvm-check/input-binding-regtest.ts --bitcoind <installed-bitcoind> --checker <input-binding-example> --dir <new-data-dir> --out <new-report.json>
+```

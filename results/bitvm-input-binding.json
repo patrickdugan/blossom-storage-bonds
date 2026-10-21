@@ -1,0 +1,129 @@
+{
+  "format": "bsb/input-binding-regtest/v1",
+  "network": "regtest",
+  "core": "/Satoshi:31.1.0/",
+  "checks": {
+    "setupExitedBeforeFunding": true,
+    "candidateTagsChosenAfterSetupExit": true,
+    "unboundWitnessKeepsTxid": true,
+    "unboundWitnessChangesWtxid": true,
+    "unboundDescendantAcceptedDifferentInput": true,
+    "fixedCommitmentEnforcesEquality": true,
+    "lateOutputChangesTxid": true,
+    "nodesIsolated": true,
+    "nodeStopped": true
+  },
+  "witnessComparison": {
+    "parentTxid": "6ee252b4098ed42f7868cf9b4991269d53f40a6a6f25d3e3a1294314ccb884b7",
+    "announcedWork": 444,
+    "responseWork": 468,
+    "referenceWork": 466,
+    "announcedTag": "6f74acec1e66eb34957a432327a6ff6aaf81913c9e777e8c9edd7c55802be7e6",
+    "responseTag": "d772cba4f3d13c917667d6e89503adfa510d8b2d26dff1f860dd3274bdc62ceb",
+    "parentA_wtxid": "5c63fffc241d009a939d0a1cd7ed1389f3285088c5b217a6dccaa0477d2dce19",
+    "parentB_wtxid": "8210c69451ea654bae2f073cec877ca773b4dfdc57eafbcfaf6ca192000826a3"
+  },
+  "admitted": [
+    {
+      "name": "unbound-parent-substituted-witness",
+      "txid": "6ee252b4098ed42f7868cf9b4991269d53f40a6a6f25d3e3a1294314ccb884b7",
+      "wtxid": "8210c69451ea654bae2f073cec877ca773b4dfdc57eafbcfaf6ca192000826a3"
+    },
+    {
+      "name": "unbound-parent-announces-444",
+      "txid": "6ee252b4098ed42f7868cf9b4991269d53f40a6a6f25d3e3a1294314ccb884b7",
+      "wtxid": "5c63fffc241d009a939d0a1cd7ed1389f3285088c5b217a6dccaa0477d2dce19"
+    },
+    {
+      "name": "unbound-response-substitutes-468-and-another-tag",
+      "txid": "e49d2137ae159d83092e8b1a4340033bf9e83d173a11d8d74a30d1d338af2c96",
+      "wtxid": "146420c21c500d5b59427e63390a97bc29645a5cb5d26ac9acfbbf8afb55efe7"
+    },
+    {
+      "name": "fixed-parent-announces-precommitted-468",
+      "txid": "a297c17096b9afa9b1aaf78b332b9e7898645e76a95eeaedacd4a7c923dcb3aa",
+      "wtxid": "3eb837b6f89a08020e374178e605b0aca78f1af3074427b9ce8398e0cc198a0f"
+    },
+    {
+      "name": "fixed-response-matches-precommitted-468",
+      "txid": "bdfd58a3d9887bac14684be7b680128bdd42c57709e99313fa9beaf58c2dd581",
+      "wtxid": "036268ad7e69870578b8f6c33aabf41f7c9c506b674d8706b7991b337396139f"
+    },
+    {
+      "name": "different-output-parent-presigned-during-setup",
+      "txid": "cfcd03584d7ad15ff0270ddd3c9a93b319ed08bebd7f13bdc5050d4cac4d9e5d",
+      "wtxid": "c8e3f315d80b55a07506f8f7ceb72c6e36abbf20b09c7d6eac472061546f618d"
+    }
+  ],
+  "rejected": [
+    {
+      "name": "unbound-response-444-does-not-beat-466",
+      "reason": "mempool-script-verify-flag-failed (Script evaluated without error but finished with a false/empty top stack element)"
+    },
+    {
+      "name": "fixed-parent-wrong-tag",
+      "reason": "mempool-script-verify-flag-failed (Script failed an OP_EQUALVERIFY operation)"
+    },
+    {
+      "name": "fixed-parent-wrong-work",
+      "reason": "mempool-script-verify-flag-failed (Script evaluated without error but finished with a false/empty top stack element)"
+    },
+    {
+      "name": "fixed-response-wrong-tag",
+      "reason": "mempool-script-verify-flag-failed (Script failed an OP_EQUALVERIFY operation)"
+    },
+    {
+      "name": "fixed-response-wrong-work",
+      "reason": "mempool-script-verify-flag-failed (Script failed an OP_EQUALVERIFY operation)"
+    },
+    {
+      "name": "redirected-fixed-response-payout",
+      "reason": "mempool-script-verify-flag-failed (Invalid Schnorr signature)"
+    },
+    {
+      "name": "late-output-commitment-invalidates-parent-signature",
+      "reason": "mempool-script-verify-flag-failed (Invalid Schnorr signature)"
+    },
+    {
+      "name": "original-descendant-cannot-find-old-parent",
+      "reason": "missing-inputs"
+    },
+    {
+      "name": "rewired-descendant-invalidates-presignature",
+      "reason": "mempool-script-verify-flag-failed (Invalid Schnorr signature)"
+    }
+  ],
+  "mined": [
+    {
+      "name": "unbound-parent-announces-444",
+      "txid": "6ee252b4098ed42f7868cf9b4991269d53f40a6a6f25d3e3a1294314ccb884b7",
+      "wtxid": "5c63fffc241d009a939d0a1cd7ed1389f3285088c5b217a6dccaa0477d2dce19",
+      "hex": "02000000000101a66d70937944bf07ba7b6e23dec85a04e85940cfbfdfb960c87cc2b8ba7601a80000000000ffffffff0148d5f50500000000225120528199166af4d72b67b8d4d42e8763e38d1d1cced297f1c419fb7b4d3375af2c0502bc01206f74acec1e66eb34957a432327a6ff6aaf81913c9e777e8c9edd7c55802be7e640f62d0b9ab2676074022732994c8257ed84cba98a218ffc8208a4f2b154a0f5d4ba398d45eb45fc95d49ee6bcf32b9311be652c189c6166e1871c74e39836536b2920f6f2f9ef92671c712d87cc34b2085a3ab62a98378bf5082b5c41a7af6e936a38ad8201208875755121c050929b74c1a04954b78b4b6035e97a5e078a5a0f28ec96d547bfee9ace803ac000000000"
+    },
+    {
+      "name": "unbound-response-substitutes-468-and-another-tag",
+      "txid": "e49d2137ae159d83092e8b1a4340033bf9e83d173a11d8d74a30d1d338af2c96",
+      "wtxid": "146420c21c500d5b59427e63390a97bc29645a5cb5d26ac9acfbbf8afb55efe7",
+      "hex": "02000000000101b784b8cc144329a1e3d3256f6a0af4539d2691499bcf68782fd48e09b452e26e0000000000ffffffff0190c9f5050000000022512087683bfb57e30648e1648b22b43dc233065820ba9918b882e3b3eb23bf4c48f40502d40120d772cba4f3d13c917667d6e89503adfa510d8b2d26dff1f860dd3274bdc62ceb40f892107d379fec070594e1fdd0c852625a7200ac45e747d8b6f1450868a9a40fa86c7935cda8dd7e546b7deb04426e074b6d640489e6008853cb699b6b84f3a42b20f6f2f9ef92671c712d87cc34b2085a3ab62a98378bf5082b5c41a7af6e936a38ad820120887502d201a021c150929b74c1a04954b78b4b6035e97a5e078a5a0f28ec96d547bfee9ace803ac000000000"
+    },
+    {
+      "name": "fixed-parent-announces-precommitted-468",
+      "txid": "a297c17096b9afa9b1aaf78b332b9e7898645e76a95eeaedacd4a7c923dcb3aa",
+      "wtxid": "3eb837b6f89a08020e374178e605b0aca78f1af3074427b9ce8398e0cc198a0f",
+      "hex": "02000000000101a66d70937944bf07ba7b6e23dec85a04e85940cfbfdfb960c87cc2b8ba7601a80200000000ffffffff0148d5f50500000000225120eaece4037c327e9c3c462bd42649639b025f396bca8ac1274725f0b445060e100502d40120010101010101010101010101010101010101010101010101010101010101010140eabb47c3f1ef8ddee433c568bcdadfe89c9f8c307d8ccad06d2ebcf9c5eb3db6093eda320a8dc3a800024b96ed4ba63aea96209541735c07c255e1347aea77764820f6f2f9ef92671c712d87cc34b2085a3ab62a98378bf5082b5c41a7af6e936a38ad2001010101010101010101010101010101010101010101010101010101010101018802d4018721c150929b74c1a04954b78b4b6035e97a5e078a5a0f28ec96d547bfee9ace803ac000000000"
+    },
+    {
+      "name": "fixed-response-matches-precommitted-468",
+      "txid": "bdfd58a3d9887bac14684be7b680128bdd42c57709e99313fa9beaf58c2dd581",
+      "wtxid": "036268ad7e69870578b8f6c33aabf41f7c9c506b674d8706b7991b337396139f",
+      "hex": "02000000000101aab3dc23c9a7d4acedea5ea9765e6498789e2b338bf7aab1a9afb99670c197a20000000000ffffffff0190c9f5050000000022512087683bfb57e30648e1648b22b43dc233065820ba9918b882e3b3eb23bf4c48f40502d40120010101010101010101010101010101010101010101010101010101010101010140366b17b1b1216264754a6cbc310b0e5a3ab70e8a4dc3cfd7fe85ff1bf6b10ae8ee275195c894bd72993060c28f0999822c58232ce344362925a2809631020fd64d20f6f2f9ef92671c712d87cc34b2085a3ab62a98378bf5082b5c41a7af6e936a38ad200101010101010101010101010101010101010101010101010101010101010101887602d4018802d201a021c050929b74c1a04954b78b4b6035e97a5e078a5a0f28ec96d547bfee9ace803ac000000000"
+    },
+    {
+      "name": "different-output-parent-presigned-during-setup",
+      "txid": "cfcd03584d7ad15ff0270ddd3c9a93b319ed08bebd7f13bdc5050d4cac4d9e5d",
+      "wtxid": "c8e3f315d80b55a07506f8f7ceb72c6e36abbf20b09c7d6eac472061546f618d",
+      "hex": "02000000000101a66d70937944bf07ba7b6e23dec85a04e85940cfbfdfb960c87cc2b8ba7601a80300000000ffffffff0248d5f50500000000225120528199166af4d72b67b8d4d42e8763e38d1d1cced297f1c419fb7b4d3375af2c0000000000000000226a202a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a0502bc01206f74acec1e66eb34957a432327a6ff6aaf81913c9e777e8c9edd7c55802be7e640fc4ff10b7c15f8f151d34f83a0808f8cc93049f01fe68b713ce16a0dcd95730de6e66252cc213736c85b45cdf597d4f62c9cb0806c1ae0205b8446819f3bfc0d2a20f6f2f9ef92671c712d87cc34b2085a3ab62a98378bf5082b5c41a7af6e936a38ad820120887575516121c050929b74c1a04954b78b4b6035e97a5e078a5a0f28ec96d547bfee9ace803ac000000000"
+    }
+  ],
+  "scope": "Input-binding counterexamples with scalar inequality only. No header validation, proof verification, chain-work certificate or funded production graph."
+}
