@@ -23,12 +23,12 @@ fn reverse_top(count: usize) -> Script {
     script! { for i in 1..count { { i } OP_ROLL } }
 }
 
-fn bytes_to_alt(count: usize) -> Script {
+pub(crate) fn bytes_to_alt(count: usize) -> Script {
     script! { for _ in 0..count { OP_TOALTSTACK } }
 }
 
 // Convert numeric bytes (first byte on top) to normal-order high/low nibbles.
-fn bytes_to_nibbles(count: usize) -> Script {
+pub(crate) fn bytes_to_nibbles(count: usize) -> Script {
     script! {
         for _ in 0..count {
             0 OP_SWAP
@@ -44,7 +44,7 @@ fn bytes_to_nibbles(count: usize) -> Script {
 }
 
 // BitVM's BLAKE3 input reverses bytes inside each u32 word, not the word order.
-fn blake3_word_order() -> Script {
+pub(crate) fn blake3_word_order() -> Script {
     script! {
         for _ in 0..8 {
             for depth in [6, 4, 2, 0] {
@@ -77,9 +77,15 @@ pub fn disprove_term_binding(
 ) -> Script {
     script! {
         { bound_digest(prefix, constants_digest, keys) }
+        { public_input_mismatch() }
+    }
+}
 
-        // Wrapper input = first 31 digest bytes as BE scalar. Drop the last digest byte and
-        // prepend a zero byte, then decode and compare the chunker's nibble-swapped BE scalar.
+// Both binding formats leave the expected BLAKE3 nibbles on the main stack and
+// the signed chunker public-input bytes on the alt stack.
+pub(crate) fn public_input_mismatch() -> Script {
+    script! {
+        // Truncate to 31 bytes, prepend zero, and compare the nibble-swapped BE scalar.
         OP_2DROP
         { bytes_to_alt(62) }
         0 0
@@ -94,7 +100,6 @@ pub fn disprove_term_binding(
         OP_NOT
     }
 }
-
 fn signed_journal(prefix: &[u8; 134], keys: &BindingKeys) -> Script {
     script! {
         { Wots32::checksig_verify(&keys.public_input) }
@@ -121,7 +126,12 @@ fn signed_journal(prefix: &[u8; 134], keys: &BindingKeys) -> Script {
 fn bound_digest(prefix: &[u8; 134], constants_digest: &[u8; 32], keys: &BindingKeys) -> Script {
     script! {
         { signed_journal(prefix, keys) }
-        // Both hashes use normal-order high/low nibbles; BLAKE3 consumes two U256 arrays.
+        { wrap_journal_digest(constants_digest) }
+    }
+}
+
+pub(crate) fn wrap_journal_digest(constants_digest: &[u8; 32]) -> Script {
+    script! {
         { bytes_to_alt(64) }
         for word in constants_digest.chunks_exact(4) {
             for byte in word.iter().rev() { { *byte >> 4 } { *byte & 15 } }
@@ -129,10 +139,44 @@ fn bound_digest(prefix: &[u8; 134], constants_digest: &[u8; 32], keys: &BindingK
         for _ in 0..64 { OP_FROMALTSTACK }
         { blake3_word_order() }
         { blake3_compute_script_with_limb(64, 4) }
-
     }
 }
 
+/// Proposed extra commitment for future graphs. Open on either an incorrect
+/// Groth16 public input or a signed journal inconsistent with the original term.
+/// A compact fork binding must reuse this exact journal key to inherit that link.
+/// Witness order adds the journal signature above the existing four signatures.
+pub fn disprove_term_binding_with_journal(
+    prefix: &[u8; 134],
+    constants_digest: &[u8; 32],
+    keys: &BindingKeys,
+    journal_key: &<Wots32 as Wots>::PublicKey,
+) -> Script {
+    script! {
+        { Wots32::checksig_verify(journal_key) }
+        { ToBytesConverter::get_script(&Wots32::PARAMETERS) }
+        { bytes_to_alt(32) }
+        { signed_journal(prefix, keys) }
+        // Keep the computed term hash while comparing a copy with the signed journal.
+        for _ in 0..64 { 63 OP_PICK }
+        for _ in 0..32 { OP_FROMALTSTACK }
+        for _ in 0..32 { OP_FROMALTSTACK }
+        // Restore the public scalar to the alt stack, leaving the journal on top.
+        for _ in 0..32 { 32 OP_ROLL OP_TOALTSTACK }
+        { bytes_to_nibbles(32) }
+        for i in (1..=64).rev() { { i } OP_ROLL OP_EQUAL OP_TOALTSTACK }
+        1
+        for _ in 0..64 { OP_FROMALTSTACK OP_BOOLAND }
+        OP_NOT
+        // Move the journal mismatch flag underneath the public scalar on the alt stack.
+        for _ in 0..32 { OP_FROMALTSTACK }
+        32 OP_ROLL OP_TOALTSTACK
+        { bytes_to_alt(32) }
+        { wrap_journal_digest(constants_digest) }
+        { public_input_mismatch() }
+        OP_FROMALTSTACK OP_BOOLOR
+    }
+}
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -374,5 +418,62 @@ mod tests {
             result.error.is_some(),
             "a signature must fail before the binding verdict"
         );
+    }
+
+    #[test]
+    fn term_journal_commitment_matches_the_same_signed_term() {
+        let mut maximum_stack = 0;
+        let mut script_bytes = 0;
+        for case in 0..4 {
+            let mut f = fixture();
+            let signer = Signer::new();
+            let journal_secret = Wots32::generate_secret_key();
+            let journal_key = Wots32::generate_public_key(&journal_secret);
+            let mut journal = f.journal;
+            if case & 1 != 0 {
+                journal[0] ^= 1;
+            }
+            if case & 2 != 0 {
+                f.public[0] ^= 1;
+            }
+            let leaf = disprove_term_binding_with_journal(
+                &f.prefix,
+                &f.constants,
+                &signer.keys(),
+                &journal_key,
+            );
+            let result = execute_script(script! {
+                { signer.witness(&f) }
+                { Wots32::sign_to_raw_witness(&journal_secret, &journal) }
+                { leaf.clone() }
+            });
+            assert_eq!(
+                result.success,
+                case != 0,
+                "journal binding case {case}: {:?}",
+                result.error
+            );
+            assert!(leaf.len() < 3_984_000 && result.stats.max_nb_stack_items <= 1000);
+            maximum_stack = maximum_stack.max(result.stats.max_nb_stack_items);
+            script_bytes = leaf.len();
+        }
+        println!(
+            "BSB_BINDING_STATS {}",
+            serde_json::json!({"kind":"original-term-plus-journal-arithmetic","script_bytes":script_bytes,"max_stack_items":maximum_stack,"measured_cases":4,"scope":"Proposed journal commitment for future setup only; existing graph remains unchanged."})
+        );
+    }
+
+    #[test]
+    fn term_journal_commitment_rejects_an_unrelated_key() {
+        let f = fixture();
+        let signer = Signer::new();
+        let secret = Wots32::generate_secret_key();
+        let wrong_key = Wots32::generate_public_key(&Wots32::generate_secret_key());
+        let result = execute_script(script! {
+            { signer.witness(&f) }
+            { Wots32::sign_to_raw_witness(&secret, &f.journal) }
+            { disprove_term_binding_with_journal(&f.prefix, &f.constants, &signer.keys(), &wrong_key) }
+        });
+        assert!(!result.success && result.error.is_some());
     }
 }

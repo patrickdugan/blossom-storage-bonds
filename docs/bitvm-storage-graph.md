@@ -325,3 +325,35 @@ bsb-bitvm-check <g16-dir> --wrong-public 1 --out <new-full-check.json> --asserti
 The final command executes the full BitVM verifier and its disprove checks. Its public one-time
 test keys are suitable for interpreter experiments. A transaction graph needs its own authenticated
 commitments and signatures before any of these checks can control collateral.
+
+### Compact binding arithmetic
+
+The proved v1 certificate is not yet a usable Bitcoin input binding. With the current SHA
+implementation, hashing its 354-byte public statement exceeds the interpreter's 1,000-item stack
+limit. Independently signing every v1 field would also start with 1,440 witness items. These are
+measurements of these implementations, not an impossibility result for other encodings.
+
+A proposed v2 public projection keeps the domain, graph identity, original term-journal digest,
+response height/hash/work and candidate height/hash/work: 214 bytes. The original triple is already
+committed by the term journal. Epoch and divergence evidence may become private witnesses only
+if the new guest retains every original membership, seed-divergence and strict-work check.
+No compact guest or certificate has been generated at this stage; the proved v1 image is unchanged.
+
+`fork_binding.rs` verifies eight setup-pinned WOTS signatures and recomputes that projection's
+SHA256/BLAKE3 wrapper input. Its complete arithmetic uses 1,241,447 script bytes and a maximum of
+853 stack items, including signature verification. The initial signature witness has 844 items.
+The honest case reaches false; each of eight independently signed field substitutions opens the
+disprove leaf. Changed setup identity, changed wrapper constants, an unrelated signing key and a
+noncanonical BN254 scalar alias are also tested. These tests use dummy wrapper constants and do
+not claim that the v1 Groth16 proof proves the compact statement.
+
+A separate proposed `disprove_term_binding_with_journal` component binds a signed original term
+journal to the same 202-byte term and storage public input. It uses 1,232,157 bytes and at most 792
+stack items. A future fork binding must reuse that exact journal key; merely accepting another
+party's journal signature would not link back to the provider's storage assertion. The original
+storage binding still measures 1,223,886 bytes and 760 stack items.
+
+`results/bitvm-fork-binding-arithmetic.json` records the measurements and twenty passing library
+tests. The resource probe is `examples/fork-binding-cost.rs`. These components require fresh setup
+and are not connected to the existing funded graph. They establish arithmetic feasibility only;
+challenger registration, input ownership, deadlines and collateral enforcement remain protocol work.

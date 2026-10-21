@@ -1,0 +1,79 @@
+{
+  "schema": "bsb-fork-binding-arithmetic-v1",
+  "bitvm_rev": "7d1ca36",
+  "scope": "Interpreter arithmetic and resource measurements. The compact relation is not yet proved, and these components are not registered in a funded graph. Permissionless challenger registration remains unresolved.",
+  "hash_and_witness_probe": {
+    "bitvm_rev": "7d1ca36",
+    "hash_modes": [
+      {
+        "hash_script_bytes": 1680598,
+        "interpreter_error": "Some(StackSize)",
+        "max_stack_items": 1000,
+        "name": "full-v1-statement",
+        "native_hash_matches": false,
+        "native_sha256": "d78d19d832272aafd9def1236f0c636af020de106ad7ef2e9e2cc75eac40209c",
+        "statement_bytes": 354
+      },
+      {
+        "hash_script_bytes": 1120188,
+        "interpreter_error": "None",
+        "max_stack_items": 752,
+        "name": "projected-v2-statement",
+        "native_hash_matches": true,
+        "native_sha256": "68df3b15df54d3e287908949c9607d0ffb0ac7e60ee7a1d433c2944ab1dbe0a7",
+        "statement_bytes": 214
+      }
+    ],
+    "scope": "Current SHA/WOTS resource measurements only. Does not include BLAKE3, WOTS verification, transaction overhead or a proved compact certificate. Does not solve permissionless challenge-input binding.",
+    "wots": {
+      "items_per_32_byte_signature": 134,
+      "items_per_4_byte_signature": 20,
+      "projected_initial_witness_items": 844,
+      "projected_signatures_32_byte": 6,
+      "projected_signatures_4_byte": 2,
+      "v1_initial_witness_items": 1440,
+      "v1_signatures_32_byte": 10,
+      "v1_signatures_4_byte": 5
+    }
+  },
+  "complete_binding_measurements": [
+    {
+      "kind": "original-term-plus-journal-arithmetic",
+      "max_stack_items": 792,
+      "measured_cases": 4,
+      "scope": "Proposed journal commitment for future setup only; existing graph remains unchanged.",
+      "script_bytes": 1232157
+    },
+    {
+      "kind": "compact-fork-arithmetic",
+      "max_stack_items": 853,
+      "measured_cases": 9,
+      "scope": "Proposed compact binding only; no compact guest or graph registration.",
+      "script_bytes": 1241447
+    }
+  ],
+  "tests": {
+    "failed": 0,
+    "passed": 20,
+    "cases": [
+      "honest compact binding remains closed",
+      "each of eight signed fields changed independently",
+      "changed graph identity and wrapper constants",
+      "unrelated WOTS keys",
+      "noncanonical BN254 modulus alias",
+      "original term journal and public input independently wrong"
+    ]
+  },
+  "existing_term_binding": {
+    "max_stack_items": 760,
+    "script_bytes": 1223886,
+    "behavior": "Unchanged"
+  },
+  "requirements": [
+    "Retain every original relation check in any compact guest",
+    "Use the same term-journal WOTS key in term and fork binding",
+    "Use the chunker public-input key for fork public-input binding",
+    "Fresh pre-funding graph setup required",
+    "Supply a permissionless challenge protocol before collateral enforcement"
+  ]
+}
