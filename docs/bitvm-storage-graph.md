@@ -182,9 +182,9 @@ implementation, not every possible SHA optimization or a future protocol spannin
 
 ### Remaining enforcement problem
 
-A new RISC Zero guest could recursively verify two genuine header receipts, check the original-tip
-and epoch-seed MMR openings, and prove the exact inequality. That would produce a useful comparison
-certificate. It would still need a Bitcoin-enforced route to the collateral. The current BitVM graph
+The experimental RISC Zero fork guest now proves the exact relative-work comparison using three
+genuine header receipts and authenticated original-tip and divergence openings (see below).
+Its certificate still needs a Bitcoin-enforced route to the collateral. The current BitVM graph
 optimistically verifies the provider's fixed-key assertion and lets anyone expose a false chunk.
 That is different from accepting a new challenger's positive certificate and making it binding.
 
@@ -249,3 +249,69 @@ does not by itself supply an after-setup challenger's positive certificate path 
 cargo build --offline --locked --manifest-path zk/bitvm-check/Cargo.toml --example input-binding
 node zk/bitvm-check/input-binding-regtest.ts --bitcoind <installed-bitcoind> --checker <input-binding-example> --dir <new-data-dir> --out <new-report.json>
 ```
+
+### Relative-work certificate and Groth16 wrap
+
+The experimental `methods/fork` guest now proves the relative comparison using three authenticated
+header-chain receipts: the original claim, its responding extension, and the competing candidate.
+It pins the regtest header image and genesis, checks each MMR's shape and tip, checks the original
+tip's exact-position membership in the response, and authenticates a divergent block at or before
+a selected storage seed. Its work comparison is a strict comparison of the receipts' big-endian
+256-bit cumulative work. The 202-byte term preimage must name that original tip, hash and work.
+
+The certificate commits a 354-byte statement: domain, graph identifier, term-journal digest, the
+three height/hash/work triples, epoch index, divergence height, and the two divergent block hashes.
+The guest's 32-byte journal is SHA256 of those bytes. `fork_relation.rs` defines the layout;
+`check_fork_research.py` independently reconstructs it from the full header files and validates
+regtest linking, difficulty, PoW, version and median-time rules. Receipt verification is a separate,
+explicit operation of that checker. `check-fork-public.ts` independently recomputes the wrapper's
+SHA256/BLAKE3 public input, including the new guest image rather than the holdings or term image.
+
+The VPS job proved the captured experiment's work values `442 < 466 < 468`, and wrapped the
+certificate using the existing pinned Groth16 image and verifying key:
+
+* Fork image: `8cf297b91e31b0ee52b57c876888f120416950ab3e7169d26c7315751da39457`.
+* Certificate journal: `d78d19d832272aafd9def1236f0c636af020de106ad7ef2e9e2cc75eac40209c`.
+* Groth16 public input: `331922694518165887603772562130688070796909051370644513024791622746851652422`.
+
+The certificate evidence is `results/bitvm-cumulative-work-certificate.json`; its Groth16 proof,
+public input and verifying key are in `results/bitvm-cumulative-work-groth16/`.
+
+The existing holdings, term and header-chain image IDs remain unchanged. Seven native relation
+tests and nine compiled-guest/prover rejection cases cover malformed bindings and invented work.
+Independent readback has sixteen checks, including actual receipt verification and rejection of
+changed receipt bytes. The native pairing checker accepts the new Groth16 proof and rejects a
+replayed storage proof, a changed guest image and a changed graph identity.
+
+This dataset uses the two-node fork experiment and a synthetic graph identifier. It generates no
+holdings proof for those experimental branches and attaches no comparison to a funded bond. The
+certificate proves a relationship between supplied branches; the challenge/response timing and
+collateral-spending protocol described above remain implementation work. The original same-chain
+funded storage proof remains the separate lifecycle milestone.
+
+Reproduce with the existing pinned tools. Run the heavy proving commands on a suitable machine;
+the recipe starts no Bitcoin node, signer or downloader:
+
+```text
+node zk/risc0/prepare-fork-inputs.mjs . <new-input-dir>
+bash zk/risc0/build-pinned.sh <installed-cargo> <populated-guest-cargo-home> <new-wrapper-dir>
+bash zk/risc0/prove-fork-research.sh <input-dir> <new-proof-dir> <bsb-r0> <pinned-regtest-header-elf>
+python3 zk/risc0/check_fork_research.py <input-dir> <proof-dir> --receipt-verifier <bsb-r0>
+python3 zk/risc0/check_fork_research_test.py --inputs <input-dir> --output <proof-dir> --receipt-verifier <bsb-r0>
+bsb-r0 groth16-fork <proof-dir>/fork.bin <new-g16-dir>
+```
+
+`groth16-fork` requires the fork image and an already installed pinned Docker image, and refuses
+an existing output directory. The original `groth16` command continues to require the term image.
+Copy the pinned `results/bitvm2-spike-groth16/vk.json` into the new Groth16 directory, save the
+independent readback result, then check the public input and pairings:
+
+```text
+node zk/risc0/check-fork-public.ts --g16 <g16-dir> --readback <readback.json> --out <new-public-report.json>
+node zk/risc0/fork-public-guards.ts --g16 <g16-dir> --statement <proof-dir>/fork.bin.statement.bin --checker <bsb-bitvm-check> --dir <new-guard-dir> --out <new-guard-report.json>
+bsb-bitvm-check <g16-dir> --wrong-public 1 --out <new-full-check.json> --assertions-out <new-assertions.json>
+```
+
+The final command executes the full BitVM verifier and its disprove checks. Its public one-time
+test keys are suitable for interpreter experiments. A transaction graph needs its own authenticated
+commitments and signatures before any of these checks can control collateral.

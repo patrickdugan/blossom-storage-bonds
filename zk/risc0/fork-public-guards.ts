@@ -1,0 +1,42 @@
+// Actual pairing checks against replayed and rebound fork-certificate metadata.
+import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
+import { existsSync,mkdirSync,readFileSync,writeFileSync } from "node:fs";
+import { dirname,join,resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import { blake3Block } from "../../model/bitvm_term.ts";
+const option=(name:string)=>{const i=process.argv.indexOf(`--${name}`);return i<0?undefined:process.argv[i+1];};
+const req=(name:string)=>{const v=option(name);assert.ok(v,`--${name} is required`);return resolve(v);};
+const g16=req("g16"),statement=readFileSync(req("statement")),root=req("dir"),output=req("out"),checker=req("checker");
+assert.ok(!existsSync(root)&&!existsSync(output));mkdirSync(root);
+const repo=resolve(dirname(fileURLToPath(import.meta.url)),"../..");
+const wrap=JSON.parse(readFileSync(join(g16,"groth16.json"),"utf8"));
+const publicInput=JSON.parse(readFileSync(join(g16,"public.json"),"utf8"));
+const sha=(b:Uint8Array)=>createHash("sha256").update(b).digest();
+const scalar=(constants:Buffer,journal:Buffer)=>BigInt("0x"+blake3Block(Buffer.concat([constants,journal])).subarray(0,31).toString("hex")).toString();
+assert.equal(statement.length,354);assert.equal(sha(statement).toString("hex"),wrap.journal);
+assert.equal(scalar(Buffer.from(wrap.constants_digest,"hex"),sha(statement)),publicInput[0]);
+const results:any[]=[];
+function run(name:string,proof:Buffer,value:string,expected:boolean){
+  const dir=join(root,name);mkdirSync(dir);writeFileSync(join(dir,"vk.json"),readFileSync(join(g16,"vk.json")));writeFileSync(join(dir,"proof.json"),proof);writeFileSync(join(dir,"public.json"),JSON.stringify([value]));
+  const process=spawnSync(checker,[dir,"--wrong-public",value==="1"?"2":"1","--verify-only"],{encoding:"utf8",windowsHide:true,timeout:120_000,maxBuffer:1_000_000});
+  if(process.error)throw process.error;
+  assert.match(process.stdout,expected?/arkworks: honest true, wrong public input false/:/arkworks: honest false, wrong public input false/);
+  assert.equal(process.status===0,expected,`${name}: ${process.stderr}`);
+  results.push({name,accepted:expected,exit_code:process.status,stdout:process.stdout.trim(),proof_sha256:sha(proof).toString("hex"),public_input:value});
+}
+const proof=readFileSync(join(g16,"proof.json"));
+run("honest-fork-certificate",proof,publicInput[0],true);
+run("old-storage-proof-with-fork-public-input",readFileSync(join(repo,"results/bitvm2-spike-groth16/proof.json")),publicInput[0],false);
+const bitReversed=Buffer.from(wrap.control_root,"hex").map(byte=>{let v=0;for(let i=0;i<8;i++)v|=((byte>>>i)&1)<<(7-i);return v;});
+const oldImage=JSON.parse(readFileSync(join(repo,"results/bitvm2-spike.json"),"utf8")).image_ids.term;
+assert.notEqual(oldImage,wrap.pre_state);
+const wrongImageDigest=sha(Buffer.concat([bitReversed,Buffer.from(oldImage,"hex"),Buffer.from(wrap.post_state,"hex"),Buffer.from(wrap.bn254_control_id,"hex")]));
+const wrongImagePublic=scalar(wrongImageDigest,sha(statement));assert.notEqual(wrongImagePublic,publicInput[0]);
+run("fork-proof-with-storage-guest-image",proof,wrongImagePublic,false);
+const otherGraph=Buffer.from(statement);otherGraph[14]^=1;
+const otherGraphPublic=scalar(Buffer.from(wrap.constants_digest,"hex"),sha(otherGraph));assert.notEqual(otherGraphPublic,publicInput[0]);
+run("fork-proof-with-different-graph-identity",proof,otherGraphPublic,false);
+const report={format:"bsb/fork-public-pairing-guards/v1",cases:results,scope:"Pairing verification and public-input binding checks. No Bitcoin collateral-dispute enforcement."};
+writeFileSync(output,JSON.stringify(report,null,2)+"\n",{flag:"wx"});console.log(JSON.stringify(report));

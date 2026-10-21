@@ -1,0 +1,178 @@
+{
+  "format": "bsb/cumulative-work-certificate/v1",
+  "network": "regtest",
+  "scope": "Relative cumulative-work ZK certificate research, using a synthetic graph identifier. Does not generate holdings proofs for these branches or authorize a Bitcoin collateral spend.",
+  "graph_id": "0b7132dd809e4fcccd14872aed3a152866d43197a28742d05549278ae116b010",
+  "graph_id_is_synthetic": true,
+  "term_journal": "3a365c36f29139756e46a5b33961b33933921cc9285bae1d07dfb8e4f287bfdc",
+  "fork_image_id": "8cf297b91e31b0ee52b57c876888f120416950ab3e7169d26c7315751da39457",
+  "certificate_journal": "d78d19d832272aafd9def1236f0c636af020de106ad7ef2e9e2cc75eac40209c",
+  "public_input": "331922694518165887603772562130688070796909051370644513024791622746851652422",
+  "branches": {
+    "original": {
+      "height": 220,
+      "hash": "1afbfb3109023f3a1c06f2e279fbb46ac4eb5c82a59cc2a6719ba7657f17bb71",
+      "work": "442",
+      "hashAtClaimHeight": "1afbfb3109023f3a1c06f2e279fbb46ac4eb5c82a59cc2a6719ba7657f17bb71",
+      "firstSeedHash": "7f354a9601e54bd22b4e4748c6ea44a2bc5cded7791f04bd21ff70d3771c259f"
+    },
+    "response": {
+      "height": 232,
+      "hash": "653bd05f77d67d4f6644ec045135c37208d92d6c7dda56fbde869b18c4c4c25f",
+      "work": "466",
+      "hashAtClaimHeight": "1afbfb3109023f3a1c06f2e279fbb46ac4eb5c82a59cc2a6719ba7657f17bb71",
+      "firstSeedHash": "7f354a9601e54bd22b4e4748c6ea44a2bc5cded7791f04bd21ff70d3771c259f"
+    },
+    "candidate": {
+      "height": 233,
+      "hash": "15e7fc560817bb773ec16275799a286bb1acee872a7e80e7d92199fb6c1de6ba",
+      "work": "468",
+      "hashAtClaimHeight": "43fae1ac470cd13bd6c48f77bb97b8a466bdc17fea2bfcbff512f54c5f3eb033",
+      "firstSeedHash": "1db0ff94b86b368d14dc911b6d0cf79440eb36ba78d988685ed1b14b7b733271"
+    }
+  },
+  "divergent_height": 170,
+  "epoch_index": 0,
+  "verification": {
+    "risc0_receipt_verified": true,
+    "changed_journal_rejected": true,
+    "wrong_image_rejected": true,
+    "relation_unit_tests": 7,
+    "compiled_guest_and_prover_rejection_cases": 9,
+    "independent_readback_tests": 16,
+    "independent_statement_and_public_input_checked": true,
+    "native_pairing_verified": true,
+    "native_pairing_replay_or_rebinding_rejections": 3
+  },
+  "bitcoin_fork_dispute_implemented": false,
+  "full_bitvm_disprove_checks": "Separate verification job; this report covers the certificate and pairing checks.",
+  "artifacts": {
+    "return_archive_sha256": "fe311f0984f63e5dd53c854b12e8b2a5bf3a564dc127458c0f9cb42ea5e3a440",
+    "producer_source_sha256": "210e614a39389bb172c388b9dec373ebe9a44ae6a5038a9cf11fb6968eb45337",
+    "proof_source_sha256": "c5e650c9a95f69da9a2b8029107fa453dbd34980da5060666965bc4ce12b7036",
+    "input_archive_sha256": "4278a25246cad64ebd0ec602169760e3de14edd347c5ad2a424d679c2630d2f9",
+    "risc0_receipt_sha256": "bca6df8b6112f4a88f8fb4692971cc978c732c229b47e6d281eed3c7059524f4",
+    "groth16_proof_sha256": "ce176f91e7d5d2cfa28f0a0ac688f61de7f851b464f1da4726b2faeeb29badde",
+    "vk_sha256": "2941dff0bd962ff8610773c9659c10d0dec561db1e2f6afecfbbe0d9cb457a7d"
+  },
+  "timings": {
+    "common": {
+      "wall": "8:40.40",
+      "peak_rss_kib": 9601280,
+      "exit_code": 0
+    },
+    "original": {
+      "wall": "5:08.69",
+      "peak_rss_kib": 4798420,
+      "exit_code": 0
+    },
+    "response": {
+      "wall": "2:11.25",
+      "peak_rss_kib": 1545200,
+      "exit_code": 0
+    },
+    "candidate": {
+      "wall": "5:07.01",
+      "peak_rss_kib": 4807196,
+      "exit_code": 0
+    },
+    "fork": {
+      "wall": "4:23.60",
+      "peak_rss_kib": 2406368,
+      "exit_code": 0
+    },
+    "guards": {
+      "wall": "0:00.38",
+      "peak_rss_kib": 20856,
+      "exit_code": 0
+    },
+    "groth16": {
+      "wall": "3:17.86",
+      "peak_rss_kib": 1480392,
+      "exit_code": 0
+    }
+  },
+  "groth16_memory_note": "Groth16 host RSS excludes Docker. The current cgroup-v1 collector did not measure a container peak.",
+  "statement_preimage": "6273622f72302d666f726b7c76310b7132dd809e4fcccd14872aed3a152866d43197a28742d05549278ae116b0103a365c36f29139756e46a5b33961b33933921cc9285bae1d07dfb8e4f287bfdc000000dc71bb177f65a79b71a6c29ca5825cebc46ab4fb79e2f2061c3a3f020931fbfb1a00000000000000000000000000000000000000000000000000000000000001ba000000e85fc2c4c4189b86defb56da7d6c2dd90872c3355104ec44664f7dd6775fd03b6500000000000000000000000000000000000000000000000000000000000001d2000000e9bae61d6cfb9921d9e7807e2a87eeacb16b289a797562c13e77bb170856fce71500000000000000000000000000000000000000000000000000000000000001d400000000000000aa9f251c77d370ff21bd041f79d7de5cbca244eac648474e2bd24be501964a357f7132737b4bb1d15e6888d978ba36eb4094f70c6d1b91dc148d366bb894ffb01d",
+  "guest_guards": [
+    {
+      "case": "header-image",
+      "error": "Guest panicked: invalid fork comparison: \"header journal names another image\"",
+      "guest_rejected": true
+    },
+    {
+      "case": "genesis-path",
+      "error": "Guest panicked: invalid fork comparison: \"wrong genesis opening\"",
+      "guest_rejected": true
+    },
+    {
+      "case": "term-claim",
+      "error": "Guest panicked: invalid fork comparison: \"term names another original claim\"",
+      "guest_rejected": true
+    },
+    {
+      "case": "unrelated-response",
+      "error": "Guest panicked: invalid fork comparison: \"response does not extend original claim\"",
+      "guest_rejected": true
+    },
+    {
+      "case": "weaker-candidate",
+      "error": "Guest panicked: invalid fork comparison: \"candidate must beat responding branch work\"",
+      "guest_rejected": true
+    },
+    {
+      "case": "equal-work",
+      "error": "Guest panicked: invalid fork comparison: \"candidate must beat responding branch work\"",
+      "guest_rejected": true
+    },
+    {
+      "case": "after-seed",
+      "error": "Guest panicked: invalid fork comparison: \"fork occurs after selected seed\"",
+      "guest_rejected": true
+    },
+    {
+      "case": "divergence-path",
+      "error": "Guest panicked: invalid fork comparison: \"invalid candidate divergence opening\"",
+      "guest_rejected": true
+    },
+    {
+      "case": "invented-authenticated-work",
+      "error": "sys_verify_integrity: no receipt found to resolve assumption: claim digest a5f611f93cf9ae5296a5e1505c46010f7db2deff743cb190b150dd9192dc47f6, control root 0000000000000000000000000000000000000000000000000000000000000000",
+      "prover_rejected": true
+    }
+  ],
+  "public_pairing_guards": [
+    {
+      "name": "honest-fork-certificate",
+      "accepted": true,
+      "exit_code": 0,
+      "stdout": "arkworks: honest true, wrong public input false\n{\"verifies\":true,\"wrong_public_verifies\":false}",
+      "proof_sha256": "ce176f91e7d5d2cfa28f0a0ac688f61de7f851b464f1da4726b2faeeb29badde",
+      "public_input": "331922694518165887603772562130688070796909051370644513024791622746851652422"
+    },
+    {
+      "name": "old-storage-proof-with-fork-public-input",
+      "accepted": false,
+      "exit_code": 101,
+      "stdout": "arkworks: honest false, wrong public input false",
+      "proof_sha256": "b2220d1a7b806d4cefd050b49d48042276cc2ab0362ccf0f62548e1b3cafdd32",
+      "public_input": "331922694518165887603772562130688070796909051370644513024791622746851652422"
+    },
+    {
+      "name": "fork-proof-with-storage-guest-image",
+      "accepted": false,
+      "exit_code": 101,
+      "stdout": "arkworks: honest false, wrong public input false",
+      "proof_sha256": "ce176f91e7d5d2cfa28f0a0ac688f61de7f851b464f1da4726b2faeeb29badde",
+      "public_input": "195013287682275390863924357490521109706149873983718720362697441597619916918"
+    },
+    {
+      "name": "fork-proof-with-different-graph-identity",
+      "accepted": false,
+      "exit_code": 101,
+      "stdout": "arkworks: honest false, wrong public input false",
+      "proof_sha256": "ce176f91e7d5d2cfa28f0a0ac688f61de7f851b464f1da4726b2faeeb29badde",
+      "public_input": "7952792333570674495945027608737081555348039617843960928519756557456238630"
+    }
+  ]
+}

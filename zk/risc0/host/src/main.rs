@@ -11,17 +11,26 @@
 //   bsb-r0 forge-demo <dir> --elf E --spv-elf F --chain R --headers H --first F --step S --depth D <hold.bin>...
 // Milestone 3, the Groth16 wrap through risc0-to-bitvm2's circuit and pinned prover image:
 //   bsb-r0 groth16 <term.bin> <dir>
+// Research: bsb-r0 prove-fork <new.bin> --original R --response R --candidate R
+//   --original-headers H --response-headers H --candidate-headers H --term-preimage P
+//   --graph-id HEX --divergent-height N --epoch-index N [--exec]
+//   bsb-r0 verify-fork <receipt.bin>
+//   bsb-r0 groth16-fork <fork.bin> <new-dir>
+//   bsb-r0 fork-guards <input.bin> --original R --response R --candidate R
 //
 // Witnesses come from zk/risc0/witness.ts, headers from zk/risc0/headers.ts. Every command prints
 // one JSON line. A guest that panics (a missing chunk, a wrong path, a seed off the chain) exits
 // non-zero with no receipt.
 
 mod chain;
+mod fork;
+#[path = "../../fork_relation.rs"]
+mod fork_relation;
 mod wrap;
 
 use anyhow::{bail, ensure, Context, Result};
 use borsh::BorshDeserialize;
-use bsb_methods::{FORGE_ELF, FORGE_ID, HOLD_ELF, HOLD_ID, TERM_ELF, TERM_ID};
+use bsb_methods::{FORGE_ELF, FORGE_ID, FORK_ID, HOLD_ELF, HOLD_ID, TERM_ELF, TERM_ID};
 use risc0_to_bitvm2_core::final_circuit::FinalCircuitInput;
 use risc0_to_bitvm2_core::header_chain::{BlockHeaderCircuitOutput, CircuitBlockHeader};
 use risc0_to_bitvm2_core::merkle_tree::BitcoinMerkleTree;
@@ -162,7 +171,7 @@ fn main() -> Result<()> {
     match args.get(1).map(String::as_str) {
         Some("ids") => {
             println!("{}", json!({ "hold": id_hex(HOLD_ID), "term": id_hex(TERM_ID), "forge": id_hex(FORGE_ID),
-                "header_chain": id_hex(chain::HEADER_CHAIN_ID), "hold_elf_bytes": HOLD_ELF.len(), "term_elf_bytes": TERM_ELF.len() }));
+                "fork": id_hex(FORK_ID), "header_chain": id_hex(chain::HEADER_CHAIN_ID), "hold_elf_bytes": HOLD_ELF.len(), "term_elf_bytes": TERM_ELF.len() }));
         }
         Some("exec-hold") => {
             let input = std::fs::read(&args[2]).context("witness")?;
@@ -317,15 +326,32 @@ fn main() -> Result<()> {
             };
             println!("{report}");
         }
-        Some("groth16") => {
+        Some("prove-fork") => fork::prove(&args)?,
+        Some("fork-guards") => fork::guards(&args)?,
+        Some("verify-fork") => {
+            let receipt = read_receipt(&args[2])?; receipt.verify(FORK_ID)?;
+            ensure!(receipt.journal.bytes.len() == 32, "fork journal length");
+            let mut changed = receipt.clone(); changed.journal.bytes[0] ^= 1;
+            ensure!(changed.verify(FORK_ID).is_err(), "changed journal verified");
+            ensure!(receipt.verify(chain::HEADER_CHAIN_ID).is_err(), "wrong image verified");
+            println!("{}", json!({"cmd":"verify-fork","verified":true,"changed_journal_rejected":true,"wrong_image_rejected":true,"image_id":id_hex(FORK_ID),"journal":hex::encode(&receipt.journal.bytes)}));
+        }
+        Some("groth16") | Some("groth16-fork") => {
+            let is_fork = args[1] == "groth16-fork";
+            let image_id = if is_fork { FORK_ID } else { TERM_ID };
             let receipt = read_receipt(&args[2])?;
-            receipt.verify(TERM_ID)?;
+            receipt.verify(image_id)?;
             let work = std::path::PathBuf::from(&args[3]);
+            if is_fork {
+                ensure!(!work.exists(), "fork Groth16 output must be a new directory");
+                let installed = std::process::Command::new("docker").args(["image", "inspect", wrap::PROVER_IMAGE]).output()?;
+                ensure!(installed.status.success(), "pinned prover image must already be installed");
+            }
             std::fs::create_dir_all(&work)?;
             let prep = wrap::prepare(&receipt, &work)?;
             let (docker_s, peak) = wrap::run_prover(&work)?;
             let got = wrap::read_output(&work)?;
-            let image = id_bytes(TERM_ID);
+            let image = id_bytes(image_id);
             let want = wrap::expected_output(&image, &receipt.journal.bytes);
             let mut wrong_journal = receipt.journal.bytes.clone();
             wrong_journal[0] ^= 1;
@@ -334,7 +360,7 @@ fn main() -> Result<()> {
             let (control_root, post_state, bn254_id) = wrap::constants();
             let proof: Value = serde_json::from_str(&std::fs::read_to_string(work.join("proof.json"))?)?;
             let v = json!({
-                "cmd": "groth16", "image": wrap::PROVER_IMAGE, "identity_p254_s": prep.identity_s,
+                "cmd": args[1], "image": wrap::PROVER_IMAGE, "identity_p254_s": prep.identity_s,
                 "identity_seal_bytes": prep.seal_bytes, "docker_s": docker_s, "docker_peak_mem_mb": peak,
                 "journal": hex::encode(&receipt.journal.bytes), "pre_state": hex::encode(&image),
                 "control_root": hex::encode(control_root), "post_state": hex::encode(post_state),
