@@ -35,7 +35,7 @@ class SnapshotTests(unittest.TestCase):
     def test_real_node_snapshot_and_generated_openings_pass(self):
         manifest, heights, journals = check_snapshot(self.root)
         self.assertEqual(heights, [170, 180, 190])
-        self.assertEqual(manifest["chain"]["tip_height"], 200)
+        self.assertEqual(manifest["chain"]["tip_height"], len((self.root / "chain/headers.bin").read_bytes()) // 80 - 1)
         self.assertEqual(len(set(journals)), 3)
 
     def test_changed_header_with_updated_file_hash_fails_parent_or_pow(self):

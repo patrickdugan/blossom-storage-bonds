@@ -8,8 +8,11 @@ The evidence is `results/bitvm-storage-graph-regtest.json`.
 
 This run reuses the checked phase-6 Groth16 proof. Its storage roots, epoch seeds, term journal and
 header-chain claim remain that fixture's. The graph uses fresh funding UTXOs, fresh one-time keys and
-fresh two-party MuSig2 keys. It does not yet generate new storage/header proofs against this run's
-chain or provide a heavier-chain challenge.
+fresh two-party MuSig2 keys. That seven-case fixture run does not generate fresh proofs or provide
+a heavier-chain challenge. A separate same-chain lifecycle now registers keys before funding,
+generates the chain, holdings, term and Groth16 proofs on a private VPS, verifies them before
+signing, and mines the honest graph through its refund. Its evidence is
+`results/bitvm-storage-lifecycle-fresh.json` and `bitvm-storage-lifecycle.md`.
 
 ## States and enforced transitions
 
@@ -98,8 +101,7 @@ that same keyed leaf on Core.
 
 ## Next work
 
-Connect a fresh term proof and chain claim from the same lifecycle run to this graph. The separate
-setup and term-end signing processes are now tested with the phase-6 proof
+The same-chain fresh proof is now connected to the pre-term setup and term-end signing lifecycle
 (`bitvm-storage-lifecycle.md`). Add the heavier-chain challenge so
 a valid proof of a private fork cannot stand in for the intended chain. Per-epoch deal updates,
 distributed committee setup, fee changes and the production Groth16 ceremony remain separate work.

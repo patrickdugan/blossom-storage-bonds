@@ -5,10 +5,10 @@ fresh, loopback-only Core regtest node. `prove-snapshot.sh` consumes that snapsh
 machine and runs the existing RISC Zero header, holdings and term guests, then the pinned
 Groth16 wrapper. No wallet or signing key belongs in the snapshot or the proving job.
 
-This is the fresh-proof step. It does not fund a storage graph or provide a heavier-chain challenge.
-The separate pre-term setup and term-end signing lifecycle is documented in
-`bitvm-storage-lifecycle.md`. The fresh proof still needs to come from that same lifecycle run's chain
-and be independently verified before integration.
+The standalone capture does not fund a graph. The same-chain mode in
+`bitvm-storage-lifecycle.md` now captures the funded graph's node and verifies the returned proof
+before term-end signing. That fresh run passed on Core 31.1; see
+`results/bitvm-storage-lifecycle-fresh.json`. Neither mode provides a heavier-chain challenge.
 
 ## Capture locally
 
@@ -48,6 +48,24 @@ Required tools and pinned inputs are the same as that run:
 - Docker with the existing image
   `ozancw/risc0-to-bitvm2-groth16-prover@sha256:840b833190a86c87eb71473cd72bcaa3e3b90cefa9bf4ae785ab2de61bc9d262`.
 - Bash, Python 3.9 or later, Git and `/usr/bin/time`.
+
+Guest image IDs include dependency paths embedded in panic messages. The phase-6 guests were
+built with `/root/.cargo` paths. `risc0-build` clears `CARGO_HOME` when launching guest Cargo, so
+an ordinary build under another account produces different image IDs even with the same sources
+and toolchain. Normalize the guest cache path before using a fresh build with an existing graph:
+
+```bash
+bash zk/risc0/build-pinned.sh /path/to/installed/cargo /path/to/populated/guest-cache /path/to/new-wrapper-directory
+```
+
+This offline recipe uses the existing locked dependency cache, maps guest dependency paths to
+`/root/.cargo`, and rejects a build unless all three committed guest IDs match. It changes no guest
+logic or expected IDs. Pass the installed Cargo launcher directly, rather than another wrapper.
+
+The fresh same-chain run used an 8-vCPU, 31-GiB private VPS with four prover threads. The chain
+proof took 16:09, the three holdings proofs about 4:27 each, the term proof 4:14, and the Groth16
+wrap 3:17. Header proving peaked at 9.16 GiB. The wrapper's host-process RSS excludes its Docker
+container; the old cgroup-v1 collector did not measure container peak RAM on this machine.
 
 Tool installation is separate from the job. The script checks that the image is already installed
 before starting, uses the local prover with development mode disabled, and removes Bonsai endpoint

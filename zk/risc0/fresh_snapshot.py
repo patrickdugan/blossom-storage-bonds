@@ -199,7 +199,7 @@ def finish(directory, output):
         require((output / name).stat().st_size > 0, f"missing receipt {name}")
     # Same schema as the existing graph builder; no old proof or old journal is substituted.
     fixture = {
-        "note": "Fresh snapshot proof; verify the Groth16 proof independently before graph use. The pre-term key lifecycle and heavier-chain challenge remain separate integration work.",
+        "note": "Fresh snapshot proof; verify the Groth16 proof independently before graph use. Graph lifecycle and heavier-chain enforcement require separate transaction evidence.",
         "snapshot": manifest,
         "m2": {"header_chain": chain, "holds": holds, "term": term},
         "m3": {"groth16": g16},

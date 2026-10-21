@@ -1,0 +1,39 @@
+{
+  "network": "regtest",
+  "case": "old proof relabelled to the new graph snapshot",
+  "snapshotJournal": "c825defb2099cc83395e7e55ff19cee5ec46e8e2784ed540264473b5d99f93be",
+  "metadataPassed": true,
+  "nativePairingRejected": true,
+  "providerWitnessesWritten": false,
+  "checkedAssertionsProduced": false,
+  "providerComplete": false,
+  "coreShutdown": true,
+  "testProcessesExited": true,
+  "events": [
+    {
+      "name": "provider_public_keys_committed",
+      "height": 101,
+      "at": "2026-10-21T13:56:58.783Z"
+    },
+    {
+      "name": "committee_exited_before_funding",
+      "height": 101,
+      "at": "2026-10-21T13:57:10.780Z"
+    },
+    {
+      "name": "funding_mined_before_first_epoch",
+      "height": 102,
+      "at": "2026-10-21T13:57:10.830Z"
+    },
+    {
+      "name": "term_end_reached_without_assertion_witnesses",
+      "height": 220,
+      "at": "2026-10-21T13:57:13.315Z"
+    },
+    {
+      "name": "own_chain_snapshot_ready_for_proving",
+      "height": 220,
+      "at": "2026-10-21T13:57:19.652Z"
+    }
+  ]
+}

@@ -1,5 +1,6 @@
 // Verify setup-before-funding and one-shot proof signing at term end on fresh local Core.
-// This lifecycle regression uses the existing proof; the new-chain proof run remains separate.
+// Default: historical-proof regression. --fresh-proof-dir waits for the same run's real proof,
+// independently verifies it, executes its chunks, and only then requests one-time signing.
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { createWriteStream, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -7,18 +8,25 @@ import { createServer } from "node:net";
 import { dirname, join, resolve } from "node:path";
 import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
+import { createHash } from "node:crypto";
+import { checkProofReturnReady, READY_FILE } from "../risc0/proof-return.ts";
 import { parseTx, taprootAddress } from "../../layer1/onchain.ts";
 
 const opt = (name: string) => { const i = process.argv.indexOf(`--${name}`); return i < 0 ? undefined : process.argv[i+1]; };
 const req = (name: string) => { const value = opt(name); assert.ok(value, `--${name} is required`); return value; };
 const root = resolve(req("dir")), output = resolve(req("out")), checker = req("checker");
-const partials = resolve(req("partials")), checked = resolve(req("assertions"));
+const partials = resolve(req("partials"));
+const freshDir = opt("fresh-proof-dir") ? resolve(opt("fresh-proof-dir")!) : undefined;
+const proofChecker = freshDir ? req("proof-checker") : undefined;
+let checked = freshDir ? join(root,"fresh-assertions.json") : resolve(req("assertions"));
+assert.ok(!freshDir || !existsSync(freshDir), "fresh proof return directory must not exist at setup");
 const kind = opt("scenario") ?? "honest";
 assert.ok(["honest", "silence"].includes(kind));
+assert.ok(!freshDir || kind === "honest", "fresh proof mode requires the honest lifecycle");
 assert.ok(!existsSync(root) && !existsSync(output), "new node and output directories required");
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
-const fixturePath = resolve(opt("fixture") ?? join(repo, "results/bitvm2-spike.json"));
-const proofDir = resolve(opt("proof-dir") ?? join(repo, "results/bitvm2-spike-groth16"));
+let fixturePath = resolve(opt("fixture") ?? join(repo, "results/bitvm2-spike.json"));
+let proofDir = resolve(opt("proof-dir") ?? join(repo, "results/bitvm2-spike-groth16"));
 const fixture = JSON.parse(readFileSync(fixturePath, "utf8"));
 const prefix = Buffer.from(fixture.m2.term.preimage, "hex").subarray(0,134);
 const first = prefix.readUInt32BE(118), last = first+(prefix.readUInt32BE(126)-1)*prefix.readUInt32BE(122)+prefix.readUInt32BE(130);
@@ -42,8 +50,8 @@ async function rpc(method:string,params:unknown[]=[],wallet=false):Promise<any>{
   const result=await response.json() as any;if(result.error)throw Error(`${method}: ${JSON.stringify(result.error)}`);return result.result;
 }
 const children:ReturnType<typeof spawn>[]=[];
-function child(args:string[],name:string){
-  const proc=spawn(checker,args,{windowsHide:true,stdio:["pipe","pipe","pipe"]}); children.push(proc);
+function child(args:string[],name:string,executable=checker){
+  const proc=spawn(executable,args,{windowsHide:true,stdio:["pipe","pipe","pipe"]}); children.push(proc);
   const log=createWriteStream(join(root,`${name}.log`),{flags:"wx"}); proc.stderr!.pipe(log,{end:false});
   const pending=new Map<string,{ok:(v:any)=>void,bad:(e:Error)=>void}>(),events=new Map<string,any>();
   let failure:Error|undefined,closed=false;
@@ -57,7 +65,8 @@ function child(args:string[],name:string){
   return {proc,exited,wait:(key:string)=>events.has(key)?Promise.resolve(events.get(key)):failure?Promise.reject(failure):closed?Promise.reject(Error(`${name} closed without ${key}`)):new Promise<any>((ok,bad)=>pending.set(key,{ok,bad}))};
 }
 const events:any[]=[],mined:any[]=[],rejected:any[]=[];
-let report:any;
+let report:any, freshEvidence:any;
+const proofJobPath=join(root,"proof-job.json");
 try{
   for(const started=Date.now();;){if(coreError)throw coreError;if(core.exitCode!==null)throw Error("Core exited");try{if((await rpc("getblockchaininfo")).chain==="regtest")break;}catch{}assert.ok(Date.now()-started<60_000,"Core startup timeout");await sleep(200);}
   const version=(await rpc("getnetworkinfo")).subversion;
@@ -84,6 +93,35 @@ try{
   const reject=async(name:string,reason:RegExp,hex=graph.transactions[name].hex)=>{const result=(await rpc("testmempoolaccept",[[hex]]))[0];assert.equal(result.allowed,false);assert.match(result["reject-reason"],reason);rejected.push({name,reason:result["reject-reason"]});};
   await reject("kickoff",/non-final/);
   await mine(termEnd-await rpc("getblockcount"));await note("term_end_reached_without_assertion_witnesses");
+  if(freshDir){
+    const snapshotDir=join(root,"input-snapshot");
+    const capture=child([join(repo,"zk/risc0/capture-snapshot.ts"),"--rpc-port",String(port),"--to",String(termEnd),"--out",snapshotDir],"same-chain-capture",process.execPath);
+    capture.proc.stdin!.end();await capture.exited;
+    const snapshotPath=join(snapshotDir,"snapshot.json"),snapshot=JSON.parse(readFileSync(snapshotPath,"utf8"));
+    assert.equal(snapshot.expected_preimage.slice(0,268),setup.prefix,"fresh holdings must use the precommitted deal roots and epoch schedule");
+    assert.equal(snapshot.chain.tip_height,termEnd);assert.equal(snapshot.chain.tip_hash,await rpc("getblockhash",[termEnd]));
+    const digest=(path:string)=>createHash("sha256").update(readFileSync(path)).digest("hex");
+    snapshot.lifecycle={funding_txid:decoded.txid,setup_sha256:digest(setupPath),presigned_graph_sha256:digest(graphPath),public_keys_height:events[0].height,funding_height:events.find(e=>e.name==="funding_mined_before_first_epoch").height};
+    writeFileSync(snapshotPath,JSON.stringify(snapshot,null,2)+"\n");
+    await note("own_chain_snapshot_ready_for_proving");
+    const job={format:"bsb/lifecycle-proof-job/v1",status:"awaiting_proof_return",snapshot:snapshotDir,return_directory:freshDir,ready_file:join(freshDir,READY_FILE),expected_journal:snapshot.expected_journal,core_pid:core.pid,provider_pid:provider.proc.pid,coordinator_pid:process.pid,events};
+    writeFileSync(proofJobPath,JSON.stringify(job,null,2)+"\n",{flag:"wx"});
+    console.log(JSON.stringify({proofJobReady:true,file:proofJobPath,...job}));
+    const waitMs=Number(opt("proof-wait-ms")??7_200_000);assert.ok(Number.isSafeInteger(waitMs)&&waitMs>0);
+    for(const started=Date.now();!existsSync(job.ready_file);){
+      assert.equal(provider.proc.exitCode,null,"provider exited before its term-end proof");assert.equal(core.exitCode,null,"graph node exited while awaiting proof");
+      assert.ok(Date.now()-started<waitMs,"fresh proof return timed out; this one-time setup cannot be restarted");await sleep(2000);
+    }
+    const returned=checkProofReturnReady(snapshotDir,freshDir,setup);
+    assert.equal(await rpc("getblockhash",[snapshot.chain.tip_height]),snapshot.chain.tip_hash,"proof snapshot was reorged out before assertion");
+    proofDir=join(freshDir,"g16");fixturePath=join(freshDir,"fixture.json");
+    const wrong=returned.publicInput==="1"?"2":"1";
+    const native=child([proofDir,"--wrong-public",wrong,"--verify-only"],"fresh-native-verification",proofChecker!);native.proc.stdin!.end();await native.exited;
+    const chunks=child([proofDir,"--wrong-public",wrong,"--assertions-only","--assertions-out",checked],"fresh-chunk-assertions",proofChecker!);chunks.proc.stdin!.end();await chunks.exited;
+    freshEvidence={snapshot_journal:snapshot.expected_journal,tip_height:snapshot.chain.tip_height,tip_hash:snapshot.chain.tip_hash,public_input:returned.publicInput,nativeGroth16Verified:true,unsignedChunksExecuted:true,returnedFiles:returned.files};
+    await note("fresh_proof_verified_for_own_chain");
+    writeFileSync(proofJobPath,JSON.stringify({...job,status:"proof_verified",evidence:freshEvidence,events},null,2)+"\n");
+  }
   await send("kickoff");await send("challenge");
   if(kind==="silence"){
     provider.proc.stdin!.end();await provider.exited.catch(()=>undefined);assert.notEqual(provider.proc.exitCode,0);
@@ -115,7 +153,12 @@ try{
     return {name,address,sats:Number(output.value),txid:decoded.txid};
   });
   assert.ok(payouts.reduce((sum,p)=>sum+p.sats,0)>90_000_000);
-  report={network:"regtest",core:version,scenario:kind,scope:"separate committee/provider lifecycle using the existing phase-6 proof; fresh-chain proof and heavier-chain challenge remain",events,mined,rejected,payouts,committeeExitedBeforeFunding:true,termEndWitnessesOnly:kind==="honest",publicKeysCommittedBeforeFirstEpoch:true};
+  report={network:"regtest",core:version,scenario:kind,scope:freshDir?"fresh proof from this graph's own regtest chain, with setup before funding and signing at term end; heavier-chain challenge remains":"separate committee/provider lifecycle using the existing phase-6 proof; fresh-chain proof and heavier-chain challenge remain",freshProof:freshEvidence,events,mined,rejected,payouts,committeeExitedBeforeFunding:true,termEndWitnessesOnly:kind==="honest",publicKeysCommittedBeforeFirstEpoch:true};
+}catch(error){
+  if(freshDir&&existsSync(proofJobPath)){
+    const job=JSON.parse(readFileSync(proofJobPath,"utf8"));writeFileSync(proofJobPath,JSON.stringify({...job,status:"failed",error:String(error),events},null,2)+"\n");
+  }
+  throw error;
 }finally{
   for(const process of children)if(process.exitCode===null)process.kill();
   if(core.exitCode===null&&!coreError){await rpc("stop").catch(()=>undefined);for(let i=0;i<100&&core.exitCode===null;i++)await sleep(100);if(core.exitCode===null)core.kill();}

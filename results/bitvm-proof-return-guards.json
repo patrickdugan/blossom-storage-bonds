@@ -1,0 +1,12 @@
+{
+  "network": "regtest",
+  "snapshotJournal": "c825defb2099cc83395e7e55ff19cee5ec46e8e2784ed540264473b5d99f93be",
+  "staleSnapshotRejected": true,
+  "forgedMetadataAcceptedWithoutClaimingProofValidity": true,
+  "replayedProofRejectedByNativePairing": true,
+  "changedCopiedFileRejected": true,
+  "changedGuestIdRejected": true,
+  "changedWrapperRejected": true,
+  "changedManifestRejected": true,
+  "scope": "Transfer and cryptographic guards only; no provider signatures requested or generated"
+}

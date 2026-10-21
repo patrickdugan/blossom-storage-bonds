@@ -1,0 +1,131 @@
+{
+  "network": "regtest",
+  "core": "/Satoshi:31.1.0/",
+  "scenario": "honest",
+  "scope": "fresh proof from this graph's own regtest chain, with setup before funding and signing at term end; heavier-chain challenge remains",
+  "freshProof": {
+    "snapshot_journal": "d8afece188234af2c75c6034f63aa208f2a404a3b99d137690f78a915d938ca0",
+    "tip_height": 220,
+    "tip_hash": "5b92103b7f8bc0a21ace8e966431c3c39567181dacfe74acc2a605c691866b8c",
+    "public_input": "182078936326245924655013091738197233165796205064158851114978163149513073721",
+    "nativeGroth16Verified": true,
+    "unsignedChunksExecuted": true,
+    "returnedFiles": {
+      "fixture.json": "b9f8b8af4ce0b7102443ac6a74442cd507af68473b9fbf78e3bc5d78b40a0d04",
+      "ids.json": "5e4c3d9614398d85d0e5910d5f3f91e93ae15904c606613f1db59563700a97c6",
+      "chain.json": "528c5af866f87ec8076e212aacf9f11d0995f2d408c392029416229b1629364c",
+      "term.json": "6fdc30bb34fe51af3014619f75017680e36c1de1b0d507efd87d2315640de0c9",
+      "g16/groth16.json": "19e3cd7e0cbc2160e2298fe548f5a2d8adf2e547ec06518c22fabb9670d58a36",
+      "g16/vk.json": "2941dff0bd962ff8610773c9659c10d0dec561db1e2f6afecfbbe0d9cb457a7d",
+      "g16/proof.json": "fde0b87e67f02662af98b60524fae00dabaa9420c95a0a1255839f52f28b613e",
+      "g16/public.json": "b1487ee3ed75604cd34bac8acac558884e8247895582ece92c7d36227a5369a8"
+    }
+  },
+  "events": [
+    {
+      "name": "provider_public_keys_committed",
+      "height": 101,
+      "at": "2026-10-21T13:04:33.695Z"
+    },
+    {
+      "name": "committee_exited_before_funding",
+      "height": 101,
+      "at": "2026-10-21T13:04:48.077Z"
+    },
+    {
+      "name": "funding_mined_before_first_epoch",
+      "height": 102,
+      "at": "2026-10-21T13:04:48.140Z"
+    },
+    {
+      "name": "term_end_reached_without_assertion_witnesses",
+      "height": 220,
+      "at": "2026-10-21T13:04:50.586Z"
+    },
+    {
+      "name": "own_chain_snapshot_ready_for_proving",
+      "height": 220,
+      "at": "2026-10-21T13:04:56.966Z"
+    },
+    {
+      "name": "fresh_proof_verified_for_own_chain",
+      "height": 220,
+      "at": "2026-10-21T14:15:23.818Z"
+    },
+    {
+      "name": "provider_signed_once_at_term_end",
+      "height": 222,
+      "at": "2026-10-21T14:15:24.591Z"
+    }
+  ],
+  "mined": [
+    {
+      "name": "kickoff",
+      "txid": "25013283a50385f77e97ee99a2016f0ba7602497f583981bc59bbfba74d12db1",
+      "vsize": 129
+    },
+    {
+      "name": "challenge",
+      "txid": "0edf72bf7c7316c9f352ffe08092da03a5bd4df6e72b67dc7deecca465be50ce",
+      "vsize": 16514
+    },
+    {
+      "name": "assert-commit-0",
+      "txid": "dc2c8361587c3de6e9e203ca8181271efaa9a03af479a6b27554954cec71a76b",
+      "vsize": 290927
+    },
+    {
+      "name": "assert-commit-1",
+      "txid": "bdd0ba8c5b09efa8475cd6fc4cfc330ab3ab7a64613a6ee0a48873412760f9c1",
+      "vsize": 76392
+    },
+    {
+      "name": "assert-final",
+      "txid": "00592e1dd23a713e0bee8c599b31758b09b8a4ab15125523a7b16cff22c6164b",
+      "vsize": 321
+    },
+    {
+      "name": "refund",
+      "txid": "8b4e556f7f2773a4fa6f235576b3f3d2540a7a05877073ae4d21697fd781ee10",
+      "vsize": 277
+    }
+  ],
+  "rejected": [
+    {
+      "name": "kickoff",
+      "reason": "non-final"
+    },
+    {
+      "name": "assert-commit-0",
+      "reason": "mempool-script-verify-flag-failed (Operation not valid with the current stack size)"
+    },
+    {
+      "name": "assert-final",
+      "reason": "missing-inputs"
+    },
+    {
+      "name": "substituted-setup-keys",
+      "reason": "registration differs"
+    },
+    {
+      "name": "slash",
+      "reason": "mempool-script-verify-flag-failed (Script evaluated without error but finished with a false/empty top stack element)"
+    },
+    {
+      "name": "refund",
+      "reason": "non-BIP68-final"
+    }
+  ],
+  "payouts": [
+    {
+      "name": "refund",
+      "address": "bcrt1p68zwf4lycn3z8gugsswdyue04hejfs7u59vn7aunu75t3xxwq4hspgjz3n",
+      "sats": 98431000,
+      "txid": "8b4e556f7f2773a4fa6f235576b3f3d2540a7a05877073ae4d21697fd781ee10"
+    }
+  ],
+  "committeeExitedBeforeFunding": true,
+  "termEndWitnessesOnly": true,
+  "publicKeysCommittedBeforeFirstEpoch": true,
+  "nodeStopped": true
+}
