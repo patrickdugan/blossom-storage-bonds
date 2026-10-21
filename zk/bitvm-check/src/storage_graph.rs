@@ -24,6 +24,9 @@ use std::str::FromStr;
 pub const PROOF_COMMITMENTS: usize = 378;
 pub const CHAIN_COMMITMENTS: usize = 3;
 pub const SLOT_COUNT: usize = PROOF_COMMITMENTS + CHAIN_COMMITMENTS;
+/// Optional extra commitment linking future compact certificates to the same provider term.
+pub const TERM_JOURNAL_SLOT: usize = SLOT_COUNT;
+pub const JOURNAL_SLOT_COUNT: usize = SLOT_COUNT + 1;
 pub const BINDING_LEAF: usize = 364;
 pub const MARKER_REFUND_LEAF: usize = 365;
 pub const TREE_LEAVES: usize = 512;
@@ -298,6 +301,10 @@ pub struct GraphConfig {
 }
 impl GraphConfig {
     pub fn validate(&self, funding: u64) {
+        self.validate_slots(funding, SLOT_COUNT);
+    }
+    pub fn validate_slots(&self, funding: u64, slot_count: usize) {
+        assert!(slot_count == SLOT_COUNT || slot_count == JOURNAL_SLOT_COUNT);
         assert!(self.term_end > 0 && self.kickoff_deadline > self.term_end);
         assert!(self.challenge_blocks > 0 && self.assert_blocks > 0 && self.dispute_blocks > 0);
         assert!(
@@ -307,7 +314,7 @@ impl GraphConfig {
         assert!(self.slot_value >= 10_000 && self.marker_value >= 10_000);
         assert!(
             funding
-                > self.slot_value * SLOT_COUNT as u64
+                > self.slot_value * slot_count as u64
                     + COMMIT_FEES.iter().sum::<u64>()
                     + self.marker_value
                     + SLASH_FEE
@@ -390,8 +397,8 @@ impl StorageGraph {
         keys: &[CommitmentKey],
         tree: ProofTree,
     ) -> Self {
-        config.validate(amount);
-        assert_eq!(keys.len(), SLOT_COUNT);
+        let slot_count = keys.len();
+        config.validate_slots(amount, slot_count);
         let root = State::committee(committee.x);
         let absolute = Sequence::ENABLE_LOCKTIME_NO_RBF;
         let mut transactions = BTreeMap::new();
@@ -424,7 +431,7 @@ impl StorageGraph {
             .map(|key| key.slot(committee.x, client.x, config.assert_blocks))
             .collect();
         let control =
-            kickout.value.to_sat() - config.slot_value * SLOT_COUNT as u64 - CHALLENGE_FEE;
+            kickout.value.to_sat() - config.slot_value * slot_count as u64 - CHALLENGE_FEE;
         let mut challenge_outputs = vec![root.txout(control)];
         challenge_outputs.extend(slots.iter().map(|s| s.txout(config.slot_value)));
         let mut challenge = GraphTx::new(
@@ -445,7 +452,7 @@ impl StorageGraph {
         );
         assert_timeout.committee_input(0, &root, committee);
 
-        let group_ranges = vec![0..300, 300..SLOT_COUNT];
+        let group_ranges = vec![0..300, 300..slot_count];
         let mut groups = Vec::new();
         let mut slot_timeouts = Vec::new();
         for (i, slot) in slots.iter().enumerate() {
@@ -553,7 +560,7 @@ impl StorageGraph {
             .collect();
         let mut timeout_all = GraphTx::new(
             timeout_inputs,
-            vec![client.output(config.slot_value * SLOT_COUNT as u64 - 150_000)],
+            vec![client.output(config.slot_value * slot_count as u64 - 150_000)],
             0,
         );
         for (i, slot) in slots.iter().enumerate() {
@@ -579,7 +586,7 @@ impl StorageGraph {
         }
     }
     pub fn attach_assertions(&mut self, signatures: &[Witness]) {
-        assert_eq!(signatures.len(), SLOT_COUNT);
+        assert_eq!(signatures.len(), self.slots.len());
         for (group, range) in self.group_ranges.iter().enumerate() {
             let tx = &mut self
                 .transactions

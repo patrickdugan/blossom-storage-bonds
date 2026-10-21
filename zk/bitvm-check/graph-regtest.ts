@@ -14,6 +14,7 @@ const req=(name:string)=>{const value=opt(name);if(!value)throw Error(`--${name}
 const dir=resolve(req("dir")),out=resolve(req("out"));
 if(existsSync(dir)||existsSync(out))throw Error("refusing to reuse test data or results");
 const corePath=req("bitcoind"),checker=req("checker"),partials=resolve(req("partials")),assertions=resolve(req("assertions"));
+const journal=process.argv.includes("--journal");
 const repo=resolve(dirname(fileURLToPath(import.meta.url)),"../..");
 const sleep=(ms:number)=>new Promise(r=>setTimeout(r,ms));
 const server=createServer();await new Promise<void>((ok,bad)=>{server.once("error",bad);server.listen(0,"127.0.0.1",ok);});
@@ -33,7 +34,7 @@ try{
   await rpc("createwallet",["graph"]);const mining=await rpc("getnewaddress",[],true);await rpc("generatetoaddress",[101,mining]);
   const mine=async(n:number)=>{if(n>0)await rpc("generatetoaddress",[n,mining]);};
   const mineTo=async(height:number)=>mine(Math.max(0,height-await rpc("getblockcount")));
-  const kinds=(opt("scenarios")??"no-kickoff,no-challenge,silence,honest,wrong-term,corrupt-proof,burn-marker").split(",");
+  const kinds=(opt("scenarios")??(journal?"no-kickoff,no-challenge,silence,honest,wrong-term,wrong-journal,corrupt-proof,burn-marker":"no-kickoff,no-challenge,silence,honest,wrong-term,corrupt-proof,burn-marker")).split(",");
   for(const kind of kinds){
     const graphDir=join(dir,`graph-${kind}`),log=createWriteStream(join(dir,`setup-${kind}.log`),{flags:"wx"});
     let readyOk!:(v:any)=>void,readyBad!:(e:Error)=>void,completeOk!:(v:any)=>void,completeBad!:(e:Error)=>void;
@@ -42,7 +43,7 @@ try{
     const complete=new Promise<any>((ok,bad)=>{completeOk=ok;completeBad=bad;});
     // Register a rejection observer while the first handshake stage is still pending.
     complete.catch(()=>undefined);
-    setup=spawn(checker,[join(repo,"results","bitvm2-spike.json"),join(repo,"results","bitvm2-spike-groth16"),partials,assertions,kind,graphDir],{windowsHide:true,stdio:["pipe","pipe","pipe"]});
+    setup=spawn(checker,[join(repo,"results","bitvm2-spike.json"),join(repo,"results","bitvm2-spike-groth16"),partials,assertions,kind,graphDir,...(journal?["--journal"]:[])],{windowsHide:true,stdio:["pipe","pipe","pipe"]});
     const active=setup;active.stderr!.pipe(log,{end:false});
     const lines=createInterface({input:active.stdout!});
     lines.on("line",line=>{log.write(line+"\n");if(line.startsWith("BSB_GRAPH ")){try{const event=JSON.parse(line.slice(10));if(event.ready){sawReady=true;readyOk(event);}if(event.complete){sawComplete=true;completeOk(event);}}catch(e){readyBad(e as Error);completeBad(e as Error);}}});
@@ -55,9 +56,9 @@ try{
     const decoded=await rpc("decoderawtransaction",[funding.hex]);const coin=decoded.vout.find((v:any)=>v.scriptPubKey.address===meta.funding_address);assert.ok(coin);
     active.stdin!.end(JSON.stringify({network:"regtest",txid:decoded.txid,vout:coin.n,sats:100_000_000,height:await rpc("getblockcount")})+"\n");
     const finished=await complete;await exited;lines.close();log.end();setup=undefined;
-    const graph=JSON.parse(readFileSync(finished.file,"utf8"));assert.equal(graph.network,"regtest");assert.equal(graph.groth16_leaves,364);assert.equal(graph.commitments,381);
+    const graph=JSON.parse(readFileSync(finished.file,"utf8"));assert.equal(graph.network,"regtest");assert.equal(graph.groth16_leaves,364);assert.equal(graph.commitments,journal?382:381);assert.equal(graph.journal_binding,journal);
     await rpc("sendrawtransaction",[funding.hex]);await mine(1);
-    const record:any={scenario:kind,checks:[],mined:[],disproveLeaf:graph.disprove_leaf};
+    const record:any={scenario:kind,checks:[],mined:[],disproveLeaf:graph.disprove_leaf,commitments:graph.commitments,journalBinding:graph.journal_binding,claimedTermJournal:graph.claimed_term_journal};
     const tx=(name:string)=>JSON.parse(readFileSync(graph.transactions[name].file,"utf8"));
     const testHex=async(hex:string)=>(await rpc("testmempoolaccept",[[hex]]))[0];
     const reject=async(name:string,reason:RegExp,hex=tx(name).hex)=>{const r=await testHex(hex);assert.equal(r.allowed,false,`${kind}: ${name} accepted unexpectedly`);assert.match(String(r["reject-reason"]),reason);record.checks.push({name,rejected:true,reason:r["reject-reason"]});};
@@ -76,7 +77,9 @@ try{
         }else{
           await reject("assert-final",/missing|spent/);
           await reject("skipped-commitment",/script/,JSON.parse(readFileSync(join(graphDir,"skipped-commitment.json"),"utf8")).hex);
-          await send("assert-commit-0");await send("assert-commit-1");await send("assert-final");
+          await send("assert-commit-0");
+          if(journal)await reject("skipped-journal",/script/,JSON.parse(readFileSync(join(graphDir,"skipped-journal.json"),"utf8")).hex);
+          await send("assert-commit-1");await send("assert-final");
           await reject("refund",/non-BIP68-final/);
           if(kind==="honest"){
             await reject("slash",/script/);await mine(graph.dispute_blocks);await send("refund");
@@ -94,7 +97,7 @@ try{
     results.push(record);console.log(`${kind}: ${record.mined.length} graph transactions mined; ${record.checks.length} invalid/early spends rejected`);
   }
   verifyGraphPayouts(results,dir);
-  mkdirSync(dirname(out),{recursive:true});writeFileSync(out,JSON.stringify({payoutVerification:"independent transaction decoder; exact txids accepted and mined by Core",generated:new Date().toISOString(),network:"regtest",core:version,policy:{acceptnonstdtxn:true,limitclustersizeKB:2000},scope:"storage graph using the fixed phase-6 proof and real verifier leaves; heavier-chain challenge and fresh-chain proof generation remain",cases:results},null,2)+"\n",{flag:"wx"});
+  mkdirSync(dirname(out),{recursive:true});writeFileSync(out,JSON.stringify({payoutVerification:"independent transaction decoder; exact txids accepted and mined by Core",generated:new Date().toISOString(),network:"regtest",core:version,policy:{acceptnonstdtxn:true,limitclustersizeKB:2000},scope:journal?"Journal-linked storage graph using the fixed phase-6 proof and real verifier leaves. Fresh-chain lifecycle and heavier-fork enforcement remain separate.":"storage graph using the fixed phase-6 proof and real verifier leaves; heavier-chain challenge and fresh-chain proof generation remain",cases:results},null,2)+"\n",{flag:"wx"});
   console.log(`wrote ${out}`);
 }finally{
   if(setup&&setup.exitCode===null)setup.kill();

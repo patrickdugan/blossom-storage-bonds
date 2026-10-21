@@ -14,7 +14,7 @@ transactions and refunded the provider 98,431,000 sats. See
 
 ## Process protocol
 
-The setup file has format `bsb/storage-setup/v1`, network `regtest`, the 134-byte term prefix,
+The default setup file has format `bsb/storage-setup/v1`, network `regtest`, the 134-byte term prefix,
 wrapper constants digest, pinned verifying-key hash, and the graph's heights, windows and values.
 The prefix fixes the guest IDs, q, deal count, D and epoch schedule. A claim's chain-tip suffix
 and proof are supplied later.
@@ -44,6 +44,39 @@ refund and binding/Groth16 disprove paths as the graph documented in `bitvm-stor
 Committee and ordinary client/provider transaction keys are still generated together inside one
 local setup process; this is not a distributed committee ceremony. A provider restart loses the
 one-time secrets, so the timeout paths remain necessary.
+
+## Optional journal commitment
+
+Setup format `bsb/storage-setup/v2` adds a WOTS32 key at zero-based slot 381, making 382 slots.
+The provider signs SHA256 of its complete 202-byte term under that key at term end. The second
+commitment transaction consumes the extra slot; the binding leaf checks this digest against the
+same signed height/hash/work and storage public input. It slashes an inconsistent provider journal.
+The default v1 layout and its 381 keys are retained. All registration, presigned graph, witness and
+asserted graph formats use the selected version; mixing versions is rejected.
+
+For v2, attachment verifies all 382 signatures and executes the journal binding before writing
+the asserted graph. A missing signature, altered journal metadata or v1 witness format is rejected.
+The honest binding must end false without an interpreter error, preserving every presigned txid.
+This executes the binding; it does not independently reexecute the Groth16 trace at attachment.
+
+`results/bitvm-storage-journal.json` records the Core 31.1 v2 regressions using the existing phase-6
+proof. The honest lifecycle mined six transactions and refunded 98,431,000 sats, with five Core
+rejections and four local attachment rejections. Silent-provider recovery mined four transactions,
+paying 92,294,000 sats from control and 7,490,000 from slots. The separate graph regression mined
+the honest refund, bad-journal slash and silence paths: 16 transactions and 17 rejected spends,
+including an omitted journal signature. The bad journal pays the fixed client 96,434,000 sats.
+All nodes shut down. The five provider guards pass for both versions, and a new v1 honest lifecycle
+still mines its six transactions with the original refund. All 21 native library tests and 96
+TypeScript tests pass.
+
+Add `--journal` to `lifecycle-regtest.ts`, `lifecycle-guards.ts` or `graph-regtest.ts` to select
+this layout. For the bounded graph regression select `--scenarios honest,wrong-journal,silence`.
+The existing fresh-chain proof below belongs to v1; a fresh proof for a funded v2 chain remains.
+No cumulative-work certificate controls this collateral. Reusing the provider's journal key in a
+challenger's binding would not pin the earlier value: the provider can sign another value. A future
+cross-party construction needs authenticated values or an explicit funded equivocation game,
+with response deadlines that precede collateral withdrawal. Permissionless challenger admission
+and fork-contest payout rules remain unresolved.
 
 ## Fresh proof return
 

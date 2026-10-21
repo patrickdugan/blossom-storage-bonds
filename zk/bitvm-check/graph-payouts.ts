@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import { parseTx, taprootAddress } from "../../layer1/onchain.ts";
 
 const beneficiary:Record<string,"client"|"provider">={"kickoff-timeout":"client","unchallenged-refund":"provider","assert-timeout":"client","slots-timeout":"client","refund":"provider","slash":"client","final-timeout":"client","marker-burn":"provider"};
-const terminal:Record<string,string>={"no-kickoff":"kickoff-timeout","no-challenge":"unchallenged-refund","silence":"assert-timeout","honest":"refund","wrong-term":"slash","corrupt-proof":"slash","burn-marker":"final-timeout"};
+const terminal:Record<string,string>={"no-kickoff":"kickoff-timeout","no-challenge":"unchallenged-refund","silence":"assert-timeout","honest":"refund","wrong-term":"slash","wrong-journal":"slash","corrupt-proof":"slash","burn-marker":"final-timeout"};
 export function verifyGraphPayouts(cases:any[],datadir:string):void{
   for(const scenario of cases){
     scenario.payouts=[];

@@ -12,7 +12,8 @@ assert.ok(!existsSync(dir),"guard directory must be new");mkdirSync(dir);
 const repo=resolve(dirname(fileURLToPath(import.meta.url)),"../..");
 const fixturePath=join(repo,"results/bitvm2-spike.json"),proofDir=join(repo,"results/bitvm2-spike-groth16");
 const fixture=JSON.parse(readFileSync(fixturePath,"utf8"));
-const original={format:"bsb/storage-setup/v1",network:"regtest",prefix:fixture.m2.term.preimage.slice(0,268),constants_digest:fixture.m3.groth16.constants_digest,vk_sha256:"2941dff0bd962ff8610773c9659c10d0dec561db1e2f6afecfbbe0d9cb457a7d",config:{term_end:220,kickoff_deadline:240,final_deadline:290,challenge_blocks:6,assert_blocks:12,dispute_blocks:6,slot_value:20_000,marker_value:1_000_000}};
+const journal=process.argv.includes("--journal"),version=journal?"v2":"v1";
+const original={format:`bsb/storage-setup/${version}`,network:"regtest",prefix:fixture.m2.term.preimage.slice(0,268),constants_digest:fixture.m3.groth16.constants_digest,vk_sha256:"2941dff0bd962ff8610773c9659c10d0dec561db1e2f6afecfbbe0d9cb457a7d",config:{term_end:220,kickoff_deadline:240,final_deadline:290,challenge_blocks:6,assert_blocks:12,dispute_blocks:6,slot_value:20_000,marker_value:1_000_000}};
 const results:any[]=[];
 for(const kind of ["wrong-term","wrong-wrapper","false-proof","unchecked-assertions","one-shot"]){
   const setup=structuredClone(original),caseDir=join(dir,kind);mkdirSync(caseDir);
@@ -38,6 +39,8 @@ for(const kind of ["wrong-term","wrong-wrapper","false-proof","unchecked-asserti
     const event=JSON.parse(line.slice(14));
     if(event.provider_ready){
       ready=true;
+      assert.equal(event.registration.format,`bsb/provider-public-keys/${version}`);
+      assert.equal(event.registration.keys.length,journal?382:381);
       const request={fixture:fixturePath,proof_dir:selectedProof,assertions:selectedAssertions,output};
       // Even if a second complete request is queued, the signer must exit after the first.
       process.stdin!.end(JSON.stringify(request)+"\n"+(kind==="one-shot"?JSON.stringify({...request,output:second})+"\n":""));
@@ -48,7 +51,11 @@ for(const kind of ["wrong-term","wrong-wrapper","false-proof","unchecked-asserti
   assert.equal(ready,true,`${kind}: provider must first commit fresh public keys`);
   if(kind==="one-shot"){
     assert.equal(code,0);assert.equal(completed,true);assert.ok(existsSync(output));assert.ok(!existsSync(second));
-    results.push({case:kind,signedRequests:1,secondRequestSigned:false});
+    const signed=JSON.parse(readFileSync(output,"utf8"));
+    assert.equal(signed.format,`bsb/term-end-witnesses/${version}`);
+    assert.equal(signed.witnesses.length,journal?382:381);
+    if(journal)assert.equal(signed.term_journal,fixture.m2.term.journal);
+    results.push({case:kind,signedRequests:1,secondRequestSigned:false,commitments:signed.witnesses.length,termJournal:signed.term_journal});
   }else{
     assert.notEqual(code,0);assert.equal(completed,false);assert.ok(!existsSync(output));
     const reason=kind==="wrong-term"?/setup-time term/:kind==="wrong-wrapper"?/setup-time image/:kind==="false-proof"?/verify_proof/:/scripts_checked|left: Bool\(false\)/;
@@ -56,5 +63,5 @@ for(const kind of ["wrong-term","wrong-wrapper","false-proof","unchecked-asserti
     results.push({case:kind,rejected:true,witnessFileWritten:false});
   }
 }
-writeFileSync(join(dir,"results.json"),JSON.stringify({guards:results},null,2)+"\n");
+writeFileSync(join(dir,"results.json"),JSON.stringify({setupVersion:version,journalBinding:journal,guards:results},null,2)+"\n");
 console.log(JSON.stringify({guardsPassed:results.length,result:join(dir,"results.json")}));

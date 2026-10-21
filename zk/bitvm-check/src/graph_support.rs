@@ -86,6 +86,7 @@ pub fn vk(dir: &Path) -> (VerifyingKey<Bn254>, Proof<Bn254>, Fr) {
 pub struct Commitments {
     secrets: Vec<String>,
     chain: [Vec<u8>; 3],
+    journal: Option<Vec<u8>>,
     pub pks: PublicKeys,
 }
 #[allow(deprecated)]
@@ -109,6 +110,7 @@ impl Commitments {
         );
         Self {
             secrets,
+            journal: None,
             chain: [
                 Wots4::generate_secret_key(),
                 Wots32::generate_secret_key(),
@@ -116,6 +118,16 @@ impl Commitments {
             ],
             pks,
         }
+    }
+    pub fn fresh_with_journal() -> Self {
+        let mut result = Self::fresh();
+        result.journal = Some(Wots32::generate_secret_key());
+        result
+    }
+    pub fn journal_key(&self) -> Option<<Wots32 as Wots>::PublicKey> {
+        self.journal
+            .as_ref()
+            .map(|key| Wots32::generate_public_key(key))
     }
     pub fn binding_keys(&self) -> BindingKeys {
         BindingKeys {
@@ -139,6 +151,9 @@ impl Commitments {
         result.push(CommitmentKey::Bytes32(Wots32::generate_public_key(
             &self.chain[2],
         )));
+        if let Some(key) = self.journal_key() {
+            result.push(CommitmentKey::Bytes32(key));
+        }
         result
     }
     pub fn sign(
@@ -146,6 +161,7 @@ impl Commitments {
         assertions: Assertions,
         preimage: &[u8],
     ) -> (Signatures, Vec<Witness>, Vec<Vec<u8>>) {
+        assert_eq!(preimage.len(), 202);
         let signatures = api_get_signature_from_assertion(assertions, self.secrets.clone());
         let mut witnesses = utils_raw_witnesses_from_signatures(&signatures)
             .into_iter()
@@ -169,6 +185,12 @@ impl Commitments {
                 .iter()
                 .map(|x| x.to_vec()),
         );
+        if let Some(secret) = &self.journal {
+            let message = sha256::Hash::hash(preimage).to_byte_array();
+            let signature = Wots32::sign_to_raw_witness(secret, &message);
+            binding.extend(signature.iter().map(|x| x.to_vec()));
+            witnesses.push(signature);
+        }
         (signatures, witnesses, binding)
     }
 }
@@ -210,5 +232,88 @@ impl Scripts {
         (0..NUM_TAPS)
             .map(|index| TapNodeHash::from_script(&self.full(index), LeafVersion::TapScript))
             .collect()
+    }
+}
+
+#[cfg(test)]
+mod journal_tests {
+    use super::*;
+    use crate::storage_binding::{disprove_term_binding, disprove_term_binding_with_journal};
+    use crate::storage_graph::{JOURNAL_SLOT_COUNT, SLOT_COUNT, TERM_JOURNAL_SLOT};
+    use ark_ff::{BigInteger, PrimeField};
+    use bitvm::treepp::script;
+
+    #[test]
+    fn registered_journal_key_and_signed_digest_follow_the_same_term() {
+        let f: Value =
+            serde_json::from_str(include_str!("../../../results/bitvm2-spike.json")).unwrap();
+        let preimage = bytes(f["m2"]["term"]["preimage"].as_str().unwrap());
+        let constants: [u8; 32] = bytes(f["m3"]["groth16"]["constants_digest"].as_str().unwrap())
+            .try_into()
+            .unwrap();
+        let public =
+            Fr::from_str(f["m3"]["groth16"]["public_output_dec"].as_str().unwrap()).unwrap();
+        let public: [u8; 32] = public
+            .into_bigint()
+            .to_bytes_be()
+            .into_iter()
+            .map(|b| b.rotate_left(4))
+            .collect::<Vec<_>>()
+            .try_into()
+            .unwrap();
+        for case in 0..3 {
+            let commitments = if case == 0 {
+                Commitments::fresh()
+            } else {
+                Commitments::fresh_with_journal()
+            };
+            let keys = commitments.keys();
+            assert_eq!(
+                keys.len(),
+                if case == 0 {
+                    SLOT_COUNT
+                } else {
+                    JOURNAL_SLOT_COUNT
+                }
+            );
+            if let Some(key) = commitments.journal_key() {
+                match keys[TERM_JOURNAL_SLOT] {
+                    CommitmentKey::Bytes32(registered) => assert_eq!(registered, key),
+                    _ => panic!("journal slot has wrong type"),
+                }
+            }
+            // Only the public input is used by the binding; this is not a Groth16 trace test.
+            let assertions: Assertions =
+                ([public; NUM_PUBS], [[0; 32]; NUM_U256], [[0; 16]; NUM_HASH]);
+            let mut claimed = preimage.clone();
+            if case == 2 {
+                claimed[81] ^= 1;
+            }
+            let (_, witnesses, binding) = commitments.sign(assertions, &claimed);
+            assert_eq!(witnesses.len(), keys.len());
+            let prefix = preimage[..134].try_into().unwrap();
+            let leaf = match commitments.journal_key() {
+                Some(key) => disprove_term_binding_with_journal(
+                    prefix,
+                    &constants,
+                    &commitments.binding_keys(),
+                    &key,
+                ),
+                None => disprove_term_binding(prefix, &constants, &commitments.binding_keys()),
+            };
+            let result =
+                bitvm::execute_script(script! { for item in binding { { item } } { leaf } });
+            assert!(
+                result.error.is_none(),
+                "binding aborted: {:?}",
+                result.error
+            );
+            assert_eq!(
+                result.success,
+                case == 2,
+                "only the incorrectly signed journal should open"
+            );
+            assert_eq!(result.final_stack.len(), 1);
+        }
     }
 }

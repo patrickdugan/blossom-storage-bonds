@@ -144,7 +144,10 @@ pub(crate) fn wrap_journal_digest(constants_digest: &[u8; 32]) -> Script {
 
 /// Proposed extra commitment for future graphs. Open on either an incorrect
 /// Groth16 public input or a signed journal inconsistent with the original term.
-/// A compact fork binding must reuse this exact journal key to inherit that link.
+/// This only punishes the provider's own inconsistent storage assertion. Reusing
+/// its key in an opponent's binding does not pin a value: that provider can sign
+/// another journal. Cross-party use needs value binding or an explicit, funded
+/// equivocation game with enforceable response and withdrawal deadlines.
 /// Witness order adds the journal signature above the existing four signatures.
 pub fn disprove_term_binding_with_journal(
     prefix: &[u8; 134],

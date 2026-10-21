@@ -39,7 +39,7 @@ signature in a Taproot leaf with a NUMS internal key. Every input uses fresh non
 SIGHASH_DEFAULT/ALL. The signatures commit both inputs, the payout, fee budget, sequence and locktime.
 Changing the slash destination or substituting another marker invalidates the committee signature.
 
-The 381 commitment slots are the Groth16 public input, 14 proof-field values, 363 intermediate hashes,
+The default v1 layout has 381 commitment slots: the Groth16 public input, 14 proof-field values, 363 intermediate hashes,
 and the claimed tip's height, hash and work. Each slot also has a NUMS internal key. Its commit leaf
 requires both the pinned committee transaction signature and the corresponding Winternitz signature;
 there is no provider key-path bypass. Its alternate CSV leaf lets the client recover an unspent slot
@@ -347,16 +347,26 @@ disprove leaf. Changed setup identity, changed wrapper constants, an unrelated s
 noncanonical BN254 scalar alias are also tested. The initial prototype used dummy wrapper constants. The current tests use the genuine compact
 certificate and its exact Groth16 public input. The v1 proof is a separate statement.
 
-A separate proposed `disprove_term_binding_with_journal` component binds a signed original term
+The `disprove_term_binding_with_journal` component binds the provider's signed original term
 journal to the same 202-byte term and storage public input. It uses 1,232,157 bytes and at most 792
-stack items. A future fork binding must reuse that exact journal key; merely accepting another
-party's journal signature would not link back to the provider's storage assertion. The original
-storage binding still measures 1,223,886 bytes and 760 stack items.
+stack items. The optional v2 storage setup now includes this leaf and a 382nd on-chain commitment
+slot; Core mined the honest refund, bad-journal slash and silent-provider recovery. An omitted
+journal signature is rejected. The evidence is `results/bitvm-storage-journal.json`, with setup
+and attachment details in `bitvm-storage-lifecycle.md`. This regression uses the phase-6 proof;
+the existing fresh-chain proof uses v1. The original storage binding remains 1,223,886 bytes and
+760 stack items.
+
+This binds the provider's own storage assertion. It does not safely bind a challenger to that
+provider's earlier value: the provider owns the secret and can sign another journal. Reusing its
+key in the challenger's binding could let it manufacture a mismatch against an honest challenger.
+A cross-party graph requires authenticated values or an explicit equivocation penalty that stays
+funded, with an enforceable response window before withdrawal. Key reuse alone is insufficient.
 
 `results/bitvm-fork-binding-arithmetic.json` records the measurements and twenty passing library
-tests. The resource probe is `examples/fork-binding-cost.rs`. These components require fresh setup
-and are not connected to the existing funded graph. They establish arithmetic feasibility only;
-challenger registration, input ownership, deadlines and collateral enforcement remain protocol work.
+tests. The resource probe is `examples/fork-binding-cost.rs`. The compact fork binding remains an
+isolated arithmetic/Core experiment; only the provider journal component is integrated into the
+optional v2 storage graph. Existing funded v1 graphs cannot be retrofitted. Challenger registration,
+input ownership, deadlines and fork collateral enforcement remain protocol work.
 
 The [BATTLE for Bitcoin paper, sections 2.4, 2.8.1 and 2.9.3](https://arxiv.org/html/2510.06468v1)
 provides a useful exact-work comparison design: dual counterproofs, or signed work scores linked

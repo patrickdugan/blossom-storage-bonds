@@ -31,7 +31,8 @@ const fixture = JSON.parse(readFileSync(fixturePath, "utf8"));
 const prefix = Buffer.from(fixture.m2.term.preimage, "hex").subarray(0,134);
 const first = prefix.readUInt32BE(118), last = first+(prefix.readUInt32BE(126)-1)*prefix.readUInt32BE(122)+prefix.readUInt32BE(130);
 const termEnd = last + 24;
-const setup = { format:"bsb/storage-setup/v1", network:"regtest", prefix:prefix.toString("hex"),
+const journal=process.argv.includes("--journal"),version=journal?"v2":"v1";
+const setup = { format:`bsb/storage-setup/${version}`, network:"regtest", prefix:prefix.toString("hex"),
   constants_digest:fixture.m3.groth16.constants_digest, vk_sha256:"2941dff0bd962ff8610773c9659c10d0dec561db1e2f6afecfbbe0d9cb457a7d",
   config:{term_end:termEnd,kickoff_deadline:termEnd+20,final_deadline:termEnd+70,challenge_blocks:6,assert_blocks:12,dispute_blocks:6,slot_value:20_000,marker_value:1_000_000} };
 mkdirSync(root);
@@ -69,12 +70,14 @@ let report:any, freshEvidence:any;
 const proofJobPath=join(root,"proof-job.json");
 try{
   for(const started=Date.now();;){if(coreError)throw coreError;if(core.exitCode!==null)throw Error("Core exited");try{if((await rpc("getblockchaininfo")).chain==="regtest")break;}catch{}assert.ok(Date.now()-started<60_000,"Core startup timeout");await sleep(200);}
-  const version=(await rpc("getnetworkinfo")).subversion;
+  const coreVersion=(await rpc("getnetworkinfo")).subversion;
   await rpc("createwallet",["lifecycle"]);const mining=await rpc("getnewaddress",[],true);await rpc("generatetoaddress",[101,mining]);
   assert.ok(await rpc("getblockcount")+1<first);
   const note=async(name:string)=>events.push({name,height:await rpc("getblockcount"),at:new Date().toISOString()});
   const provider=child(["provider",setupPath],"provider");
   const ready=await provider.wait("provider_ready");
+  assert.equal(ready.registration.format,`bsb/provider-public-keys/${version}`);
+  assert.equal(ready.registration.keys.length,journal?382:381);
   writeFileSync(registrationPath,JSON.stringify(ready.registration),{flag:"wx"});await note("provider_public_keys_committed");
   const committee=child(["setup",setupPath,registrationPath,vkOnly,partials,graphPath],"committee");
   const meta=await committee.wait("setup_ready");assert.equal(meta.network,"regtest");
@@ -86,6 +89,7 @@ try{
   assert.ok(!existsSync(witnessPath));await note("committee_exited_before_funding");
   let graph=JSON.parse(readFileSync(graphPath,"utf8"));
   assert.equal(txids(graph).length,12);
+  assert.equal(graph.format,`bsb/presigned-storage-graph/${version}`);
   await rpc("sendrawtransaction",[funding.hex]);await rpc("generatetoaddress",[1,mining]);await note("funding_mined_before_first_epoch");
   assert.ok(await rpc("getblockcount")<first);
   const mine=async(n:number)=>{if(n>0)await rpc("generatetoaddress",[n,mining]);};
@@ -137,9 +141,24 @@ try{
     const swappedPath=join(root,"wrong-keys.json");writeFileSync(swappedPath,JSON.stringify(swapped),{flag:"wx"});
     const wrong=child(["attach",graphPath,swappedPath,join(root,"must-not-exist.json")],"wrong-keys");
     await wrong.exited.catch(()=>undefined);assert.notEqual(wrong.proc.exitCode,0);assert.ok(!existsSync(join(root,"must-not-exist.json")));rejected.push({name:"substituted-setup-keys",reason:"registration differs"});
+    if(journal){
+      for(const kind of ["missing-journal","wrong-journal-metadata","legacy-witness-format"]){
+        const changed=JSON.parse(readFileSync(witnessPath,"utf8"));
+        if(kind==="missing-journal")changed.witnesses.pop();
+        if(kind==="wrong-journal-metadata")changed.term_journal="00".repeat(32);
+        if(kind==="legacy-witness-format")changed.format="bsb/term-end-witnesses/v1";
+        const path=join(root,kind+".json"),out=join(root,kind+"-must-not-exist.json");
+        writeFileSync(path,JSON.stringify(changed),{flag:"wx"});
+        const invalid=child(["attach",graphPath,path,out],kind);
+        await invalid.exited.catch(()=>undefined);assert.notEqual(invalid.proc.exitCode,0);assert.ok(!existsSync(out));
+        rejected.push({name:kind,reason:"invalid v2 attachment rejected before output"});
+      }
+    }
     const attaching=child(["attach",graphPath,witnessPath,attachedPath],"attach");
     await attaching.wait("attached");await attaching.exited;graph=JSON.parse(readFileSync(attachedPath,"utf8"));
     assert.deepEqual(txids(graph),before,"term-end proof must only change witnesses");
+    assert.equal(graph.format,`bsb/asserted-storage-graph/${version}`);
+    if(journal){assert.equal(graph.term_journal_slot,381);assert.equal(graph.term_journal,createHash("sha256").update(Buffer.from(graph.preimage??JSON.parse(readFileSync(witnessPath,"utf8")).preimage,"hex")).digest("hex"));}
     await send("assert-commit-0");await send("assert-commit-1");await send("assert-final");
     await reject("slash",/script/);await reject("refund",/non-BIP68-final/);await mine(setup.config.dispute_blocks);await send("refund");
   }
@@ -153,7 +172,7 @@ try{
     return {name,address,sats:Number(output.value),txid:decoded.txid};
   });
   assert.ok(payouts.reduce((sum,p)=>sum+p.sats,0)>90_000_000);
-  report={network:"regtest",core:version,scenario:kind,scope:freshDir?"fresh proof from this graph's own regtest chain, with setup before funding and signing at term end; heavier-chain challenge remains":"separate committee/provider lifecycle using the existing phase-6 proof; fresh-chain proof and heavier-chain challenge remain",freshProof:freshEvidence,events,mined,rejected,payouts,committeeExitedBeforeFunding:true,termEndWitnessesOnly:kind==="honest",publicKeysCommittedBeforeFirstEpoch:true};
+  report={network:"regtest",core:coreVersion,setupVersion:journal?"v2":"v1",commitments:ready.registration.keys.length,journalBinding:journal,termJournal:graph.term_journal,termJournalSlot:graph.term_journal_slot,scenario:kind,scope:freshDir?"fresh proof from this graph's own regtest chain, with setup before funding and signing at term end; heavier-chain challenge remains":"separate committee/provider lifecycle using the existing phase-6 proof; fresh-chain proof and heavier-chain challenge remain",freshProof:freshEvidence,events,mined,rejected,payouts,committeeExitedBeforeFunding:true,termEndWitnessesOnly:kind==="honest",publicKeysCommittedBeforeFirstEpoch:true};
 }catch(error){
   if(freshDir&&existsSync(proofJobPath)){
     const job=JSON.parse(readFileSync(proofJobPath,"utf8"));writeFileSync(proofJobPath,JSON.stringify({...job,status:"failed",error:String(error),events},null,2)+"\n");

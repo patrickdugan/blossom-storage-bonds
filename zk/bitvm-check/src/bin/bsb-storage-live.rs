@@ -20,10 +20,10 @@ use bitvm::{
 };
 use bsb_bitvm_check::{
     graph_support::{bytes, hex, read, vk, write, Commitments, Scripts},
-    storage_binding::{disprove_term_binding, BindingKeys},
+    storage_binding::{disprove_term_binding, disprove_term_binding_with_journal, BindingKeys},
     storage_graph::{
         CommitmentKey, Committee, GraphConfig, GraphTx, Party, ProofTree, State, StorageGraph,
-        BINDING_LEAF, SLOT_COUNT,
+        BINDING_LEAF, JOURNAL_SLOT_COUNT, SLOT_COUNT, TERM_JOURNAL_SLOT,
     },
 };
 use serde_json::{json, Value};
@@ -66,11 +66,30 @@ fn encode_keys(keys: &[CommitmentKey]) -> Value {
 struct PublicCommitments {
     proof: PublicKeys,
     binding: BindingKeys,
+    journal: Option<<Wots32 as Wots>::PublicKey>,
     slots: Vec<CommitmentKey>,
 }
-fn decode_keys(value: &Value) -> PublicCommitments {
+fn setup_version(setup: &Value) -> &'static str {
+    match setup["format"].as_str() {
+        Some("bsb/storage-setup/v1") => "v1",
+        Some("bsb/storage-setup/v2") => "v2",
+        _ => panic!("unsupported storage setup format"),
+    }
+}
+fn schema(setup: &Value, name: &str) -> String {
+    format!("{name}/{}", setup_version(setup))
+}
+fn decode_keys(value: &Value, with_journal: bool) -> PublicCommitments {
     let raw: Vec<Vec<[u8; 20]>> = serde_json::from_value(value.clone()).unwrap();
-    assert_eq!(raw.len(), SLOT_COUNT, "exactly 381 commitment slots");
+    assert_eq!(
+        raw.len(),
+        if with_journal {
+            JOURNAL_SLOT_COUNT
+        } else {
+            SLOT_COUNT
+        },
+        "setup version must match its commitment layout"
+    );
     let proof: PublicKeys = (
         std::array::from_fn(|i| raw[i].clone().try_into().unwrap()),
         std::array::from_fn(|i| raw[NUM_PUBS + i].clone().try_into().unwrap()),
@@ -89,14 +108,34 @@ fn decode_keys(value: &Value) -> PublicCommitments {
     slots.push(CommitmentKey::Bytes4(binding.tip_height));
     slots.push(CommitmentKey::Bytes32(binding.tip_hash));
     slots.push(CommitmentKey::Bytes32(binding.total_work));
+    let journal: Option<<Wots32 as Wots>::PublicKey> = if with_journal {
+        Some(raw[TERM_JOURNAL_SLOT].clone().try_into().unwrap())
+    } else {
+        None
+    };
+    if let Some(key) = journal {
+        slots.push(CommitmentKey::Bytes32(key));
+    }
     PublicCommitments {
         proof,
         binding,
+        journal,
         slots,
     }
 }
+fn binding_script(
+    prefix: &[u8; 134],
+    constants: &[u8; 32],
+    keys: &PublicCommitments,
+) -> bitcoin::ScriptBuf {
+    match keys.journal {
+        Some(key) => disprove_term_binding_with_journal(prefix, constants, &keys.binding, &key),
+        None => disprove_term_binding(prefix, constants, &keys.binding),
+    }
+    .compile()
+}
 fn check_setup(setup: &Value) -> ([u8; 134], [u8; 32], GraphConfig) {
-    assert_eq!(setup["format"], "bsb/storage-setup/v1");
+    let version = setup_version(setup);
     assert_eq!(setup["network"], "regtest");
     assert_eq!(setup["vk_sha256"], VK_HASH);
     let prefix: [u8; 134] = bytes(setup["prefix"].as_str().unwrap()).try_into().unwrap();
@@ -122,20 +161,27 @@ fn check_setup(setup: &Value) -> ([u8; 134], [u8; 32], GraphConfig) {
         pword(118) + (pword(126) - 1) * pword(122) + pword(130) <= config.term_end as u64,
         "deadline precedes final confirmed seed"
     );
-    config.validate(100_000_000);
+    config.validate_slots(
+        100_000_000,
+        if version == "v2" {
+            JOURNAL_SLOT_COUNT
+        } else {
+            SLOT_COUNT
+        },
+    );
     (prefix, constants, config)
 }
 fn registration(setup: &Value, commitments: &Commitments) -> Value {
-    json!({"format":"bsb/provider-public-keys/v1", "network":"regtest", "setup":setup, "keys":encode_keys(&commitments.keys())})
+    json!({"format":schema(setup,"bsb/provider-public-keys"), "network":"regtest", "setup":setup, "keys":encode_keys(&commitments.keys())})
 }
 fn check_registration(setup: &Value, public: &Value) -> PublicCommitments {
-    assert_eq!(public["format"], "bsb/provider-public-keys/v1");
+    assert_eq!(public["format"], schema(setup, "bsb/provider-public-keys"));
     assert_eq!(public["network"], "regtest");
     assert_eq!(
         &public["setup"], setup,
         "provider and committee must pin identical setup terms"
     );
-    decode_keys(&public["keys"])
+    decode_keys(&public["keys"], setup_version(setup) == "v2")
 }
 fn fixture_binding(setup: &Value, fixture: &Value, proof_dir: &Path) -> (Vec<u8>, Fr) {
     let (prefix, constants, _) = check_setup(setup);
@@ -197,7 +243,7 @@ fn assertions(path: &Path, public: Fr) -> Assertions {
     result
 }
 fn check_witnesses(keys: &[CommitmentKey], witnesses: &[Vec<Vec<u8>>]) {
-    assert_eq!(witnesses.len(), SLOT_COUNT);
+    assert_eq!(witnesses.len(), keys.len());
     for (i, (key, witness)) in keys.iter().zip(witnesses).enumerate() {
         let check = match key {
             CommitmentKey::Bytes32(k) => Wots32::checksig_verify_and_clear_stack(k),
@@ -216,7 +262,11 @@ fn check_witnesses(keys: &[CommitmentKey], witnesses: &[Vec<Vec<u8>>]) {
 fn provider(setup_path: &Path) {
     let setup = read(setup_path);
     check_setup(&setup);
-    let commitments = Commitments::fresh();
+    let commitments = if setup_version(&setup) == "v2" {
+        Commitments::fresh_with_journal()
+    } else {
+        Commitments::fresh()
+    };
     let public_keys = registration(&setup, &commitments);
     event(json!({"provider_ready":true,"registration":public_keys}));
     // The coordinator supplies the fixture, proof and assertion paths only in this term-end request.
@@ -232,10 +282,11 @@ fn provider(setup_path: &Path) {
         .collect::<Vec<_>>();
     check_witnesses(&commitments.keys(), &raw);
     let path = PathBuf::from(request["output"].as_str().unwrap());
-    write(
-        &path,
-        json!({"format":"bsb/term-end-witnesses/v1","network":"regtest","registration":public_keys,"preimage":hex(&preimage),"public_input":public.to_string(),"witnesses":raw}),
-    );
+    let mut signed = json!({"format":schema(&setup,"bsb/term-end-witnesses"),"network":"regtest","registration":public_keys,"preimage":hex(&preimage),"public_input":public.to_string(),"witnesses":raw});
+    if setup_version(&setup) == "v2" {
+        signed["term_journal"] = json!(sha256::Hash::hash(&preimage).to_string());
+    }
+    write(&path, signed);
     event(json!({"provider_complete":true,"file":path}));
     // A single request is accepted. This process then exits, discarding the one-time secrets.
 }
@@ -263,7 +314,7 @@ fn setup_graph(
     let client = Party::fresh();
     let scripts = Scripts::new(cache.to_path_buf(), vk_dir, keys.proof);
     let hashes = scripts.hashes();
-    let binding = disprove_term_binding(&prefix, &constants, &keys.binding).compile();
+    let binding = binding_script(&prefix, &constants, &keys);
     let tree = ProofTree::new(hashes.clone(), &binding, provider.x, config.dispute_blocks);
     let funding_script = State::committee(committee.x).output;
     let address = |script: &bitcoin::Script| {
@@ -303,7 +354,7 @@ fn setup_graph(
         .collect::<serde_json::Map<_, _>>();
     write(
         output,
-        json!({"format":"bsb/presigned-storage-graph/v1","network":"regtest","setup":setup,"registration":registration,
+        json!({"format":schema(&setup,"bsb/presigned-storage-graph"),"network":"regtest","setup":setup,"registration":registration,
         "provider_x":provider.x.to_string(),"client_address":address(&client.output(0).script_pubkey),"provider_address":address(&provider.output(0).script_pubkey),
         "proof_hashes":hashes.iter().map(|h|h.to_string()).collect::<Vec<_>>(),"transactions":transactions}),
     );
@@ -315,10 +366,16 @@ fn tx(value: &Value) -> Transaction {
 }
 fn attach(graph_path: &Path, witness_path: &Path, output: &Path) {
     let mut graph = read(graph_path);
-    assert_eq!(graph["format"], "bsb/presigned-storage-graph/v1");
+    assert_eq!(
+        graph["format"],
+        schema(&graph["setup"], "bsb/presigned-storage-graph")
+    );
     assert_eq!(graph["network"], "regtest");
     let signed = read(witness_path);
-    assert_eq!(signed["format"], "bsb/term-end-witnesses/v1");
+    assert_eq!(
+        signed["format"],
+        schema(&graph["setup"], "bsb/term-end-witnesses")
+    );
     assert_eq!(signed["network"], "regtest");
     assert_eq!(
         signed["registration"], graph["registration"],
@@ -346,7 +403,7 @@ fn attach(graph_path: &Path, witness_path: &Path, output: &Path) {
             .map(|b| b.rotate_left(4))
             .collect::<Vec<_>>()
     );
-    let binding = disprove_term_binding(&prefix, &constants, &keys.binding).compile();
+    let binding = binding_script(&prefix, &constants, &keys);
     let hashes = graph["proof_hashes"]
         .as_array()
         .unwrap()
@@ -364,7 +421,7 @@ fn attach(graph_path: &Path, witness_path: &Path, output: &Path) {
         final_tx.output[1].script_pubkey, tree.marker.output,
         "reconstructed tree differs from the presigned assertion"
     );
-    for (group, range) in [0..300, 300..SLOT_COUNT].iter().enumerate() {
+    for (group, range) in [0..300, 300..keys.slots.len()].iter().enumerate() {
         let name = format!("assert-commit-{group}");
         let mut transaction = tx(&graph["transactions"][&name]);
         let txid = transaction.compute_txid();
@@ -397,6 +454,19 @@ fn attach(graph_path: &Path, witness_path: &Path, output: &Path) {
     for i in [380, 379, 378, 0] {
         binding_witness.extend(raw[i].iter().cloned());
     }
+    if keys.journal.is_some() {
+        binding_witness.extend(raw[TERM_JOURNAL_SLOT].iter().cloned());
+        assert_eq!(signed["term_journal"], hex(&journal));
+        let mut program = script! { for item in &binding_witness { { item.clone() } } }
+            .compile()
+            .into_bytes();
+        program.extend_from_slice(binding.as_bytes());
+        let verdict = bitvm::execute_script_buf(bitcoin::ScriptBuf::from_bytes(program));
+        assert!(
+            verdict.error.is_none() && !verdict.success,
+            "signed journal or term binding disagrees with the claimed term"
+        );
+    }
     let mut slash = tx(&graph["transactions"]["slash"]);
     assert_eq!(slash.input.len(), 2);
     slash.input[1].witness = tree.disprove_witness(BINDING_LEAF, &binding, binding_witness);
@@ -406,7 +476,11 @@ fn attach(graph_path: &Path, witness_path: &Path, output: &Path) {
     );
     graph["transactions"]["slash"]["hex"] = json!(serialize_hex(&slash));
     graph["transactions"]["slash"]["vsize"] = json!(slash.vsize());
-    graph["format"] = json!("bsb/asserted-storage-graph/v1");
+    graph["format"] = json!(schema(&graph["setup"], "bsb/asserted-storage-graph"));
+    if keys.journal.is_some() {
+        graph["term_journal"] = signed["term_journal"].clone();
+        graph["term_journal_slot"] = json!(TERM_JOURNAL_SLOT);
+    }
     graph["term_preimage"] = signed["preimage"].clone();
     write(output, graph);
     event(json!({"attached":true,"file":output}));

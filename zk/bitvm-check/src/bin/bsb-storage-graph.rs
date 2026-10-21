@@ -11,7 +11,7 @@ use bitvm::chunk::api::{
 };
 use bsb_bitvm_check::{
     graph_support::{bytes, emit, hex, read, vk, write, Commitments, Scripts},
-    storage_binding::disprove_term_binding,
+    storage_binding::{disprove_term_binding, disprove_term_binding_with_journal},
     storage_graph::{
         Committee, GraphConfig, GraphTx, Party, ProofTree, State, StorageGraph, BINDING_LEAF,
     },
@@ -24,10 +24,9 @@ use std::{
 
 fn run() {
     let args = std::env::args().collect::<Vec<_>>();
-    assert_eq!(
-        args.len(),
-        7,
-        "<fixture> <proof-dir> <partials> <assertions> <scenario> <new-out-dir>"
+    assert!(
+        args.len() == 7 || (args.len() == 8 && args[7] == "--journal"),
+        "<fixture> <proof-dir> <partials> <assertions> <scenario> <new-out-dir> [--journal]"
     );
     let fixture = read(&args[1]);
     let proof_dir = PathBuf::from(&args[2]);
@@ -38,6 +37,7 @@ fn run() {
     assert!([
         "honest",
         "wrong-term",
+        "wrong-journal",
         "corrupt-proof",
         "silence",
         "no-challenge",
@@ -102,8 +102,23 @@ fn run() {
     let committee = Committee::fresh();
     let client = Party::fresh();
     let provider = Party::fresh();
-    let commitments = Commitments::fresh();
-    let binding = disprove_term_binding(&prefix, &constants, &commitments.binding_keys()).compile();
+    let with_journal =
+        args.get(7).map(String::as_str) == Some("--journal") || scenario == "wrong-journal";
+    let commitments = if with_journal {
+        Commitments::fresh_with_journal()
+    } else {
+        Commitments::fresh()
+    };
+    let binding = match commitments.journal_key() {
+        Some(key) => disprove_term_binding_with_journal(
+            &prefix,
+            &constants,
+            &commitments.binding_keys(),
+            &key,
+        ),
+        None => disprove_term_binding(&prefix, &constants, &commitments.binding_keys()),
+    }
+    .compile();
     let mut config = GraphConfig {
         term_end: 220,
         kickoff_deadline: 240,
@@ -151,7 +166,11 @@ fn run() {
         &commitments.keys(),
         tree,
     );
-    let (signatures, witnesses, binding_witness) = commitments.sign(assertions, &preimage);
+    let mut signed_preimage = preimage.clone();
+    if scenario == "wrong-journal" {
+        signed_preimage[81] ^= 1;
+    }
+    let (signatures, witnesses, binding_witness) = commitments.sign(assertions, &signed_preimage);
     graph.attach_assertions(&witnesses);
     let chosen = if scenario == "corrupt-proof" {
         let full: [ScriptBuf; NUM_TAPS] = (0..NUM_TAPS)
@@ -211,6 +230,16 @@ fn run() {
         out.join("skipped-commitment.json"),
         json!({"hex":serialize_hex(&skipped)}),
     );
+    if with_journal {
+        let mut missing = graph.transactions["assert-commit-1"].tx.clone();
+        let input = missing.input.last_mut().unwrap();
+        let items: Vec<_> = input.witness.iter().map(|x| x.to_vec()).collect();
+        input.witness = Witness::from_slice(&items[items.len() - 3..]);
+        write(
+            out.join("skipped-journal.json"),
+            json!({"hex":serialize_hex(&missing)}),
+        );
+    }
     write(
         out.join("slot-timeouts.json"),
         json!(graph
@@ -219,7 +248,7 @@ fn run() {
             .map(|t| serialize_hex(&t.tx))
             .collect::<Vec<_>>()),
     );
-    let result = json!({"network":"regtest","scenario":scenario,"term_end":config.term_end,"kickoff_deadline":config.kickoff_deadline,"final_deadline":config.final_deadline,"challenge_blocks":config.challenge_blocks,"assert_blocks":config.assert_blocks,"dispute_blocks":config.dispute_blocks,"commitments":witnesses.len(),"groth16_leaves":NUM_TAPS,"disprove_leaf":chosen,"transactions":txs,"scope":"presigned storage graph with real Groth16 and binding leaves; fixed phase-6 proof, no heavier-chain challenge"});
+    let result = json!({"network":"regtest","scenario":scenario,"term_end":config.term_end,"kickoff_deadline":config.kickoff_deadline,"final_deadline":config.final_deadline,"challenge_blocks":config.challenge_blocks,"assert_blocks":config.assert_blocks,"dispute_blocks":config.dispute_blocks,"commitments":witnesses.len(),"journal_binding":with_journal,"claimed_term_journal":if with_journal {Some(sha256::Hash::hash(&signed_preimage).to_string())}else{None},"groth16_leaves":NUM_TAPS,"disprove_leaf":chosen,"transactions":txs,"scope":"presigned storage graph with real Groth16 and binding leaves; fixed phase-6 proof, no heavier-chain challenge"});
     write(out.join("graph.json"), result.clone());
     emit(json!({"complete":true,"file":out.join("graph.json"),"disprove_leaf":chosen}));
     // All committee, party and one-time secrets remain in RAM and are dropped at process exit.

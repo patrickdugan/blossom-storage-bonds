@@ -1,0 +1,684 @@
+{
+  "format": "bsb/storage-journal-regression/v1",
+  "generated": "2026-10-21T19:05:12.752Z",
+  "network": "regtest",
+  "scope": "Optional storage setup v2 binds the provider-signed SHA256 digest of its 202-byte term to the same storage proof and funded assertion. Uses the existing phase-6 proof; this is not a new same-chain v2 proof or a funded fork contest.",
+  "layout": {
+    "legacy": {
+      "version": "v1",
+      "commitments": 381
+    },
+    "journal": {
+      "version": "v2",
+      "commitments": 382,
+      "term_journal_slot": 381,
+      "binding_script_bytes": 1232157,
+      "measured_binding_stack_max": 792
+    }
+  },
+  "graph": {
+    "payoutVerification": "independent transaction decoder; exact txids accepted and mined by Core",
+    "generated": "2026-10-21T19:02:30.859Z",
+    "network": "regtest",
+    "core": "/Satoshi:31.1.0/",
+    "policy": {
+      "acceptnonstdtxn": true,
+      "limitclustersizeKB": 2000
+    },
+    "scope": "Journal-linked storage graph using the fixed phase-6 proof and real verifier leaves. Fresh-chain lifecycle and heavier-fork enforcement remain separate.",
+    "cases": [
+      {
+        "scenario": "honest",
+        "checks": [
+          {
+            "name": "kickoff",
+            "rejected": true,
+            "reason": "non-final"
+          },
+          {
+            "name": "assert-timeout",
+            "rejected": true,
+            "reason": "non-BIP68-final"
+          },
+          {
+            "name": "assert-final",
+            "rejected": true,
+            "reason": "missing-inputs"
+          },
+          {
+            "name": "skipped-commitment",
+            "rejected": true,
+            "reason": "mempool-script-verify-flag-failed (Operation not valid with the current stack size)"
+          },
+          {
+            "name": "skipped-journal",
+            "rejected": true,
+            "reason": "mempool-script-verify-flag-failed (Operation not valid with the current stack size)"
+          },
+          {
+            "name": "refund",
+            "rejected": true,
+            "reason": "non-BIP68-final"
+          },
+          {
+            "name": "slash",
+            "rejected": true,
+            "reason": "mempool-script-verify-flag-failed (Script evaluated without error but finished with a false/empty top stack element)"
+          }
+        ],
+        "mined": [
+          {
+            "name": "kickoff",
+            "txid": "90acf2d5f5cc01a5e871c6e2cef09bf4b721a787d175021cb3ab708c37810c1a",
+            "vsize": 129,
+            "feeSats": 3000
+          },
+          {
+            "name": "challenge",
+            "txid": "0f87833ddeb72d54b34252bbb7b598b5e44496d40373c3783f815d11b69a4ed0",
+            "vsize": 16557,
+            "feeSats": 60000
+          },
+          {
+            "name": "assert-commit-0",
+            "txid": "7cfe0f87004495f6fc0a0c0ea528211c614aaeac4d5b44ee6b2ae8874690071a",
+            "vsize": 290937,
+            "feeSats": 1000000
+          },
+          {
+            "name": "assert-commit-1",
+            "txid": "5d46c214f0e6dcafdb01ddedd2b84af3ed61555b2f1445a2c5a84a65ea536a9d",
+            "vsize": 78088,
+            "feeSats": 500000
+          },
+          {
+            "name": "assert-final",
+            "txid": "2f64c4948e86feba165341465b19b15c1c4edc799ff3bac75c72f355b2eedad4",
+            "vsize": 321,
+            "feeSats": 3000
+          },
+          {
+            "name": "refund",
+            "txid": "49ed13c037d24c977c8f0c8d7f00a3f2f449f624a9d1669ff2f3c04ab7b73642",
+            "vsize": 277,
+            "feeSats": 3000
+          }
+        ],
+        "disproveLeaf": 364,
+        "commitments": 382,
+        "journalBinding": true,
+        "claimedTermJournal": "85b913f92c411211e62c6bc1fcb432bd3d4051ed9700850e5427d43c3066399a",
+        "client": "bcrt1p8v85pg4qq7hstg9lluhylzhcs8sjn66a9n2j6sv5v5j29rfrjh0sgyfq5y",
+        "provider": "bcrt1pyvd9mzqq9lfepw69y3nz3x8jtz90r5mwp9xs0h0cj4u76q3vwwvsunp7t3",
+        "payouts": [
+          {
+            "name": "refund",
+            "beneficiary": "provider",
+            "address": "bcrt1pyvd9mzqq9lfepw69y3nz3x8jtz90r5mwp9xs0h0cj4u76q3vwwvsunp7t3",
+            "sats": 98431000,
+            "txid": "49ed13c037d24c977c8f0c8d7f00a3f2f449f624a9d1669ff2f3c04ab7b73642"
+          }
+        ]
+      },
+      {
+        "scenario": "wrong-journal",
+        "checks": [
+          {
+            "name": "kickoff",
+            "rejected": true,
+            "reason": "non-final"
+          },
+          {
+            "name": "assert-timeout",
+            "rejected": true,
+            "reason": "non-BIP68-final"
+          },
+          {
+            "name": "assert-final",
+            "rejected": true,
+            "reason": "missing-inputs"
+          },
+          {
+            "name": "skipped-commitment",
+            "rejected": true,
+            "reason": "mempool-script-verify-flag-failed (Operation not valid with the current stack size)"
+          },
+          {
+            "name": "skipped-journal",
+            "rejected": true,
+            "reason": "mempool-script-verify-flag-failed (Operation not valid with the current stack size)"
+          },
+          {
+            "name": "refund",
+            "rejected": true,
+            "reason": "non-BIP68-final"
+          },
+          {
+            "name": "redirected-slash",
+            "rejected": true,
+            "reason": "mempool-script-verify-flag-failed (Invalid Schnorr signature)"
+          },
+          {
+            "name": "refund",
+            "rejected": true,
+            "reason": "missing-inputs"
+          }
+        ],
+        "mined": [
+          {
+            "name": "kickoff",
+            "txid": "77cc0bcab7d8982616e3ae3aa1235982d7557ecd4b972be16318c1c0d01d080a",
+            "vsize": 129,
+            "feeSats": 3000
+          },
+          {
+            "name": "challenge",
+            "txid": "c5f4bfe91a5c70bb88a1b3ef6ab93d2a98aaac13ff5871076b43fb17f101c9ef",
+            "vsize": 16557,
+            "feeSats": 60000
+          },
+          {
+            "name": "assert-commit-0",
+            "txid": "8fe74bf8d554db023dd51339a02742dd43f07024548f2892004433965ccd6b5f",
+            "vsize": 290937,
+            "feeSats": 1000000
+          },
+          {
+            "name": "assert-commit-1",
+            "txid": "db221fceda34088947bc5dc2a0efe868e7b249e062dde024be7bd881d083f129",
+            "vsize": 78088,
+            "feeSats": 500000
+          },
+          {
+            "name": "assert-final",
+            "txid": "81264d86277698c8cddb6c963f25ad6d85f7bcd7fc5aad4e7cfae8449338f566",
+            "vsize": 321,
+            "feeSats": 3000
+          },
+          {
+            "name": "slash",
+            "txid": "0d1aa26fea2c75d964a5b49b15c9f10bb9a9d7fc038a89c70655a97c0e4f2fad",
+            "vsize": 309869,
+            "feeSats": 2000000
+          }
+        ],
+        "disproveLeaf": 364,
+        "commitments": 382,
+        "journalBinding": true,
+        "claimedTermJournal": "d60db7dc5ef5fab4d7fbecb4816d996d7e437490f170a4c229479ce000cb1446",
+        "client": "bcrt1phld9e9m7wvhlgr47025m3luwuw4a5gwh9vhe293tnnk3vhl09vysg04vxa",
+        "provider": "bcrt1pkxwyanayn0q0kmfv0ly6ucyauzuah3q3qylp4nm5gwh8a9xpv5hskfval5",
+        "payouts": [
+          {
+            "name": "slash",
+            "beneficiary": "client",
+            "address": "bcrt1phld9e9m7wvhlgr47025m3luwuw4a5gwh9vhe293tnnk3vhl09vysg04vxa",
+            "sats": 96434000,
+            "txid": "0d1aa26fea2c75d964a5b49b15c9f10bb9a9d7fc038a89c70655a97c0e4f2fad"
+          }
+        ]
+      },
+      {
+        "scenario": "silence",
+        "checks": [
+          {
+            "name": "kickoff",
+            "rejected": true,
+            "reason": "non-final"
+          },
+          {
+            "name": "assert-timeout",
+            "rejected": true,
+            "reason": "non-BIP68-final"
+          }
+        ],
+        "mined": [
+          {
+            "name": "kickoff",
+            "txid": "799800413c040327bb78f12e8bad5a373fd514eca145e3260a9aa1b3d19f2611",
+            "vsize": 129,
+            "feeSats": 3000
+          },
+          {
+            "name": "challenge",
+            "txid": "a42103a79bcf2963fbe5b7e03df3784a94cfe62f8f1d9c9147c3bff7a6c01006",
+            "vsize": 16557,
+            "feeSats": 60000
+          },
+          {
+            "name": "assert-timeout",
+            "txid": "974ab610a12a61718de84439d8e1c08a8c6d7963fe5bdc647b09f961195a6115",
+            "vsize": 129,
+            "feeSats": 3000
+          },
+          {
+            "name": "slots-timeout",
+            "txid": "1702a42bcdba714e8b85164789f1d6d373810ac9b08524b79423a815beeb8e01",
+            "vsize": 31953,
+            "feeSats": 150000
+          }
+        ],
+        "disproveLeaf": 364,
+        "commitments": 382,
+        "journalBinding": true,
+        "claimedTermJournal": "85b913f92c411211e62c6bc1fcb432bd3d4051ed9700850e5427d43c3066399a",
+        "client": "bcrt1pyck04ut23qhcedg8cp93ryq86qf4xstna5fhhwz7aj9uzk8lqqcqz8a9sl",
+        "provider": "bcrt1pq0et7hxnsgvgxzhncrj0khynj44sv82ak79mw3g7ugnflnqj5yuqfs7t42",
+        "payouts": [
+          {
+            "name": "assert-timeout",
+            "beneficiary": "client",
+            "address": "bcrt1pyck04ut23qhcedg8cp93ryq86qf4xstna5fhhwz7aj9uzk8lqqcqz8a9sl",
+            "sats": 92294000,
+            "txid": "974ab610a12a61718de84439d8e1c08a8c6d7963fe5bdc647b09f961195a6115"
+          },
+          {
+            "name": "slots-timeout",
+            "beneficiary": "client",
+            "address": "bcrt1pyck04ut23qhcedg8cp93ryq86qf4xstna5fhhwz7aj9uzk8lqqcqz8a9sl",
+            "sats": 7490000,
+            "txid": "1702a42bcdba714e8b85164789f1d6d373810ac9b08524b79423a815beeb8e01"
+          }
+        ]
+      }
+    ],
+    "nodeStopped": true
+  },
+  "lifecycle": {
+    "honest": {
+      "network": "regtest",
+      "core": "/Satoshi:31.1.0/",
+      "setupVersion": "v2",
+      "commitments": 382,
+      "journalBinding": true,
+      "termJournal": "85b913f92c411211e62c6bc1fcb432bd3d4051ed9700850e5427d43c3066399a",
+      "termJournalSlot": 381,
+      "scenario": "honest",
+      "scope": "separate committee/provider lifecycle using the existing phase-6 proof; fresh-chain proof and heavier-chain challenge remain",
+      "events": [
+        {
+          "name": "provider_public_keys_committed",
+          "height": 101,
+          "at": "2026-10-21T19:02:28.363Z"
+        },
+        {
+          "name": "committee_exited_before_funding",
+          "height": 101,
+          "at": "2026-10-21T19:02:34.654Z"
+        },
+        {
+          "name": "funding_mined_before_first_epoch",
+          "height": 102,
+          "at": "2026-10-21T19:02:34.708Z"
+        },
+        {
+          "name": "term_end_reached_without_assertion_witnesses",
+          "height": 220,
+          "at": "2026-10-21T19:02:37.441Z"
+        },
+        {
+          "name": "provider_signed_once_at_term_end",
+          "height": 222,
+          "at": "2026-10-21T19:02:38.133Z"
+        }
+      ],
+      "mined": [
+        {
+          "name": "kickoff",
+          "txid": "42096bbc11622ff3e34a296904751bbc28d02afadcdd02faba62755888e3ccb7",
+          "vsize": 129
+        },
+        {
+          "name": "challenge",
+          "txid": "1fc465ba17db4904d0387ac535e12d2ff4c740dcfbdbe98aa33b82c428a01015",
+          "vsize": 16557
+        },
+        {
+          "name": "assert-commit-0",
+          "txid": "c04f78d9231444b2e935446a5049c7ee646c35a368227db19554ecf4868e0924",
+          "vsize": 290937
+        },
+        {
+          "name": "assert-commit-1",
+          "txid": "59688d2aeea1dc82789dfbc8d99ea75827bcb78c6ec64d09edbf8dedd3abacf3",
+          "vsize": 78088
+        },
+        {
+          "name": "assert-final",
+          "txid": "651f807f96a934ae1aa59a9753a4500b622f52b280be388e770584d47ffe3b04",
+          "vsize": 321
+        },
+        {
+          "name": "refund",
+          "txid": "8a236528759703f24aaacab2050a4a2effbb8148fd68ecb6f6730dbf4e3714dc",
+          "vsize": 277
+        }
+      ],
+      "rejected": [
+        {
+          "name": "kickoff",
+          "reason": "non-final"
+        },
+        {
+          "name": "assert-commit-0",
+          "reason": "mempool-script-verify-flag-failed (Operation not valid with the current stack size)"
+        },
+        {
+          "name": "assert-final",
+          "reason": "missing-inputs"
+        },
+        {
+          "name": "substituted-setup-keys",
+          "reason": "registration differs"
+        },
+        {
+          "name": "missing-journal",
+          "reason": "invalid v2 attachment rejected before output"
+        },
+        {
+          "name": "wrong-journal-metadata",
+          "reason": "invalid v2 attachment rejected before output"
+        },
+        {
+          "name": "legacy-witness-format",
+          "reason": "invalid v2 attachment rejected before output"
+        },
+        {
+          "name": "slash",
+          "reason": "mempool-script-verify-flag-failed (Script evaluated without error but finished with a false/empty top stack element)"
+        },
+        {
+          "name": "refund",
+          "reason": "non-BIP68-final"
+        }
+      ],
+      "payouts": [
+        {
+          "name": "refund",
+          "address": "bcrt1pj0x8fc0zx4kn8wszy9rmyx65zy8ftdgelxft4tvf7mervuyvzwuqkvy3nq",
+          "sats": 98431000,
+          "txid": "8a236528759703f24aaacab2050a4a2effbb8148fd68ecb6f6730dbf4e3714dc"
+        }
+      ],
+      "committeeExitedBeforeFunding": true,
+      "termEndWitnessesOnly": true,
+      "publicKeysCommittedBeforeFirstEpoch": true,
+      "nodeStopped": true
+    },
+    "silence": {
+      "network": "regtest",
+      "core": "/Satoshi:31.1.0/",
+      "setupVersion": "v2",
+      "commitments": 382,
+      "journalBinding": true,
+      "scenario": "silence",
+      "scope": "separate committee/provider lifecycle using the existing phase-6 proof; fresh-chain proof and heavier-chain challenge remain",
+      "events": [
+        {
+          "name": "provider_public_keys_committed",
+          "height": 101,
+          "at": "2026-10-21T19:03:07.950Z"
+        },
+        {
+          "name": "committee_exited_before_funding",
+          "height": 101,
+          "at": "2026-10-21T19:03:16.309Z"
+        },
+        {
+          "name": "funding_mined_before_first_epoch",
+          "height": 102,
+          "at": "2026-10-21T19:03:16.370Z"
+        },
+        {
+          "name": "term_end_reached_without_assertion_witnesses",
+          "height": 220,
+          "at": "2026-10-21T19:03:19.297Z"
+        }
+      ],
+      "mined": [
+        {
+          "name": "kickoff",
+          "txid": "e59cefa69449c907e6f20d75f6c2d07ab5e8c75365683dce0285ebc9a33b3eb7",
+          "vsize": 129
+        },
+        {
+          "name": "challenge",
+          "txid": "2e6fbb12a68228ac5853fb0b9a4eced9846f98e766d44661015fe2dc2d4a2eea",
+          "vsize": 16557
+        },
+        {
+          "name": "assert-timeout",
+          "txid": "d4c97c979b5e76e0cba58ca3aee48c269681b6c3231795d1428e580f6d08c171",
+          "vsize": 129
+        },
+        {
+          "name": "slots-timeout",
+          "txid": "cd7169e03faeabe0bc35fa0c424c4ae25b90af9c1f8fe0660fc31c00e7ff4257",
+          "vsize": 31953
+        }
+      ],
+      "rejected": [
+        {
+          "name": "kickoff",
+          "reason": "non-final"
+        },
+        {
+          "name": "assert-timeout",
+          "reason": "non-BIP68-final"
+        }
+      ],
+      "payouts": [
+        {
+          "name": "assert-timeout",
+          "address": "bcrt1p7exrv7uy6f0e558hu6z25tqgsj5aweqfrsju84m6dwgg3cx5mlyqhq7qr4",
+          "sats": 92294000,
+          "txid": "d4c97c979b5e76e0cba58ca3aee48c269681b6c3231795d1428e580f6d08c171"
+        },
+        {
+          "name": "slots-timeout",
+          "address": "bcrt1p7exrv7uy6f0e558hu6z25tqgsj5aweqfrsju84m6dwgg3cx5mlyqhq7qr4",
+          "sats": 7490000,
+          "txid": "cd7169e03faeabe0bc35fa0c424c4ae25b90af9c1f8fe0660fc31c00e7ff4257"
+        }
+      ],
+      "committeeExitedBeforeFunding": true,
+      "termEndWitnessesOnly": false,
+      "publicKeysCommittedBeforeFirstEpoch": true,
+      "nodeStopped": true
+    },
+    "legacyCompatibility": {
+      "network": "regtest",
+      "core": "/Satoshi:31.1.0/",
+      "setupVersion": "v1",
+      "commitments": 381,
+      "journalBinding": false,
+      "scenario": "honest",
+      "scope": "separate committee/provider lifecycle using the existing phase-6 proof; fresh-chain proof and heavier-chain challenge remain",
+      "events": [
+        {
+          "name": "provider_public_keys_committed",
+          "height": 101,
+          "at": "2026-10-21T19:03:09.208Z"
+        },
+        {
+          "name": "committee_exited_before_funding",
+          "height": 101,
+          "at": "2026-10-21T19:03:17.512Z"
+        },
+        {
+          "name": "funding_mined_before_first_epoch",
+          "height": 102,
+          "at": "2026-10-21T19:03:17.572Z"
+        },
+        {
+          "name": "term_end_reached_without_assertion_witnesses",
+          "height": 220,
+          "at": "2026-10-21T19:03:20.536Z"
+        },
+        {
+          "name": "provider_signed_once_at_term_end",
+          "height": 222,
+          "at": "2026-10-21T19:03:21.261Z"
+        }
+      ],
+      "mined": [
+        {
+          "name": "kickoff",
+          "txid": "1f74142af89fd22463115407ba7b2749bfafda213580f02c253549a8ee587a39",
+          "vsize": 129
+        },
+        {
+          "name": "challenge",
+          "txid": "d21e4b3fda332dd034d0b6683921e95c739f17af6794f30c79b5660d4f6ae3dd",
+          "vsize": 16514
+        },
+        {
+          "name": "assert-commit-0",
+          "txid": "a559509c6517fb30b7f623238042ac300b4745146992da7a9ca3cf37ea4c5544",
+          "vsize": 290937
+        },
+        {
+          "name": "assert-commit-1",
+          "txid": "73b584ea9a515daadb3c30b72ef3fa01bbcb86506007ddcac744bb39e9fe100f",
+          "vsize": 76385
+        },
+        {
+          "name": "assert-final",
+          "txid": "a7f0091059c0e24a65335c44e49185651141afa5c88a101f20dcdb082815e249",
+          "vsize": 321
+        },
+        {
+          "name": "refund",
+          "txid": "f480c5271a34a30e62ba776a1d9c69f567e334721c52486e9a0ca29641ba05a2",
+          "vsize": 277
+        }
+      ],
+      "rejected": [
+        {
+          "name": "kickoff",
+          "reason": "non-final"
+        },
+        {
+          "name": "assert-commit-0",
+          "reason": "mempool-script-verify-flag-failed (Operation not valid with the current stack size)"
+        },
+        {
+          "name": "assert-final",
+          "reason": "missing-inputs"
+        },
+        {
+          "name": "substituted-setup-keys",
+          "reason": "registration differs"
+        },
+        {
+          "name": "slash",
+          "reason": "mempool-script-verify-flag-failed (Script evaluated without error but finished with a false/empty top stack element)"
+        },
+        {
+          "name": "refund",
+          "reason": "non-BIP68-final"
+        }
+      ],
+      "payouts": [
+        {
+          "name": "refund",
+          "address": "bcrt1p8d53pkqy5d4vzzvtxxd7u09ez7v2xc99sjx2qrn3maqqv2459lhslh6gvv",
+          "sats": 98431000,
+          "txid": "f480c5271a34a30e62ba776a1d9c69f567e334721c52486e9a0ca29641ba05a2"
+        }
+      ],
+      "committeeExitedBeforeFunding": true,
+      "termEndWitnessesOnly": true,
+      "publicKeysCommittedBeforeFirstEpoch": true,
+      "nodeStopped": true
+    }
+  },
+  "providerGuards": {
+    "journal": {
+      "setupVersion": "v2",
+      "journalBinding": true,
+      "guards": [
+        {
+          "case": "wrong-term",
+          "rejected": true,
+          "witnessFileWritten": false
+        },
+        {
+          "case": "wrong-wrapper",
+          "rejected": true,
+          "witnessFileWritten": false
+        },
+        {
+          "case": "false-proof",
+          "rejected": true,
+          "witnessFileWritten": false
+        },
+        {
+          "case": "unchecked-assertions",
+          "rejected": true,
+          "witnessFileWritten": false
+        },
+        {
+          "case": "one-shot",
+          "signedRequests": 1,
+          "secondRequestSigned": false,
+          "commitments": 382,
+          "termJournal": "85b913f92c411211e62c6bc1fcb432bd3d4051ed9700850e5427d43c3066399a"
+        }
+      ]
+    },
+    "legacy": {
+      "setupVersion": "v1",
+      "journalBinding": false,
+      "guards": [
+        {
+          "case": "wrong-term",
+          "rejected": true,
+          "witnessFileWritten": false
+        },
+        {
+          "case": "wrong-wrapper",
+          "rejected": true,
+          "witnessFileWritten": false
+        },
+        {
+          "case": "false-proof",
+          "rejected": true,
+          "witnessFileWritten": false
+        },
+        {
+          "case": "unchecked-assertions",
+          "rejected": true,
+          "witnessFileWritten": false
+        },
+        {
+          "case": "one-shot",
+          "signedRequests": 1,
+          "secondRequestSigned": false,
+          "commitments": 381
+        }
+      ]
+    }
+  },
+  "checks": {
+    "nativeLibraryTests": 21,
+    "typescriptTests": 96
+  },
+  "source_sha256": {
+    "zk/bitvm-check/graph-payouts.ts": "10c56d3fc4b01d303e8a6a100559ba268ae68542c9556f85df78833e4220f2d6",
+    "zk/bitvm-check/graph-regtest.ts": "f335fe5d9668830e7542d505b173a7381a653cdcb2e1578e5f0d498bc18d3d5e",
+    "zk/bitvm-check/lifecycle-regtest.ts": "34fddb9a781386e6c1bf8c2f4be5576cfa28fa8a5bae973a60737bd8fd026eef",
+    "zk/bitvm-check/lifecycle-guards.ts": "2d22529f3063374217eaa8b67509a523e92406a972e3f5de8fcff6ab5d9cf942",
+    "zk/bitvm-check/src/storage_graph.rs": "f9dc2a0318f38f23fe2a308166a7a75b76e0d16254c877f58029263a0823cead",
+    "zk/bitvm-check/src/storage_binding.rs": "6af6c9a1bbed5713a0a6e28271990348a4b92f82e1152de7140b206fb7754061",
+    "zk/bitvm-check/src/graph_support.rs": "36eb2b20be7b5faa3c24da8dc3c68b8d8167072ce49b51a3bb7d62a73336a002",
+    "zk/bitvm-check/src/bin/bsb-storage-graph.rs": "15df83f875673510432a5e69c7cbbfd2a7d9770a0584bdfe58a2070dba5ec885",
+    "zk/bitvm-check/src/bin/bsb-storage-live.rs": "a55b962ff37e29d870bf101865a2d6839bf91c85560fb796dd8276a001d3d625"
+  },
+  "remaining": [
+    "A fresh proof from a funded v2 lifecycle chain has not been generated. The existing successful fresh-chain lifecycle uses v1.",
+    "No cumulative-work certificate is connected to fork-contest collateral.",
+    "Permissionless challenger registration after setup, authenticated cross-party values, response deadlines and withdrawal ordering remain unresolved.",
+    "Reusing the provider journal key does not bind an opponent to an earlier value: the provider controls that secret and could sign another value. Any equivocation remedy must retain funded collateral and an enforceable response window."
+  ]
+}
