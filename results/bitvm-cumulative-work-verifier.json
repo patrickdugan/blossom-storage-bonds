@@ -1,0 +1,69 @@
+{
+  "arkworks": {
+    "verifies": true,
+    "verify_s": 0.007014927,
+    "wrong_public_verifies": false
+  },
+  "bitvm_rev": "7d1ca36",
+  "corrupted_intermediate": {
+    "exec_s": 0.194598403,
+    "executes": true,
+    "found": true,
+    "locking_script_bytes": 3472345,
+    "max_stack_items": 946,
+    "script_plus_witness_bytes": 3475684,
+    "tap_index": 181,
+    "under_4mb_less_16k": true,
+    "validate_s": 100.255236492,
+    "witness_script_bytes": 3339
+  },
+  "honest": {
+    "all_disprove_scripts_fail": true,
+    "assertion_witness_bytes": 286789,
+    "assertions": {
+      "hash": 363,
+      "u256": 15
+    },
+    "sign_and_execute_all_s": 244.123616492,
+    "validate": {
+      "found": false,
+      "s": 209.919860117,
+      "validate_s": 209.919821931
+    }
+  },
+  "tapscripts": {
+    "compile_s": 162.19697343,
+    "count": 364,
+    "largest_bytes": 3948063,
+    "smallest_bytes": 338312,
+    "total_bytes": 1110838305
+  },
+  "warning": "BitVM: DO NOT USE IN PRODUCTION. Winternitz secrets are test values.",
+  "wrong_public_input": {
+    "exec_s": 0.064335485,
+    "executes": true,
+    "found": true,
+    "locking_script_bytes": 947271,
+    "max_stack_items": 744,
+    "script_plus_witness_bytes": 955010,
+    "tap_index": 363,
+    "under_4mb_less_16k": true,
+    "validate_s": 204.490590869,
+    "witness_script_bytes": 7739
+  },
+  "format": "bsb/cumulative-work-bitvm-verifier/v1",
+  "certificate_journal": "d78d19d832272aafd9def1236f0c636af020de106ad7ef2e9e2cc75eac40209c",
+  "public_input": "331922694518165887603772562130688070796909051370644513024791622746851652422",
+  "wall": "19:29.97",
+  "peak_rss_kib": 4883776,
+  "recorded_outcome_gate_passed": true,
+  "provenance": {
+    "source_archive_sha256": "4d6562128360ab8796befe3b0e2d38800609f581ae811f43741c0a7d147c306a",
+    "verifier_binary_sha256": "02008d278b13d3633ab4b4ccde1e3d2b2626e80539640d73463628212e7146a2",
+    "raw_result_sha256": "f8186e322b40ede14557d6c27a7b8db547a94bd8248faef8373074eb909c3d6c",
+    "assertions_sha256": "9248805bf8c7a9bd1a31931db7e9672b3da6759931b97d1e9038d7720198b04a",
+    "groth16_proof_sha256": "ce176f91e7d5d2cfa28f0a0ac688f61de7f851b464f1da4726b2faeeb29badde",
+    "vk_sha256": "2941dff0bd962ff8610773c9659c10d0dec561db1e2f6afecfbbe0d9cb457a7d"
+  },
+  "scope": "Full BitVM interpreter experiment under public test one-time keys. The exact returned report was subsequently checked by the fail-closed outcome gate. No Bitcoin fork-dispute collateral spend."
+}

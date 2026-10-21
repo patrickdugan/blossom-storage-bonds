@@ -104,6 +104,13 @@ fn disprove(
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
+    if args.get(1).map(String::as_str) == Some("--audit-report") {
+        assert_eq!(args.len(), 3, "--audit-report <result.json>");
+        let report: Value = serde_json::from_str(&std::fs::read_to_string(&args[2]).unwrap()).unwrap();
+        bsb_bitvm_check::verifier_report::validate(&report).expect("invalid verifier evidence");
+        println!("{}", json!({"recorded_outcomes_valid":true,"scope":"Recorded outcome checks only; does not re-execute the proof verifier."}));
+        return;
+    }
     let dir = &args[1];
     let flag = |k: &str| {
         args.iter()
@@ -136,6 +143,7 @@ fn main() {
     let ark_s = t.elapsed().as_secs_f64();
     let ark_wrong = Groth16::<Bn254>::verify_proof(&pvk, &proof, &[wrong]).unwrap();
     println!("arkworks: honest {ark_ok}, wrong public input {ark_wrong}");
+    assert!(ark_ok && !ark_wrong, "proof must verify and --wrong-public must fail");
     if args.iter().any(|arg| arg == "--verify-only") {
         assert!(ark_ok && !ark_wrong);
         println!(
@@ -282,6 +290,7 @@ fn main() {
         out["corrupted_intermediate"]
     );
 
+    bsb_bitvm_check::verifier_report::validate(&out).expect("invalid verifier evidence");
     let s = serde_json::to_string_pretty(&out).unwrap();
     match flag("--out") {
         Some(f) => std::fs::write(f, s).unwrap(),

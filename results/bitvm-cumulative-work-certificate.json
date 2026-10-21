@@ -42,10 +42,13 @@
     "independent_readback_tests": 16,
     "independent_statement_and_public_input_checked": true,
     "native_pairing_verified": true,
-    "native_pairing_replay_or_rebinding_rejections": 3
+    "native_pairing_replay_or_rebinding_rejections": 3,
+    "full_bitvm_interpreter_passed": true,
+    "wrong_public_input_disproved": true,
+    "corrupted_intermediate_disproved": true
   },
   "bitcoin_fork_dispute_implemented": false,
-  "full_bitvm_disprove_checks": "Separate verification job; this report covers the certificate and pairing checks.",
+  "full_bitvm_disprove_checks": "passed",
   "artifacts": {
     "return_archive_sha256": "fe311f0984f63e5dd53c854b12e8b2a5bf3a564dc127458c0f9cb42ea5e3a440",
     "producer_source_sha256": "210e614a39389bb172c388b9dec373ebe9a44ae6a5038a9cf11fb6968eb45337",
@@ -89,6 +92,11 @@
     "groth16": {
       "wall": "3:17.86",
       "peak_rss_kib": 1480392,
+      "exit_code": 0
+    },
+    "bitvm": {
+      "wall": "19:29.97",
+      "peak_rss_kib": 4883776,
       "exit_code": 0
     }
   },
@@ -174,5 +182,6 @@
       "proof_sha256": "ce176f91e7d5d2cfa28f0a0ac688f61de7f851b464f1da4726b2faeeb29badde",
       "public_input": "7952792333570674495945027608737081555348039617843960928519756557456238630"
     }
-  ]
+  ],
+  "full_bitvm_result": "results/bitvm-cumulative-work-verifier.json"
 }

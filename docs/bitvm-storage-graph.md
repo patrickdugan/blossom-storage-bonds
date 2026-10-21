@@ -277,6 +277,16 @@ certificate using the existing pinned Groth16 image and verifying key:
 The certificate evidence is `results/bitvm-cumulative-work-certificate.json`; its Groth16 proof,
 public input and verifying key are in `results/bitvm-cumulative-work-groth16/`.
 
+The complete BitVM interpreter run also passes (`results/bitvm-cumulative-work-verifier.json`).
+All 364 honest disprove scripts fail as intended. A wrong public input is disproved at leaf 363
+(955,010 bytes with witness, maximum stack 744), and a corrupted intermediate at leaf 181
+(3,475,684 bytes, maximum stack 946). The run took 19:29.97 and peaked at 4,883,776 KiB RSS on the VPS.
+
+The standalone checker now rejects an invalid pairing control, missing disprove, failed disprove,
+or recorded resource-limit violation. Its `--audit-report <file>` mode applies those outcome checks
+to an existing report without repeating the expensive verifier run; it does not verify a proof
+from a JSON report. Five adversarial tests cover absent, false, mistyped and inconsistent results.
+
 The existing holdings, term and header-chain image IDs remain unchanged. Seven native relation
 tests and nine compiled-guest/prover rejection cases cover malformed bindings and invented work.
 Independent readback has sixteen checks, including actual receipt verification and rejection of
