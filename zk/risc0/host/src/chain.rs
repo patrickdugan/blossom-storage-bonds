@@ -87,7 +87,7 @@ pub struct TermInput {
 }
 
 impl TermInput {
-    /// The 216-byte preimage whose SHA-256 is the term journal (term.rs).
+    /// The 202-byte preimage whose SHA-256 is the term journal (term.rs).
     pub fn preimage(&self, header_chain_id: [u32; 8]) -> Vec<u8> {
         let cs = &self.chain.chain_state;
         let mut p = b"bsb/r0-term|v1".to_vec();

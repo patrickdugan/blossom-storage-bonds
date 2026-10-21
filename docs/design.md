@@ -940,7 +940,7 @@ receipts, for seeds equal to the hashes of blocks 170, 180 and 190 (3 deals, q =
   at another height cannot stand in for it;
 - h_i + 6 ≤ the tip.
 
-Its journal is SHA-256 of a 216-byte preimage carrying both image IDs, q, the deal count, D, the
+Its journal is SHA-256 of a 202-byte preimage carrying both image IDs, q, the deal count, D, the
 first height, step, epoch count, depth, tip height, tip hash and total work, since the Groth16
 circuit takes exactly 32 bytes. Composing four receipts costs 71 k cycles and 188 s, nearly all of
 it resolving the assumptions, at 1.5 GiB. A holdings receipt for block 181 offered as epoch 180
@@ -986,7 +986,7 @@ where pre_state is the term guest's image ID (`b484d033…`), post_state the dig
 halted normally, control_root the succinct verifier's root with each byte's bits reversed, id_bn254
 the BN254 identity control ID, and journal the 32-byte term digest. For this run it is
 `0x2afe4d2b…f7f602`. It was computed three ways and they agree: by the circuit (public.json); by the
-host in Rust; and by `zk/risc0/check-groth16.ts` from public data alone, rebuilding the 216-byte
+host in Rust; and by `zk/risc0/check-groth16.ts` from public data alone, rebuilding the 202-byte
 preimage from the deal list, the term parameters and the regtest block hashes, SHA-256 into the
 journal, SHA-256 of the constants, and a 20-line Blake3 of the one 64-byte block. The verifying key
 came out of the image's own zkey (`snarkjs zkey export verificationkey`) and matches all 18
@@ -1069,10 +1069,16 @@ final-spv guests are Citrea's. Missing for this design:
 
 - A storage graph. The bridge pays a withdrawer and reimburses an operator; a bond needs refund,
   slash and timeout-to-client around a term deadline, with the client as a party to the timeout.
-- A binding of the public input to the statement. The chunker treats the public input as one
-  committed value (NUM_PUBS = 1). Nothing in the script checks that it equals Blake3(constants ‖
-  SHA256(term preimage)) for the graph's pinned constants and the committed chain values, so a graph
-  needs one more leaf that does.
+- Integration of the public-input binding into the storage graph. An additional leaf now exists
+  in `zk/bitvm-check/src/storage_binding.rs`: it pins the term prefix and wrapper constants,
+  verifies Winternitz commitments to the public input and chain tip, and opens only for a binding
+  mismatch. It uses the chunker's nibble-swapped big-endian scalar encoding. Seven interpreter
+  tests enforce the 1,000-item stack limit (760 used), and fresh Core 31.1 regtest transactions
+  reject the honest case and mine wrong-public, wrong-tip, wrong-work and wrong-term cases
+  (`results/bitvm-storage-binding-regtest.json`). This is an isolated leaf, about 1.224 MB: its
+  regtest node enables nonstandard transactions and raises the cluster-size limit. The storage
+  graph still has to use the same public-input key as the Groth16 chunker and carry the chain-tip
+  commitments in its assertion transactions; the leaf is not yet connected to that graph.
 - Aggregation. The term guest here is that piece, for a fixed D and q: it verifies N epoch receipts
   as assumptions in one proof. Per-epoch deal digests D_e committed on chain before each seed block
   (§4.2) are not built.

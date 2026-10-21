@@ -495,6 +495,8 @@ dependencies = [
  "ark-ff",
  "ark-groth16",
  "bitcoin",
+ "bitcoin-script",
+ "bitcoin-script-stack",
  "bitvm",
  "serde_json",
 ]

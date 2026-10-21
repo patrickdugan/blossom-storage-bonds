@@ -128,7 +128,7 @@ fn main() {
     }
 
     // "bsb/r0-term|v1" ‖ hold_id ‖ header_chain_id ‖ u32be(q, deal count) ‖ D ‖ u32be(first, step,
-    // epochs, depth, tip height) ‖ tip hash (internal order) ‖ total work (u256be), 216 bytes
+    // epochs, depth, tip height) ‖ tip hash (internal order) ‖ total work (u256be), 202 bytes
     let mut p = Vec::with_capacity(216);
     p.extend_from_slice(b"bsb/r0-term|v1");
     for w in input.hold_id.iter().chain(HEADER_CHAIN_ID.iter()) {

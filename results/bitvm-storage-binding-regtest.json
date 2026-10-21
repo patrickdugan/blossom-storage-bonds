@@ -1,0 +1,68 @@
+{
+  "generated": "2026-10-21T10:41:55.980Z",
+  "network": "regtest",
+  "core": "/Satoshi:31.1.0/",
+  "policy": {
+    "acceptnonstdtxn": true,
+    "limitclustersizeKB": 2000
+  },
+  "scope": "isolated real Taproot storage-binding leaf; not a complete storage bond graph, proof regeneration, or chain-work challenge",
+  "cases": [
+    {
+      "kind": "honest",
+      "allowed": false,
+      "expected": false,
+      "rejectReason": "mempool-script-verify-flag-failed (Script evaluated without error but finished with a false/empty top stack element)",
+      "txid": "1c1f18ceb495dd91476106492539245c99cfcb2a8adb05445b05800e9330613f",
+      "scriptBytes": 1223886,
+      "vsize": 307258,
+      "weight": 1229030,
+      "feeSats": 614516,
+      "mined": false
+    },
+    {
+      "kind": "wrong-public",
+      "allowed": true,
+      "expected": true,
+      "txid": "434aa7126993f9a6c2089fe314a08798a32a29a7b5471e8c73aa0cf447c4e342",
+      "scriptBytes": 1223886,
+      "vsize": 307258,
+      "weight": 1229031,
+      "feeSats": 614516,
+      "mined": true
+    },
+    {
+      "kind": "wrong-tip",
+      "allowed": true,
+      "expected": true,
+      "txid": "13adada74a28951f7781190b5bd160cd761caaaec56b37f713400cf332829f86",
+      "scriptBytes": 1223886,
+      "vsize": 307258,
+      "weight": 1229030,
+      "feeSats": 614516,
+      "mined": true
+    },
+    {
+      "kind": "wrong-work",
+      "allowed": true,
+      "expected": true,
+      "txid": "9f1d6dabdf820fa2fe1593b0c1b40aed30dd59b307595bc399f93c36613e6c8d",
+      "scriptBytes": 1223886,
+      "vsize": 307258,
+      "weight": 1229030,
+      "feeSats": 614516,
+      "mined": true
+    },
+    {
+      "kind": "wrong-term",
+      "allowed": true,
+      "expected": true,
+      "txid": "897d1e3b040b6ec46238209df8f14fce9aa5948f30339ed6f2c3be5d486fe589",
+      "scriptBytes": 1223887,
+      "vsize": 307258,
+      "weight": 1229031,
+      "feeSats": 614516,
+      "mined": true
+    }
+  ]
+}

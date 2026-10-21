@@ -114,6 +114,11 @@ fn main() {
     let ark_s = t.elapsed().as_secs_f64();
     let ark_wrong = Groth16::<Bn254>::verify_proof(&pvk, &proof, &[wrong]).unwrap();
     println!("arkworks: honest {ark_ok}, wrong public input {ark_wrong}");
+    if args.iter().any(|arg| arg == "--verify-only") {
+        assert!(ark_ok && !ark_wrong);
+        println!("{}", json!({ "verifies": ark_ok, "wrong_public_verifies": ark_wrong }));
+        return;
+    }
 
     let t = Instant::now();
     let partial = api_generate_partial_script(&vk);
