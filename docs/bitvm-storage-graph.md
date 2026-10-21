@@ -477,3 +477,23 @@ and deadline protocol. Ordinary false-instance witness-encryption security would
 a hard but satisfiable authorization relation; the cited PIPE model explicitly asks for extractability.
 No such primitive or changed security assumption has been adopted here. The current exact-work
 certificate remains useful, but its permissionless path into the collateral is still unimplemented.
+
+### Compact binding consensus checks on Core
+
+`bsb-fork-binding` and `fork-binding-regtest.ts` now exercise the compact arithmetic leaf as a real
+Taproot spend on isolated Core 31.1. Each of thirteen cases uses fresh one-time keys; the vector
+producer exits before funding is broadcast. The honest binding reaches false and cannot slash.
+An unrelated signing key fails its WOTS check. Eleven validly signed mismatches are accepted and
+mined: every committed field, the graph identity, wrapper constants, and a noncanonical public-scalar
+alias. Each witness starts with 844 signature items, excluding its script and control block.
+
+`results/bitvm-compact-fork-binding-regtest.json` records the mined txids, Core-read transaction sizes
+and policy settings, plus the hash of the public vector archive. The node stops cleanly. The large
+leaf requires nonstandard relay policy. This is an isolated arithmetic component; its payout is not
+committee-pinned, and it neither registers a new challenger nor enforces a fork dispute on the funded
+bond. The scope remains separate from the full Groth16 BitVM verifier and from the current graph.
+
+```text
+cargo build --offline --locked --manifest-path zk/bitvm-check/Cargo.toml --bin bsb-fork-binding
+node zk/bitvm-check/fork-binding-regtest.ts --bitcoind <installed-bitcoind> --checker <bsb-fork-binding> --dir <new-data-dir> --out <new-report.json>
+```

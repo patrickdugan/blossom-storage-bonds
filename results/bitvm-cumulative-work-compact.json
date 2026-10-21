@@ -79,7 +79,10 @@
       ],
       "scope": "Pairing verification and public-input binding checks. No Bitcoin collateral-dispute enforcement."
     },
-    "bitcoin_binding_library_tests": 20
+    "bitcoin_binding_library_tests": 20,
+    "bitcoin_binding_core_cases": 13,
+    "bitcoin_binding_core_mined": 11,
+    "bitcoin_binding_core_rejected": 2
   },
   "groth16": {
     "image": "ozancw/risc0-to-bitvm2-groth16-prover@sha256:840b833190a86c87eb71473cd72bcaa3e3b90cefa9bf4ae785ab2de61bc9d262",
@@ -127,5 +130,6 @@
     ],
     "actual_compact_public_input_used": true,
     "scope": "BitVM arithmetic interpreter only; no Core fork-defense transaction or funded graph registration."
-  }
+  },
+  "core_binding_report": "results/bitvm-compact-fork-binding-regtest.json"
 }
