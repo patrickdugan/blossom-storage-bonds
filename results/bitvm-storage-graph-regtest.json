@@ -1,0 +1,512 @@
+{
+  "generated": "2026-10-21T11:25:10.719Z",
+  "network": "regtest",
+  "core": "/Satoshi:31.1.0/",
+  "policy": {
+    "acceptnonstdtxn": true,
+    "limitclustersizeKB": 2000
+  },
+  "scope": "storage graph using the fixed phase-6 proof and real verifier leaves; heavier-chain challenge and fresh-chain proof generation remain",
+  "cases": [
+    {
+      "scenario": "no-kickoff",
+      "checks": [
+        {
+          "name": "kickoff-timeout",
+          "rejected": true,
+          "reason": "non-final"
+        }
+      ],
+      "mined": [
+        {
+          "name": "kickoff-timeout",
+          "txid": "19e1202c0d4f901001dcd20c692902dd5d609b1a4b00ae2941c917d91e8b7cca",
+          "vsize": 129,
+          "feeSats": 3000
+        }
+      ],
+      "disproveLeaf": 364,
+      "client": "bcrt1pe7gjgg324k24zz0dm23hhrg8zc632lweywjug46sqdulphxyqlksvw4w2e",
+      "provider": "bcrt1pg4rqdzsjpgxgxj2nw6ntgumsawdghttwerxlef5sd8tt3y637lqs3w3vgw",
+      "payouts": [
+        {
+          "name": "kickoff-timeout",
+          "beneficiary": "client",
+          "address": "bcrt1pe7gjgg324k24zz0dm23hhrg8zc632lweywjug46sqdulphxyqlksvw4w2e",
+          "sats": 99997000,
+          "txid": "19e1202c0d4f901001dcd20c692902dd5d609b1a4b00ae2941c917d91e8b7cca"
+        }
+      ]
+    },
+    {
+      "scenario": "no-challenge",
+      "checks": [
+        {
+          "name": "kickoff",
+          "rejected": true,
+          "reason": "non-final"
+        },
+        {
+          "name": "unchallenged-refund",
+          "rejected": true,
+          "reason": "non-BIP68-final"
+        }
+      ],
+      "mined": [
+        {
+          "name": "kickoff",
+          "txid": "d83edddcf47b0c22cf4fc6dd53848b390aa6c0a0b4615a93fddae9ec75057919",
+          "vsize": 129,
+          "feeSats": 3000
+        },
+        {
+          "name": "unchallenged-refund",
+          "txid": "81d996437b0ef3c3837f2aedaf6cdaafbf2bb42f310f27956862a9a57df4eaf6",
+          "vsize": 129,
+          "feeSats": 3000
+        }
+      ],
+      "disproveLeaf": 364,
+      "client": "bcrt1p3hsycay44a5zjwxnczjqfyhr60rn6hj0j0y6md8e9vq7gr4prc0s564kg0",
+      "provider": "bcrt1pfsa3v4zml2q2hjpl67n2n9h43u0uf7t9s2d9k3e7l3u6nyzgvrlsznkpj4",
+      "payouts": [
+        {
+          "name": "unchallenged-refund",
+          "beneficiary": "provider",
+          "address": "bcrt1pfsa3v4zml2q2hjpl67n2n9h43u0uf7t9s2d9k3e7l3u6nyzgvrlsznkpj4",
+          "sats": 99994000,
+          "txid": "81d996437b0ef3c3837f2aedaf6cdaafbf2bb42f310f27956862a9a57df4eaf6"
+        }
+      ]
+    },
+    {
+      "scenario": "silence",
+      "checks": [
+        {
+          "name": "kickoff",
+          "rejected": true,
+          "reason": "non-final"
+        },
+        {
+          "name": "assert-timeout",
+          "rejected": true,
+          "reason": "non-BIP68-final"
+        }
+      ],
+      "mined": [
+        {
+          "name": "kickoff",
+          "txid": "d5eb8e6cc08d1821ea332976bfc453b1121110e9bddf79d4b93e6d1572986c42",
+          "vsize": 129,
+          "feeSats": 3000
+        },
+        {
+          "name": "challenge",
+          "txid": "775b0c97ea18f58df6318b369e2c09bd7ba042c01b630e72464c72e95942d7a8",
+          "vsize": 16514,
+          "feeSats": 60000
+        },
+        {
+          "name": "assert-timeout",
+          "txid": "43cbf0908e9a2a7601bc340ea02a86b7e49ade18f2f058c2b2ae9727861349b3",
+          "vsize": 129,
+          "feeSats": 3000
+        },
+        {
+          "name": "slots-timeout",
+          "txid": "680901f7f3dfb47f4254c935f8937bc1ffdc98405f52177788b85798a9966263",
+          "vsize": 31869,
+          "feeSats": 150000
+        }
+      ],
+      "disproveLeaf": 364,
+      "client": "bcrt1puacyak38hwjge4w4gzmu97x0xjggfwrtw00aezgqc5t0lu62f4ds8vyudx",
+      "provider": "bcrt1p52480qzvnxu0xl5eml6ayy4y2vj5ld9lhkqx7fkvh7330ddjqnrsz9vy89",
+      "payouts": [
+        {
+          "name": "assert-timeout",
+          "beneficiary": "client",
+          "address": "bcrt1puacyak38hwjge4w4gzmu97x0xjggfwrtw00aezgqc5t0lu62f4ds8vyudx",
+          "sats": 92314000,
+          "txid": "43cbf0908e9a2a7601bc340ea02a86b7e49ade18f2f058c2b2ae9727861349b3"
+        },
+        {
+          "name": "slots-timeout",
+          "beneficiary": "client",
+          "address": "bcrt1puacyak38hwjge4w4gzmu97x0xjggfwrtw00aezgqc5t0lu62f4ds8vyudx",
+          "sats": 7470000,
+          "txid": "680901f7f3dfb47f4254c935f8937bc1ffdc98405f52177788b85798a9966263"
+        }
+      ]
+    },
+    {
+      "scenario": "honest",
+      "checks": [
+        {
+          "name": "kickoff",
+          "rejected": true,
+          "reason": "non-final"
+        },
+        {
+          "name": "assert-timeout",
+          "rejected": true,
+          "reason": "non-BIP68-final"
+        },
+        {
+          "name": "assert-final",
+          "rejected": true,
+          "reason": "missing-inputs"
+        },
+        {
+          "name": "skipped-commitment",
+          "rejected": true,
+          "reason": "mempool-script-verify-flag-failed (Operation not valid with the current stack size)"
+        },
+        {
+          "name": "refund",
+          "rejected": true,
+          "reason": "non-BIP68-final"
+        },
+        {
+          "name": "slash",
+          "rejected": true,
+          "reason": "mempool-script-verify-flag-failed (Script evaluated without error but finished with a false/empty top stack element)"
+        }
+      ],
+      "mined": [
+        {
+          "name": "kickoff",
+          "txid": "4b580a76839ae17fd2cb258fb8119bad68e0cac0f58e7444e6a9bbdea16f5be3",
+          "vsize": 129,
+          "feeSats": 3000
+        },
+        {
+          "name": "challenge",
+          "txid": "9534c91c97b9b24041dcf5eec0ab0e1b2918bf98c1ccc0e215dfb4a7e3593185",
+          "vsize": 16514,
+          "feeSats": 60000
+        },
+        {
+          "name": "assert-commit-0",
+          "txid": "f3882d61c15d69068a7c5d7f3f1f9cafcafb45f9ac591eea4d5bb2bae22cd4a9",
+          "vsize": 290937,
+          "feeSats": 1000000
+        },
+        {
+          "name": "assert-commit-1",
+          "txid": "3d414fd7640ad01e6fb15940d0c8cc2e60b05f060c8058d7e0b0eb07185a4d27",
+          "vsize": 76385,
+          "feeSats": 500000
+        },
+        {
+          "name": "assert-final",
+          "txid": "951b35ac7f77144012a12763c834064ff31940e5b04df3c85e54e358259b5b6c",
+          "vsize": 321,
+          "feeSats": 3000
+        },
+        {
+          "name": "refund",
+          "txid": "b94877d8b72ae12635cacab04007a9c7adb95894715a14f28b71f723cac18b5c",
+          "vsize": 277,
+          "feeSats": 3000
+        }
+      ],
+      "disproveLeaf": 364,
+      "client": "bcrt1p7meatfu7lagx6mkuhgzu36208j5ewdpwe44j77qw5hrtk72a8xkskv3ndl",
+      "provider": "bcrt1pg6y7rl3s0mv3wqp7uw2h5g2g79qy4p4e5gpzxs27xgjfmxql5z4s9pmu08",
+      "payouts": [
+        {
+          "name": "refund",
+          "beneficiary": "provider",
+          "address": "bcrt1pg6y7rl3s0mv3wqp7uw2h5g2g79qy4p4e5gpzxs27xgjfmxql5z4s9pmu08",
+          "sats": 98431000,
+          "txid": "b94877d8b72ae12635cacab04007a9c7adb95894715a14f28b71f723cac18b5c"
+        }
+      ]
+    },
+    {
+      "scenario": "wrong-term",
+      "checks": [
+        {
+          "name": "kickoff",
+          "rejected": true,
+          "reason": "non-final"
+        },
+        {
+          "name": "assert-timeout",
+          "rejected": true,
+          "reason": "non-BIP68-final"
+        },
+        {
+          "name": "assert-final",
+          "rejected": true,
+          "reason": "missing-inputs"
+        },
+        {
+          "name": "skipped-commitment",
+          "rejected": true,
+          "reason": "mempool-script-verify-flag-failed (Operation not valid with the current stack size)"
+        },
+        {
+          "name": "refund",
+          "rejected": true,
+          "reason": "non-BIP68-final"
+        },
+        {
+          "name": "redirected-slash",
+          "rejected": true,
+          "reason": "mempool-script-verify-flag-failed (Invalid Schnorr signature)"
+        },
+        {
+          "name": "refund",
+          "rejected": true,
+          "reason": "missing-inputs"
+        }
+      ],
+      "mined": [
+        {
+          "name": "kickoff",
+          "txid": "1934051c5aa456e72e59216e2f71fd23a7b2372cdef162dc87edb79aa992c29a",
+          "vsize": 129,
+          "feeSats": 3000
+        },
+        {
+          "name": "challenge",
+          "txid": "401135a44ef0fc79c39031995dbec333f98e853e5cded67cb2510e895bca2d9c",
+          "vsize": 16514,
+          "feeSats": 60000
+        },
+        {
+          "name": "assert-commit-0",
+          "txid": "c53fda0dd8dea242eecc34306e105fe8ce7934a2457ebc5941dc0413582fb185",
+          "vsize": 290937,
+          "feeSats": 1000000
+        },
+        {
+          "name": "assert-commit-1",
+          "txid": "58019d992e2b47dae661c06281780a0ec8d66fc478f73ee5b820e1c0fa8d2f67",
+          "vsize": 76385,
+          "feeSats": 500000
+        },
+        {
+          "name": "assert-final",
+          "txid": "0d9611e9a8bd6a59c6ea2208370cca52902c7ea5f4321e513283b2580d687fb3",
+          "vsize": 321,
+          "feeSats": 3000
+        },
+        {
+          "name": "slash",
+          "txid": "2ad0379e05be8854b9a7708003838c20012ac12129e795c304c823e3c22f4ccb",
+          "vsize": 307417,
+          "feeSats": 2000000
+        }
+      ],
+      "disproveLeaf": 364,
+      "client": "bcrt1p500m9vfj0zcwq2efaqjqt4rvrwgd6ytpktgzs3ulam5kvdz7cf2qlzqnsd",
+      "provider": "bcrt1p46njf29rzkxundlps6dga83hc88c5ry4m6gjrhene5jnkrzqxcgsrukkl0",
+      "payouts": [
+        {
+          "name": "slash",
+          "beneficiary": "client",
+          "address": "bcrt1p500m9vfj0zcwq2efaqjqt4rvrwgd6ytpktgzs3ulam5kvdz7cf2qlzqnsd",
+          "sats": 96434000,
+          "txid": "2ad0379e05be8854b9a7708003838c20012ac12129e795c304c823e3c22f4ccb"
+        }
+      ]
+    },
+    {
+      "scenario": "corrupt-proof",
+      "checks": [
+        {
+          "name": "kickoff",
+          "rejected": true,
+          "reason": "non-final"
+        },
+        {
+          "name": "assert-timeout",
+          "rejected": true,
+          "reason": "non-BIP68-final"
+        },
+        {
+          "name": "assert-final",
+          "rejected": true,
+          "reason": "missing-inputs"
+        },
+        {
+          "name": "skipped-commitment",
+          "rejected": true,
+          "reason": "mempool-script-verify-flag-failed (Operation not valid with the current stack size)"
+        },
+        {
+          "name": "refund",
+          "rejected": true,
+          "reason": "non-BIP68-final"
+        },
+        {
+          "name": "redirected-slash",
+          "rejected": true,
+          "reason": "mempool-script-verify-flag-failed (Invalid Schnorr signature)"
+        },
+        {
+          "name": "refund",
+          "rejected": true,
+          "reason": "missing-inputs"
+        }
+      ],
+      "mined": [
+        {
+          "name": "kickoff",
+          "txid": "90860fd7379831a1ded0abc5c1dc6f66ceeb6a6f09fc00b20c840c12870be287",
+          "vsize": 129,
+          "feeSats": 3000
+        },
+        {
+          "name": "challenge",
+          "txid": "ebd7966f5278111f544f9be102f2b99bd759723d1ec5118f5816936696336a24",
+          "vsize": 16514,
+          "feeSats": 60000
+        },
+        {
+          "name": "assert-commit-0",
+          "txid": "cace69f57369db78810108f107a168309d7a70f390a57c461378d7301d754e22",
+          "vsize": 290937,
+          "feeSats": 1000000
+        },
+        {
+          "name": "assert-commit-1",
+          "txid": "50e1a51e9468a38e9aa74ba553b2d266ccc35108ad409cd22acb56ff4d2fbaa6",
+          "vsize": 76385,
+          "feeSats": 500000
+        },
+        {
+          "name": "assert-final",
+          "txid": "f9fe450610fdd05f62167a2ec7b63c0440db0483e21211b399d9fe2d7526ea65",
+          "vsize": 321,
+          "feeSats": 3000
+        },
+        {
+          "name": "slash",
+          "txid": "0a74e44b68dfebfae68088e9e600c9e7a6f22d7e002425f4f66ca98215cf49a3",
+          "vsize": 869174,
+          "feeSats": 2000000
+        }
+      ],
+      "disproveLeaf": 181,
+      "client": "bcrt1pttktdyenwxv2nu4d97uz4xut346667mputzt2q3zp9l3w3ed29vsc4uefr",
+      "provider": "bcrt1pv29ggrcz59fta82asuswaffrytqvmxax48w4ty8smy037rucax3qsjymx6",
+      "payouts": [
+        {
+          "name": "slash",
+          "beneficiary": "client",
+          "address": "bcrt1pttktdyenwxv2nu4d97uz4xut346667mputzt2q3zp9l3w3ed29vsc4uefr",
+          "sats": 96434000,
+          "txid": "0a74e44b68dfebfae68088e9e600c9e7a6f22d7e002425f4f66ca98215cf49a3"
+        }
+      ]
+    },
+    {
+      "scenario": "burn-marker",
+      "checks": [
+        {
+          "name": "kickoff",
+          "rejected": true,
+          "reason": "non-final"
+        },
+        {
+          "name": "assert-timeout",
+          "rejected": true,
+          "reason": "non-BIP68-final"
+        },
+        {
+          "name": "assert-final",
+          "rejected": true,
+          "reason": "missing-inputs"
+        },
+        {
+          "name": "skipped-commitment",
+          "rejected": true,
+          "reason": "mempool-script-verify-flag-failed (Operation not valid with the current stack size)"
+        },
+        {
+          "name": "refund",
+          "rejected": true,
+          "reason": "non-BIP68-final"
+        },
+        {
+          "name": "refund",
+          "rejected": true,
+          "reason": "missing-inputs"
+        },
+        {
+          "name": "final-timeout",
+          "rejected": true,
+          "reason": "non-final"
+        }
+      ],
+      "mined": [
+        {
+          "name": "kickoff",
+          "txid": "ff603f7b45239196dde6a0d92a403ef4d257b69432d5d5ee2b15d138558f91d8",
+          "vsize": 129,
+          "feeSats": 3000
+        },
+        {
+          "name": "challenge",
+          "txid": "25841e3d250e6501463351fea0e6414a229a7f7ce38d2dcb1bee14294e015396",
+          "vsize": 16514,
+          "feeSats": 60000
+        },
+        {
+          "name": "assert-commit-0",
+          "txid": "b9ddb925b8830220e001ef26d7cb6602ffc46188b76415da9da542aae91d05c4",
+          "vsize": 290937,
+          "feeSats": 1000000
+        },
+        {
+          "name": "assert-commit-1",
+          "txid": "b5581c50466e20a1b0ed42ad316e72e8804b99ff8d2fac0c54186ba9c800fa85",
+          "vsize": 76385,
+          "feeSats": 500000
+        },
+        {
+          "name": "assert-final",
+          "txid": "14527a0ebbd41321ee9ae8958b0330fc35088b193ff4c021e11141b9a5fcc2f9",
+          "vsize": 321,
+          "feeSats": 3000
+        },
+        {
+          "name": "marker-burn",
+          "txid": "2350d3bca0ca537507a5c7217507bb4221fa5bc39de956c4cc7824e8a05c9ba8",
+          "vsize": 307343,
+          "feeSats": 900000
+        },
+        {
+          "name": "final-timeout",
+          "txid": "c100723247354adc8274af9037d5dbcb53f51e5ec6db0329b94ccb87e6ea90b1",
+          "vsize": 129,
+          "feeSats": 3000
+        }
+      ],
+      "disproveLeaf": 364,
+      "client": "bcrt1pl0w3hxcpvqsu377j3eg4teq5wh3yut0fpf22ddnznm5rrptce9jsknyu92",
+      "provider": "bcrt1pee55q2e3kzfn8przal3vr5fqqh4j0hv8rdhmnx4h887q492d6afss7t2yv",
+      "payouts": [
+        {
+          "name": "marker-burn",
+          "beneficiary": "provider",
+          "address": "bcrt1pee55q2e3kzfn8przal3vr5fqqh4j0hv8rdhmnx4h887q492d6afss7t2yv",
+          "sats": 100000,
+          "txid": "2350d3bca0ca537507a5c7217507bb4221fa5bc39de956c4cc7824e8a05c9ba8"
+        },
+        {
+          "name": "final-timeout",
+          "beneficiary": "client",
+          "address": "bcrt1pl0w3hxcpvqsu377j3eg4teq5wh3yut0fpf22ddnznm5rrptce9jsknyu92",
+          "sats": 97431000,
+          "txid": "c100723247354adc8274af9037d5dbcb53f51e5ec6db0329b94ccb87e6ea90b1"
+        }
+      ]
+    }
+  ],
+  "payoutVerification": "independent transaction decoder; exact txids accepted and mined by Core"
+}

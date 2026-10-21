@@ -20,9 +20,9 @@ use ark_groth16::{Groth16, Proof, VerifyingKey};
 use bitcoin::ScriptBuf;
 use bitvm::chunk::api::{
     api_generate_full_tapscripts, api_generate_partial_script, api_get_assertions_from_signature,
-    api_get_signature_from_assertion, generate_signatures, generate_signatures_for_any_proof,
-    type_conversion_utils::utils_raw_witnesses_from_signatures, validate_assertions, PublicKeys, Signatures,
-    NUM_HASH, NUM_PUBS, NUM_TAPS, NUM_U256,
+    api_get_signature_from_assertion, generate_assertions, generate_signatures,
+    generate_signatures_for_any_proof, type_conversion_utils::utils_raw_witnesses_from_signatures,
+    validate_assertions, PublicKeys, Signatures, NUM_HASH, NUM_PUBS, NUM_TAPS, NUM_U256,
 };
 use bitvm::signatures::{Wots, Wots16, Wots32};
 use serde_json::{json, Value};
@@ -39,7 +39,10 @@ fn g1(v: &Value) -> G1Affine {
 }
 /// snarkjs writes G2 coordinates as [c0, c1].
 fn g2(v: &Value) -> G2Affine {
-    G2Affine::new(Fq2::new(fq(&v[0][0]), fq(&v[0][1])), Fq2::new(fq(&v[1][0]), fq(&v[1][1])))
+    G2Affine::new(
+        Fq2::new(fq(&v[0][0]), fq(&v[0][1])),
+        Fq2::new(fq(&v[1][0]), fq(&v[1][1])),
+    )
 }
 
 fn read(dir: &str, f: &str) -> Value {
@@ -47,7 +50,9 @@ fn read(dir: &str, f: &str) -> Value {
 }
 
 fn secrets() -> Vec<String> {
-    (0..NUM_PUBS + NUM_U256 + NUM_HASH).map(|i| format!("{TEST_SECRET}{i:04x}")).collect()
+    (0..NUM_PUBS + NUM_U256 + NUM_HASH)
+        .map(|i| format!("{TEST_SECRET}{i:04x}"))
+        .collect()
 }
 
 /// BitVM's get_pubkeys (crate-private in 7d1ca36), from the public Wots API.
@@ -63,11 +68,20 @@ fn pubkeys(secrets: &[String]) -> PublicKeys {
 }
 
 fn witness_bytes(s: &Signatures) -> usize {
-    utils_raw_witnesses_from_signatures(s).iter().flatten().map(|w| w.len()).sum()
+    utils_raw_witnesses_from_signatures(s)
+        .iter()
+        .flatten()
+        .map(|w| w.len())
+        .sum()
 }
 
 /// validate_assertions, then the disprove script it points at, executed with its witness.
-fn disprove(vk: &VerifyingKey<Bn254>, sigs: Signatures, pks: PublicKeys, scripts: &[ScriptBuf; NUM_TAPS]) -> Value {
+fn disprove(
+    vk: &VerifyingKey<Bn254>,
+    sigs: Signatures,
+    pks: PublicKeys,
+    scripts: &[ScriptBuf; NUM_TAPS],
+) -> Value {
     let t = Instant::now();
     match validate_assertions(vk, sigs, pks, scripts) {
         None => json!({ "found": false, "validate_s": t.elapsed().as_secs_f64() }),
@@ -91,7 +105,11 @@ fn disprove(vk: &VerifyingKey<Bn254>, sigs: Signatures, pks: PublicKeys, scripts
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     let dir = &args[1];
-    let flag = |k: &str| args.iter().position(|a| a == k).map(|i| args[i + 1].clone());
+    let flag = |k: &str| {
+        args.iter()
+            .position(|a| a == k)
+            .map(|i| args[i + 1].clone())
+    };
     let wrong = Fr::from_str(&flag("--wrong-public").expect("--wrong-public")).unwrap();
 
     let v = read(dir, "vk.json");
@@ -104,7 +122,11 @@ fn main() {
         gamma_abc_g1: v["IC"].as_array().unwrap().iter().map(g1).collect(),
     };
     let p = read(dir, "proof.json");
-    let proof = Proof::<Bn254> { a: g1(&p["pi_a"]), b: g2(&p["pi_b"]), c: g1(&p["pi_c"]) };
+    let proof = Proof::<Bn254> {
+        a: g1(&p["pi_a"]),
+        b: g2(&p["pi_b"]),
+        c: g1(&p["pi_c"]),
+    };
     assert!(proof.a.is_on_curve() && proof.b.is_on_curve() && proof.c.is_on_curve());
     let public = Fr::from_str(read(dir, "public.json")[0].as_str().unwrap()).unwrap();
 
@@ -116,19 +138,94 @@ fn main() {
     println!("arkworks: honest {ark_ok}, wrong public input {ark_wrong}");
     if args.iter().any(|arg| arg == "--verify-only") {
         assert!(ark_ok && !ark_wrong);
-        println!("{}", json!({ "verifies": ark_ok, "wrong_public_verifies": ark_wrong }));
+        println!(
+            "{}",
+            json!({ "verifies": ark_ok, "wrong_public_verifies": ark_wrong })
+        );
+        return;
+    }
+
+    if args.iter().any(|arg| arg == "--assertions-only") {
+        assert!(ark_ok && !ark_wrong);
+        let assertions =
+            generate_assertions(proof.clone(), vec![public], &vk).expect("honest chunk assertions");
+        let path = flag("--assertions-out").expect("--assertions-out");
+        let value = json!({
+            "bitvm_rev": "7d1ca36", "public_input": public.to_string(), "scripts_checked": true,
+            "public": assertions.0.iter().map(|a| a.to_vec()).collect::<Vec<_>>(),
+            "fields": assertions.1.iter().map(|a| a.to_vec()).collect::<Vec<_>>(),
+            "hashes": assertions.2.iter().map(|a| a.to_vec()).collect::<Vec<_>>()
+        });
+        let mut output = std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&path)
+            .unwrap();
+        use std::io::Write;
+        output
+            .write_all(&serde_json::to_vec_pretty(&value).unwrap())
+            .unwrap();
+        println!("saved checked public assertions to {path}");
         return;
     }
 
     let t = Instant::now();
     let partial = api_generate_partial_script(&vk);
     let compile_s = t.elapsed().as_secs_f64();
+    if let Some(cache) = flag("--cache-partials") {
+        let path = std::path::Path::new(&cache);
+        if path.exists() {
+            assert!(
+                args.iter().any(|a| a == "--resume-cache"),
+                "cache directory must be new unless --resume-cache is explicit"
+            );
+        } else {
+            std::fs::create_dir(path).unwrap();
+        }
+        for (index, script) in partial.iter().enumerate() {
+            let file = path.join(format!("{index:03}.bin"));
+            if file.exists() {
+                let existing = std::fs::read(&file).unwrap();
+                if existing == script.as_bytes() {
+                    continue;
+                }
+                assert!(
+                    existing.len() < script.len() && script.as_bytes().starts_with(&existing),
+                    "cache differs from the pinned verifier"
+                );
+            }
+            std::fs::write(file, script.as_bytes()).unwrap();
+        }
+        let vk_bytes = std::fs::read(format!("{dir}/vk.json")).unwrap();
+        use bitcoin::hashes::Hash;
+        std::fs::write(path.join("manifest.json"), serde_json::to_vec_pretty(&json!({
+            "bitvm_rev": "7d1ca36", "count": partial.len(),
+            "vk_sha256": bitcoin::hashes::sha256::Hash::hash(&vk_bytes).to_string(),
+            "script_sha256": partial.iter().map(|s| bitcoin::hashes::sha256::Hash::hash(s.as_bytes()).to_string()).collect::<Vec<_>>()
+        })).unwrap()).unwrap();
+        println!(
+            "cached {} public verifier scripts in {}",
+            partial.len(),
+            cache
+        );
+        if args.iter().any(|arg| arg == "--cache-only") {
+            return;
+        }
+    }
     let secrets = secrets();
     let pks = pubkeys(&secrets);
-    let scripts: [ScriptBuf; NUM_TAPS] = api_generate_full_tapscripts(pks, &partial).try_into().unwrap();
+    let scripts: [ScriptBuf; NUM_TAPS] = api_generate_full_tapscripts(pks, &partial)
+        .try_into()
+        .unwrap();
+    drop(partial); // The complete scripts are now owned; free the duplicate gigabyte before proving.
     let sizes: Vec<usize> = scripts.iter().map(|s| s.len()).collect();
     let total: usize = sizes.iter().sum();
-    println!("BitVM disprove tapscripts: {} scripts, {} bytes, largest {}", sizes.len(), total, sizes.iter().max().unwrap());
+    println!(
+        "BitVM disprove tapscripts: {} scripts, {} bytes, largest {}",
+        sizes.len(),
+        total,
+        sizes.iter().max().unwrap()
+    );
 
     let t = Instant::now();
     let honest = generate_signatures(proof.clone(), vec![public], &vk, secrets.clone());
@@ -143,6 +240,25 @@ fn main() {
         "honest": { "all_disprove_scripts_fail": honest_ok, "sign_and_execute_all_s": honest_s },
     });
     let honest = honest.expect("BitVM rejected the honest proof");
+    if let Some(path) = flag("--assertions-out") {
+        let assertions = api_get_assertions_from_signature(honest.clone());
+        let value = json!({
+            "bitvm_rev": "7d1ca36", "public_input": public.to_string(), "scripts_checked": true,
+            "public": assertions.0.iter().map(|a| a.to_vec()).collect::<Vec<_>>(),
+            "fields": assertions.1.iter().map(|a| a.to_vec()).collect::<Vec<_>>(),
+            "hashes": assertions.2.iter().map(|a| a.to_vec()).collect::<Vec<_>>()
+        });
+        let mut output = std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&path)
+            .unwrap();
+        use std::io::Write;
+        output
+            .write_all(&serde_json::to_vec_pretty(&value).unwrap())
+            .unwrap();
+        println!("saved checked public assertions to {path}");
+    }
     out["honest"]["assertion_witness_bytes"] = json!(witness_bytes(&honest));
     out["honest"]["assertions"] = json!({ "u256": NUM_PUBS + NUM_U256, "hash": NUM_HASH });
     let t = Instant::now();
@@ -151,13 +267,20 @@ fn main() {
 
     let wrong_sigs = generate_signatures_for_any_proof(proof, vec![wrong], &vk, secrets.clone());
     out["wrong_public_input"] = disprove(&vk, wrong_sigs, pks, &scripts);
-    println!("disprove, wrong public input: {}", out["wrong_public_input"]);
+    println!(
+        "disprove, wrong public input: {}",
+        out["wrong_public_input"]
+    );
 
     let mut asserts = api_get_assertions_from_signature(honest);
     asserts.2[NUM_HASH / 2][0] ^= 1;
     let corrupt = api_get_signature_from_assertion(asserts, secrets);
     out["corrupted_intermediate"] = disprove(&vk, corrupt, pks, &scripts);
-    println!("disprove, corrupted intermediate hash {}: {}", NUM_HASH / 2, out["corrupted_intermediate"]);
+    println!(
+        "disprove, corrupted intermediate hash {}: {}",
+        NUM_HASH / 2,
+        out["corrupted_intermediate"]
+    );
 
     let s = serde_json::to_string_pretty(&out).unwrap();
     match flag("--out") {

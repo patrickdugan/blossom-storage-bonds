@@ -67,10 +67,14 @@ are accepted and mined. The disprove transaction is about 307,000 vB, at an expl
 Generated signatures, test wallet data and raw transaction vectors remain in the test datadir;
 the result file contains only verdicts, sizes and transaction identifiers. No secret keys are exported.
 
-## Remaining integration
+## Storage graph integration
 
-This is an isolated disprove leaf, not the complete storage bond graph. It still needs to be joined
-to the assertion, challenge, provider-refund and timeout-to-client transactions, with the same
-Winternitz commitments as the Groth16 verifier. The chain-work challenge and per-epoch deal updates
-are not implemented here. The phase-6 proving key remains a test key with the setup assumptions
-described in `docs/design.md` §4.6. No signet or public-network test has run.
+The leaf is now connected to a presigned storage graph with the same fresh Winternitz keys as all
+364 real Groth16 verifier leaves. Core 31.1 regtest passed seven refund, slash and timeout scenarios,
+including a real Groth16 disprove of a corrupted intermediate and rejection of redirected slashing.
+See [the graph documentation](../../docs/bitvm-storage-graph.md) and
+[the fresh result](../../results/bitvm-storage-graph-regtest.json).
+
+This graph run reuses the phase-6 proof. A live provider lifecycle with fresh proofs for the new
+chain, the heavier-chain challenge and per-epoch deal updates remain. The phase-6 proving key retains
+the setup assumptions in design §4.6. No signet or public-network test has run.

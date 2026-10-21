@@ -5,6 +5,8 @@ edition = "2021"
 
 # BitVM at 7d1ca36 ("DO NOT USE IN PRODUCTION"); Cargo.lock started as a copy of BitVM's.
 [dependencies]
+blake3 = "=1.8.2"
+musig2 = { version = "=0.4.1", default-features = false, features = ["k256"] }
 bitcoin-script-stack = { git = "https://github.com/BitVM/rust-bitcoin-script-stack" }
 bitcoin-script = { git = "https://github.com/BitVM/rust-bitcoin-script" }
 bitvm = { git = "https://github.com/BitVM/BitVM", rev = "7d1ca36" }

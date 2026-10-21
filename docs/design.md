@@ -1067,9 +1067,13 @@ Winternitz-committed intermediate values, and a bridge whose peg-in and peg-out 
 by verifiers with MuSig2 and run on regtest against esplora. Its copies of the header-chain and
 final-spv guests are Citrea's. Missing for this design:
 
-- A storage graph. The bridge pays a withdrawer and reimburses an operator; a bond needs refund,
-  slash and timeout-to-client around a term deadline, with the client as a party to the timeout.
-- Integration of the public-input binding into the storage graph. An additional leaf now exists
+- A live storage graph with fresh term proofs. A presigned graph now runs locally around the fixed
+  phase-6 proof (`docs/bitvm-storage-graph.md`): all 364 real Groth16 leaves plus the term-binding
+  leaf, 381 on-chain Winternitz commitments, two-party MuSig2 control, provider refunds, client
+  slashing and silence timeouts. Seven Core 31.1 regtest scenarios mined 32 graph transactions and
+  rejected 32 premature or invalid spends, including a real Groth16 disprove at leaf 181. Fresh
+  proofs for the run's chain and a live provider's term-end assertion lifecycle are not wired in.
+- Public-input binding. An additional leaf now exists
   in `zk/bitvm-check/src/storage_binding.rs`: it pins the term prefix and wrapper constants,
   verifies Winternitz commitments to the public input and chain tip, and opens only for a binding
   mismatch. It uses the chunker's nibble-swapped big-endian scalar encoding. Seven interpreter
@@ -1077,8 +1081,9 @@ final-spv guests are Citrea's. Missing for this design:
   reject the honest case and mine wrong-public, wrong-tip, wrong-work and wrong-term cases
   (`results/bitvm-storage-binding-regtest.json`). This is an isolated leaf, about 1.224 MB: its
   regtest node enables nonstandard transactions and raises the cluster-size limit. The storage
-  graph still has to use the same public-input key as the Groth16 chunker and carry the chain-tip
-  commitments in its assertion transactions; the leaf is not yet connected to that graph.
+  graph now uses the same public-input key as the Groth16 chunker and carries the three chain-tip
+  commitments in its assertion transactions; the graph run is recorded separately in
+  `results/bitvm-storage-graph-regtest.json`.
 - Aggregation. The term guest here is that piece, for a fixed D and q: it verifies N epoch receipts
   as assumptions in one proof. Per-epoch deal digests D_e committed on chain before each seed block
   (§4.2) are not built.
@@ -1254,7 +1259,7 @@ Blossom servers already authorize uploads with kind 24242 events, and users list
 | 3b | Holdings mode (cost independent of the number of deals) and public proofs in the market: block-hash seeds, proofs on Blossom, Nostr announcements, an independent watchtower, pay only for verified epochs (§4.3) | Done on regtest; proofs verified off chain |
 | 4 | The whole stack in one run: bonds, public proofs, Lightning payment per verified epoch, and watchtower attestations that trigger on-chain sentinel challenges (§4.4) | Done on regtest: both cheaters forfeit, the honest provider is paid and refunded |
 | 5 | On-chain pay per proof: signed invoices, pay-to-contract outputs committing to payment hashes, batching, receipts (txid + Merkle inclusion proof) checked from a header chain with no node; a watchtower that attests both "stored" and "paid" from public data (§4.5) | Done on regtest with a header-replay stand-in for the ZeroSync-style STARK; a regtest `chain_segment` is next |
-| 6 | BitVM2 feasibility spike: the holdings statement in RISC Zero, seeds bound to risc0-to-bitvm2's regtest header-chain proof, one term proof, the Groth16 wrap, BitVM's verifier and chunked disprove; the bond as a BitVM2 graph (§4.6) | Done as a spike, regtest and test keys only: every milestone ran, and BitVM's bridge mined a disprove of a wrong assertion of this proof. The graph of §4.6(a) is not built |
+| 6 | BitVM2 feasibility spike: the holdings statement in RISC Zero, seeds bound to risc0-to-bitvm2's regtest header-chain proof, one term proof, the Groth16 wrap, BitVM's verifier and chunked disprove; the bond as a BitVM2 graph (§4.6) | Done as a spike, regtest and test keys only: every milestone ran, and BitVM's bridge mined a disprove of a wrong assertion of this proof. A fixed-proof storage graph now passes seven regtest scenarios; fresh term proofs and a heavier-chain challenge remain |
 | 7 | Signet readiness for the phase 4–5 stack: a network flag (RPC, address and invoice prefixes, confirmation depth, blocks waited for rather than mined, estimated fees), fresh keys per party and run with fixed values refused off regtest, offers and deals as Nostr events (§6), a relay pool and public Blossom URLs, per-deal bond size, restart and reorg handling, remote providers and watchtower; the runbook `docs/signet-pilot.md` | Done on regtest: every test passes, the harness output and the bond transactions are byte-identical to phases 1 and 4, and the whole stack ends as in phase 4. Not run on signet: that needs a go-ahead (runbook §8) |
 
 ## What is and is not tested
@@ -1276,7 +1281,8 @@ What neither covers yet:
 - A STARK of the header chain behind payment receipts. `chain_segment` cannot take regtest headers
   (§4.5), so receipts are checked against a replayed header chain, and on regtest the work floor proves
   nothing. On-chain payments are untested on any network but regtest, and at depths beyond 1.
-- BitVM2 on anything but regtest, and the storage graph of §4.6(a), which is not built. The disprove
+- BitVM2 on anything but regtest, and the storage graph with fresh term proofs for its own chain.
+  The fixed-proof graph is now tested (`docs/bitvm-storage-graph.md`). The phase-6 disprove
   that was mined went through BitVM's peg-out graph with three local fixes (§4.6, milestone 3), and
   through a relay because esplora would not take the assert transactions. The Groth16 key is
   Citrea's, which records one phase-2 contribution (§4.6 d), and the header chain proves work, not
