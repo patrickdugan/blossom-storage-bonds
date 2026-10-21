@@ -515,6 +515,20 @@ a hard but satisfiable authorization relation; the cited PIPE model explicitly a
 No such primitive or changed security assumption has been adopted here. The current exact-work
 certificate remains useful, but its permissionless path into the collateral is still unimplemented.
 
+### Unimplemented transaction-introspection follow-up
+
+[Binohash, sections 2.7, 6.4, 7.1 and appendix C](https://robinlinus.com/binohash.pdf) proposes a
+legacy-script digest with subset signatures. It relies on FindAndDelete, grinding, legacy opcode
+limits and nonstandard mining; it cannot be inserted unchanged into this Taproot graph. Its
+signing-mode checks matter: a subset-only demonstration would not establish the required binding.
+
+A candidate to investigate is to make the registered provider prove a rebuttal to a publicly
+posted work certificate, using an authenticated digest of its actual response to bind the
+challenge transaction. This would avoid assuming a newly registered prover. It is a hypothesis:
+late parent txids must still permit enforceable successor outputs, and all alternate spends must
+preserve fixed payouts and deadlines. A new trusted signer, unconstrained withdrawal, guessed
+marker script or reduced-security toy hash would not satisfy the selected objective.
+
 ### Compact binding consensus checks on Core
 
 `bsb-fork-binding` and `fork-binding-regtest.ts` now exercise the compact arithmetic leaf as a real

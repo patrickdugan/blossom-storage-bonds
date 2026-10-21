@@ -94,5 +94,22 @@
     "Permissionless admission retained; no designated client substituted.",
     "No new proof system, consensus rule, security assumption, install, or service adopted.",
     "No push, public posting, real funds, or pilot."
-  ]
+  ],
+  "unimplementedFollowup": {
+    "source": "https://robinlinus.com/binohash.pdf",
+    "sections": [
+      "2.7",
+      "6.4",
+      "7.1",
+      "appendix C"
+    ],
+    "status": "research hypothesis only",
+    "idea": "Authenticate a response transaction so the registered provider must rebut the public work challenge.",
+    "unproven": [
+      "Legacy integration and complete signature-mode binding.",
+      "Successor authorization with late parent transaction identifiers.",
+      "Fixed payout and response deadlines across every alternate spend."
+    ],
+    "implemented": false
+  }
 }
