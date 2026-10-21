@@ -1,0 +1,30 @@
+{
+  "scope": "VPS transfer-integrity and recorded-outcome tests only; no new storage proof or BitVM execution in these guards",
+  "returnedBitvm": {
+    "scope": "Transfer and recorded-outcome guards only; no new proof or BitVM execution",
+    "passed": 9,
+    "cases": [
+      "changed g16/proof.json",
+      "changed bitvm/result.json",
+      "changed bitvm/assertions.json",
+      "wrong-public",
+      "unchecked",
+      "bad-shape",
+      "invalid-byte",
+      "wrong-encoded-public",
+      "failed full-verifier outcome"
+    ]
+  },
+  "legacyTransfer": {
+    "network": "regtest",
+    "snapshotJournal": "d8afece188234af2c75c6034f63aa208f2a404a3b99d137690f78a915d938ca0",
+    "staleSnapshotRejected": true,
+    "forgedMetadataAcceptedWithoutClaimingProofValidity": true,
+    "replayedProofRejectedByNativePairing": true,
+    "changedCopiedFileRejected": true,
+    "changedGuestIdRejected": true,
+    "changedWrapperRejected": true,
+    "changedManifestRejected": true,
+    "scope": "Transfer and cryptographic guards only; no provider signatures requested or generated"
+  }
+}

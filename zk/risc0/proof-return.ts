@@ -3,7 +3,7 @@
 // verifier before it supplies a request to the waiting one-time signer.
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { readFileSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { termJournal, termPreimage, termPublicInput, wrapConstantsDigest } from "../../model/bitvm_term.ts";
@@ -17,6 +17,25 @@ const json = (path: string): any => {
   const text=readFileSync(path,"utf8").trim();
   try{return JSON.parse(text);}catch{return JSON.parse(text.split("\n").pop()!);}
 };
+// This authenticates transferred bytes against the job manifest, not execution.
+// The caller must separately verify Groth16 and audit the full verifier report.
+export function checkReturnedBitvm(returned:string,publicInput:string){
+  if(!existsSync(join(returned,"bitvm")))return undefined;
+  const manifest=json(join(returned,"bitvm/manifest.json"));
+  assert.equal(manifest.format,"bsb/bitvm-proof-return/v1");
+  assert.match(manifest.checker_sha256,/^[0-9a-f]{64}$/);
+  const names=["g16/vk.json","g16/proof.json","g16/public.json","bitvm/result.json","bitvm/assertions.json"];
+  const files=Object.fromEntries(names.map(name=>[name,sha(readFileSync(join(returned,name)))]));
+  assert.deepEqual(manifest.files,files,"BitVM job files differ from its manifest");
+  const a=json(join(returned,"bitvm/assertions.json"));
+  assert.equal(a.bitvm_rev,"7d1ca36");assert.equal(a.public_input,publicInput);assert.equal(a.scripts_checked,true);
+  for(const [name,count,size] of [["public",1,32],["fields",14,32],["hashes",363,16]] as const){
+    assert.ok(Array.isArray(a[name])&&a[name].length===count,"wrong assertion count");
+    for(const row of a[name])assert.ok(Array.isArray(row)&&row.length===size&&row.every((x:unknown)=>Number.isInteger(x)&&Number(x)>=0&&Number(x)<256),"invalid assertion bytes");
+  }
+  assert.deepEqual(a.public[0],Array.from(Buffer.from(BigInt(publicInput).toString(16).padStart(64,"0"),"hex"),x=>((x&15)<<4)|(x>>4)),"assertions encode another public input");
+  return {checkerSha256:manifest.checker_sha256,files:["bitvm/manifest.json","bitvm/result.json","bitvm/assertions.json"],assertionsSha256:files["bitvm/assertions.json"]};
+}
 export function checkProofReturn(snapshotDir: string, returned: string, setup: ProofSetup) {
   const snapshot=json(join(snapshotDir,"snapshot.json")),fixture=json(join(returned,"fixture.json"));
   assert.equal(snapshot.format,"bsb/fresh-proof-snapshot/v1");assert.equal(snapshot.network,"regtest");assert.equal(setup.network,"regtest");
@@ -50,7 +69,8 @@ export function checkProofReturn(snapshotDir: string, returned: string, setup: P
   assert.equal(g.public_output_dec,expected);assert.deepEqual(json(join(returned,"g16/public.json")),[expected]);
   assert.equal(sha(readFileSync(join(returned,"g16/vk.json"))),setup.vk_sha256);
   assert.deepEqual(json(join(returned,"g16/proof.json")),g.proof);
-  return {snapshot,publicInput:expected,files:Object.fromEntries(RETURN_FILES.map(name=>[name,sha(readFileSync(join(returned,name)))]))};
+  const bitvm=checkReturnedBitvm(returned,expected);
+  return {snapshot,publicInput:expected,bitvm,files:Object.fromEntries([...RETURN_FILES,...(bitvm?.files??[])].map(name=>[name,sha(readFileSync(join(returned,name)))]))};
 }
 export function sealProofReturn(snapshotDir:string,returned:string,setup:ProofSetup):void{
   const checked=checkProofReturn(snapshotDir,returned,setup);

@@ -87,6 +87,28 @@ new return-directory path; it must not exist when the committee and provider sta
 node zk/bitvm-check/lifecycle-regtest.ts --bitcoind <core> --checker <bsb-storage-live> --proof-checker <bsb-bitvm-check> --partials <cache> --dir <new-node-directory> --out <new-result.json> --fresh-proof-dir <new-return-directory>
 ```
 
+To keep full BitVM execution on the private VPS, add `--require-returned-bitvm` to the fresh
+lifecycle command. This refuses a return without the VPS verifier artifacts and disables the
+local unsigned-chunk fallback. The VPS must run the full `bsb-bitvm-check` command with both
+`--out bitvm/result.json` and `--assertions-out bitvm/assertions.json` after generating the proof.
+Return those files under the proof directory, plus `bitvm/manifest.json`:
+
+```json
+{"format":"bsb/bitvm-proof-return/v1","checker_sha256":"<actual checker hash>","files":{"g16/vk.json":"<sha256>","g16/proof.json":"<sha256>","g16/public.json":"<sha256>","bitvm/result.json":"<sha256>","bitvm/assertions.json":"<sha256>"}}
+```
+
+The transfer gate checks these hashes, the assertion dimensions and byte ranges, the exact public
+scalar encoding, and `scripts_checked: true`. The readiness file includes all three BitVM files.
+The coordinator verifies Groth16 locally, audits the full verifier's recorded outcomes using
+`--audit-report`, rechecks the sealed files, then passes the returned assertions to the one-time
+signer. It records VPS execution separately from local unsigned execution. This is an operational
+handoff from the user's private VPS: the manifest and report audit do not cryptographically attest
+execution or independently rerun the BitVM trace. A real VPS run and its exit status must be checked.
+
+`proof-return-bitvm-guards.ts` exercises nine malformed-file, assertion and failed-outcome cases
+without new proving. The existing transfer guards still reject a replayed proof by the native
+pairing equation. Evidence is `results/bitvm-proof-return-vps-guards.json`.
+
 The coordinator writes `<node-directory>/proof-job.json` and `input-snapshot/` after funding
 and term end. Transfer only the public input snapshot to the prover and run the pinned proof job
 in `bitvm-fresh-proof-job.md`. Keep the local provider alive: its one-time secrets remain in RAM.
@@ -99,8 +121,8 @@ node zk/risc0/proof-return.ts <node-directory>/input-snapshot <return-directory>
 ```
 
 This checks the copied metadata and hashes, then creates `RETURN_READY.json`. It does not
-verify the proof. The coordinator independently runs the native Groth16 verifier and executes
-the unsigned BitVM chunks before requesting the provider's single signing event. It also checks
+verify the proof. The coordinator independently runs the native Groth16 verifier, then executes the unsigned BitVM
+chunks or audits and imports the sealed VPS result before requesting the provider's single signing event. It also checks
 that the node still has the snapshot's tip hash. A failed return stops the provider and node;
 the lost one-time setup cannot be resumed by starting another signer with the same public keys.
 

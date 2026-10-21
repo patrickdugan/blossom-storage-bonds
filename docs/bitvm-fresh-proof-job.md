@@ -92,7 +92,12 @@ node zk/risc0/check-groth16.ts <output>/g16/groth16.json <output>/term.json <sna
 bsb-bitvm-check <output>/g16 --wrong-public 1 --verify-only
 ```
 
-Only then generate the checked BitVM assertions for this new proof. The verifying-key-specific
+For the VPS-only BitVM handoff, run the full verifier on the VPS with both `--out` and
+`--assertions-out`, and return its sealed result as described in `bitvm-storage-lifecycle.md`.
+Use `--require-returned-bitvm` in that lifecycle to disable local chunk execution. The native
+Groth16 pairing check and recorded-outcome audit still run locally.
+
+Otherwise, only then generate the checked BitVM assertions for this new proof. The verifying-key-specific
 partial-script cache can be reused because this job pins the same key; the assertion values and
 their one-time signatures must come from the new proof.
 

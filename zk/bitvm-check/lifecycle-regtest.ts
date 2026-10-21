@@ -18,6 +18,8 @@ const root = resolve(req("dir")), output = resolve(req("out")), checker = req("c
 const partials = resolve(req("partials"));
 const freshDir = opt("fresh-proof-dir") ? resolve(opt("fresh-proof-dir")!) : undefined;
 const proofChecker = freshDir ? req("proof-checker") : undefined;
+const requireReturnedBitvm=process.argv.includes("--require-returned-bitvm");
+assert.ok(!requireReturnedBitvm||freshDir,"returned BitVM mode requires a fresh proof");
 let checked = freshDir ? join(root,"fresh-assertions.json") : resolve(req("assertions"));
 assert.ok(!freshDir || !existsSync(freshDir), "fresh proof return directory must not exist at setup");
 const kind = opt("scenario") ?? "honest";
@@ -117,12 +119,21 @@ try{
       assert.ok(Date.now()-started<waitMs,"fresh proof return timed out; this one-time setup cannot be restarted");await sleep(2000);
     }
     const returned=checkProofReturnReady(snapshotDir,freshDir,setup);
+    assert.ok(!requireReturnedBitvm||returned.bitvm,"this lifecycle requires the VPS BitVM result; local execution is disabled");
     assert.equal(await rpc("getblockhash",[snapshot.chain.tip_height]),snapshot.chain.tip_hash,"proof snapshot was reorged out before assertion");
     proofDir=join(freshDir,"g16");fixturePath=join(freshDir,"fixture.json");
     const wrong=returned.publicInput==="1"?"2":"1";
     const native=child([proofDir,"--wrong-public",wrong,"--verify-only"],"fresh-native-verification",proofChecker!);native.proc.stdin!.end();await native.exited;
-    const chunks=child([proofDir,"--wrong-public",wrong,"--assertions-only","--assertions-out",checked],"fresh-chunk-assertions",proofChecker!);chunks.proc.stdin!.end();await chunks.exited;
-    freshEvidence={snapshot_journal:snapshot.expected_journal,tip_height:snapshot.chain.tip_height,tip_hash:snapshot.chain.tip_hash,public_input:returned.publicInput,nativeGroth16Verified:true,unsignedChunksExecuted:true,returnedFiles:returned.files};
+    if(returned.bitvm){
+      const audit=child(["--audit-report",join(freshDir,"bitvm/result.json")],"returned-bitvm-report-audit",proofChecker!);audit.proc.stdin!.end();await audit.exited;
+      checkProofReturnReady(snapshotDir,freshDir,setup);
+      const bytes=readFileSync(join(freshDir,"bitvm/assertions.json"));
+      assert.equal(createHash("sha256").update(bytes).digest("hex"),returned.bitvm.assertionsSha256);
+      writeFileSync(checked,bytes,{flag:"wx"});
+    }else{
+      const chunks=child([proofDir,"--wrong-public",wrong,"--assertions-only","--assertions-out",checked],"fresh-chunk-assertions",proofChecker!);chunks.proc.stdin!.end();await chunks.exited;
+    }
+    freshEvidence={snapshot_journal:snapshot.expected_journal,tip_height:snapshot.chain.tip_height,tip_hash:snapshot.chain.tip_hash,public_input:returned.publicInput,nativeGroth16Verified:true,unsignedChunksExecuted:!returned.bitvm,fullBitvmExecutedOnVps:!!returned.bitvm,returnedBitvm:returned.bitvm,returnedFiles:returned.files};
     await note("fresh_proof_verified_for_own_chain");
     writeFileSync(proofJobPath,JSON.stringify({...job,status:"proof_verified",evidence:freshEvidence,events},null,2)+"\n");
   }
