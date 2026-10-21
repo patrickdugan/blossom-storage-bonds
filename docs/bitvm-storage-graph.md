@@ -416,3 +416,64 @@ node zk/risc0/fork-public-guards.ts --compact --g16 <g16-dir> --statement <proof
 
 Save the independent readback as `<readback.json>` and copy the pinned verifying key into the
 Groth16 directory before the final two checks. The recipe starts no Bitcoin node or downloader.
+
+### Late marker attachment: flexible signatures do not authenticate the verifier
+
+`examples/late-marker.rs` and `late-marker-regtest.ts` test whether a challenger created after
+setup can attach a new proof-marker input to an existing collateral spend. This is a deliberately
+incomplete design, using a small work comparison and hash tag rather than headers or Groth16.
+A single ephemeral signing key stands in for committee authorization solely to test the sighash
+rules; it exports public templates and exits before funding. Only afterwards does a separate
+process generate the challenger's key and tag, construct its marker, and sign its own input.
+
+| Collateral signature | Observed result on Core 31.1 |
+| --- | --- |
+| `SINGLE|ANYONECANPAY` | Admits the intended late marker, an `OP_TRUE` replacement, and no marker |
+| `ALL|ANYONECANPAY` | Pins all outputs, but likewise admits either replacement or omission |
+| `SIGHASH_DEFAULT`, fixed marker input | Accepts its original marker and rejects changed or omitted marker inputs |
+| Either flexible signature, annex added later | Rejects with `Invalid Schnorr signature` |
+
+The intended marker independently rejects equal work and a changed tag, so its predicate is tested
+rather than assumed. Both flexible collateral signatures also reject a redirected payout. These
+controls distinguish failure to authenticate the extra verifier input from failure to bind the
+recipient. Core mines the trivial-marker substitution, marker omission, and strict original control;
+each pays the pinned client 99,995,000 regtest sats. Seven admission checks and twelve rejected
+spends are recorded in `results/bitvm-late-marker-attachment.json`. Public templates and the late
+challenger's transaction vectors are in `results/bitvm-late-marker-vectors.json`. An independent
+`check_late_marker.py` audit recomputes txids and wtxids, checks the original signatures are reused
+byte for byte, and verifies the fixed payouts and actual sighash bytes. The node is isolated
+and exits cleanly.
+
+This rules out merely loosening the present collateral signature to permit an arbitrary future
+marker. It does not demonstrate a flaw in the existing graph, which uses fixed inputs and
+`SIGHASH_DEFAULT/ALL`, nor prove that every possible permissionless registration protocol fails.
+The [BIP341 signature message](https://github.com/bitcoin/bips/blob/master/bip-0341.mediawiki#common-signature-message)
+authenticates the signing input under `ANYONECANPAY`; other inputs need their own authentication
+mechanism. It also commits an annex when present, including its presence bit. The measured annex
+rejection therefore prevents using a newly attached annex as an already-presigned data commitment.
+
+```text
+cargo build --offline --locked --manifest-path zk/bitvm-check/Cargo.toml --example late-marker
+node zk/bitvm-check/late-marker-regtest.ts --bitcoind <installed-bitcoind> --checker <late-marker-example> --dir <new-data-dir> --out <new-report.json>
+python3 zk/bitvm-check/check_late_marker.py <new-report.json> <new-data-dir>/public-vectors.json
+```
+
+### Other cryptographic enforcement research
+
+The [ColliderScript authors' construction](https://eprint.iacr.org/2024/1802.pdf) demonstrates why
+these failed attachment experiments are not an impossibility proof. It proposes no-fork transaction
+introspection using collision searches, with about `2^86` hash queries per spend in the cited design.
+That is a separate cryptographic construction, not a practical cached component of this graph.
+
+[PIPEs v2, sections 1.1 and 2.6](https://www.allocinit.xyz/uploads/pipesv2.pdf) instead considers
+extractable witness encryption and one-time key release. Key release alone does not constrain the
+subsequent transaction's outputs or messages. Its cited [AADP instantiation](https://eprint.iacr.org/2026/175)
+estimates hundreds of terabytes of ciphertext at 100-bit security. These are research estimates,
+not measured capabilities of the rented VPS or this repository.
+
+Adapting such a primitive would require an explicit relation authenticating the provider's actual
+term and responding claim under the graph's existing keys, plus an independently enforced payout
+and deadline protocol. Ordinary false-instance witness-encryption security would not suffice for
+a hard but satisfiable authorization relation; the cited PIPE model explicitly asks for extractability.
+No such primitive or changed security assumption has been adopted here. The current exact-work
+certificate remains useful, but its permissionless path into the collateral is still unimplemented.
