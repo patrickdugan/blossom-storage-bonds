@@ -492,6 +492,22 @@ subsequent transaction's outputs or messages. Its cited [AADP instantiation](htt
 estimates hundreds of terabytes of ciphertext at 100-bit security. These are research estimates,
 not measured capabilities of the rented VPS or this repository.
 
+That candidate also needs a security reassessment. [Breaking ADP-Based Witness Encryption
+(2026/1594)](https://eprint.iacr.org/2026/1594), received August 3, reports attacks recovering the
+message from public ciphertexts for the ADP and AADP candidates in their sparse-circuit regime.
+[Independent ADP cryptanalysis (2026/1583)](https://eprint.iacr.org/2026/1583) gives a further
+polynomial-time message-recovery attack. These results concern the specified candidates; they
+are not an impossibility result for witness encryption or covenants. They do rule out treating
+the cited heuristic instantiation as an established enforcement component here.
+
+The September 2026 [prime-order generic-group WE construction, section 1.1](https://arxiv.org/html/2609.18275v1#S1.SS1)
+does not supply the missing guarantee either. Its stated security protects false statements;
+it explicitly does not require hiding on true statements from parties lacking a witness. Its
+theorem also assumes fresh random group encodings and a group oracle. My assessment is that
+this does not establish extractable security for hard-but-satisfiable fork authorization, or a
+concrete implementation suitable for this bond. A valid-proof key-release relation and a payout
+binding still require their own construction and evidence.
+
 Adapting such a primitive would require an explicit relation authenticating the provider's actual
 term and responding claim under the graph's existing keys, plus an independently enforced payout
 and deadline protocol. Ordinary false-instance witness-encryption security would not suffice for

@@ -1,0 +1,98 @@
+{
+  "format": "bsb/fork-protocol-research-audit/v1",
+  "checkedUtc": "2026-10-21T19:43:36Z",
+  "scope": "Audit of the selected exact cumulative-work storage fork defense. Not a completed collateral protocol, cryptographic security proof, or new implementation of witness encryption.",
+  "goalComplete": false,
+  "requirements": [
+    {
+      "requirement": "Storage proof from the funded graph chain, setup before funding and one signing event at term end",
+      "status": "verified for v1",
+      "evidence": [
+        "results/bitvm-storage-lifecycle-fresh.json",
+        "docs/bitvm-storage-lifecycle.md"
+      ]
+    },
+    {
+      "requirement": "Explicit provider journal commitment in the funded assertion",
+      "status": "v2 fixture regression verified; fresh v2 lifecycle currently running",
+      "evidence": [
+        "results/bitvm-storage-journal.json"
+      ],
+      "liveJob": "/home/ubuntu/storage-prover/journal-fresh-2"
+    },
+    {
+      "requirement": "Exact cumulative-work certificate with original-tip extension and seed divergence",
+      "status": "separate genuine certificate and full BitVM verification verified",
+      "evidence": [
+        "results/bitvm-cumulative-work-compact.json",
+        "results/bitvm-compact-cumulative-work-verifier.json"
+      ]
+    },
+    {
+      "requirement": "Authenticate original graph and cross-party comparison values in Bitcoin",
+      "status": "incomplete; key reuse alone permits a false disprove",
+      "evidence": [
+        "results/bitvm-compact-fork-binding-regtest.json",
+        "results/bitvm-fork-equivocation.json"
+      ],
+      "missing": "The certificate graph identity is a synthetic research identity, not the pending v2 funded graph. Provider-owned input keys do not pin their earlier values against their owner."
+    },
+    {
+      "requirement": "Enforce equivocation response before the relevant collateral can leave",
+      "status": "separate setup-fixed escrow experiment verified; full fork graph unimplemented",
+      "evidence": [
+        "results/bitvm-fork-equivocation.json"
+      ],
+      "missing": "Every withdrawal and competing payout must honor the response window; this escrow is not integrated into the storage bond."
+    },
+    {
+      "requirement": "An observer absent from setup can submit a binding positive work certificate",
+      "status": "unimplemented",
+      "evidence": [
+        "docs/bitvm-storage-graph.md"
+      ],
+      "missing": "No authenticated late challenger keys or equivalent positive-proof route. Original-client keys would introduce a designated role and are not assumed."
+    },
+    {
+      "requirement": "Freeze candidates and responses, allow an honest extension, reject replay/ties, and handle silence under bounded deadlines",
+      "status": "relation guards and Core branch comparison exist; collateral contest rules remain unimplemented",
+      "evidence": [
+        "results/bitvm-cumulative-work-forks.json",
+        "results/bitvm-cumulative-work-certificate.json"
+      ],
+      "missing": "No complete Bitcoin transaction graph enforces all contest states and final payouts."
+    }
+  ],
+  "research": [
+    {
+      "source": "https://www.allocinit.xyz/uploads/pipesv2.pdf",
+      "section": "1.1, 2.6, 5.3.1",
+      "finding": "One-time key release does not constrain later signatures. The security definition requires extractability. The AADP ciphertext estimate is modeled rather than an end-to-end implementation.",
+      "disposition": "No drop-in enforcement implementation established."
+    },
+    {
+      "source": "https://eprint.iacr.org/2026/1594",
+      "dateReceived": "2026-08-03",
+      "finding": "Reports public-ciphertext message-recovery attacks on specified ADP/AADP candidates, including their sparse-circuit regime.",
+      "disposition": "Do not treat that candidate as a secure primitive for this bond."
+    },
+    {
+      "source": "https://eprint.iacr.org/2026/1583",
+      "dateReceived": "2026-08-03",
+      "finding": "Gives additional polynomial-time cryptanalysis of the ADP candidate.",
+      "disposition": "Candidate-specific cryptanalysis; not an impossibility theorem for all witness encryption."
+    },
+    {
+      "source": "https://arxiv.org/html/2609.18275v1#S1.SS1",
+      "datePublished": "2026-09-16",
+      "finding": "Its standard WE definition protects false instances and explicitly does not promise secrecy on true instances without a witness; the theorem uses fresh random group encodings and oracle access.",
+      "disposition": "Does not establish the extractable, concretely instantiated authorization primitive needed here."
+    }
+  ],
+  "unchangedConstraints": [
+    "Exact cumulative-work direction retained.",
+    "Permissionless admission retained; no designated client substituted.",
+    "No new proof system, consensus rule, security assumption, install, or service adopted.",
+    "No push, public posting, real funds, or pilot."
+  ]
+}
