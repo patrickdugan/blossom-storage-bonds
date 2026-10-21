@@ -75,6 +75,10 @@ including a real Groth16 disprove of a corrupted intermediate and rejection of r
 See [the graph documentation](../../docs/bitvm-storage-graph.md) and
 [the fresh result](../../results/bitvm-storage-graph-regtest.json).
 
-This graph run reuses the phase-6 proof. A live provider lifecycle with fresh proofs for the new
+This graph run reuses the phase-6 proof. Fresh proofs for the lifecycle run's own
 chain, the heavier-chain challenge and per-epoch deal updates remain. The phase-6 proving key retains
 the setup assumptions in design §4.6. No signet or public-network test has run.
+
+The provider's one-time keys can now be registered before funding, with committee setup and
+term-end assertion signing in separate processes. See [the lifecycle protocol](../../docs/bitvm-storage-lifecycle.md)
+for the two Core regressions and the one-shot signer guards. These regressions still use the phase-6 proof.

@@ -1,0 +1,103 @@
+{
+  "network": "regtest",
+  "core": "/Satoshi:31.1.0/",
+  "scenario": "honest",
+  "scope": "separate committee/provider lifecycle using the existing phase-6 proof; fresh-chain proof and heavier-chain challenge remain",
+  "events": [
+    {
+      "name": "provider_public_keys_committed",
+      "height": 101,
+      "at": "2026-10-21T12:12:26.667Z"
+    },
+    {
+      "name": "committee_exited_before_funding",
+      "height": 101,
+      "at": "2026-10-21T12:12:41.470Z"
+    },
+    {
+      "name": "funding_mined_before_first_epoch",
+      "height": 102,
+      "at": "2026-10-21T12:12:41.528Z"
+    },
+    {
+      "name": "term_end_reached_without_assertion_witnesses",
+      "height": 220,
+      "at": "2026-10-21T12:12:43.877Z"
+    },
+    {
+      "name": "provider_signed_once_at_term_end",
+      "height": 222,
+      "at": "2026-10-21T12:12:44.633Z"
+    }
+  ],
+  "mined": [
+    {
+      "name": "kickoff",
+      "txid": "6731fa7ff91e7b247d9fc5f690a8fb47f637f9107e572f7a2b5f1a05d155d544",
+      "vsize": 129
+    },
+    {
+      "name": "challenge",
+      "txid": "1c15dd35b4d5f9f65634c17012e5f4cf17969f05a20111ba309ffb09f36ed4ff",
+      "vsize": 16514
+    },
+    {
+      "name": "assert-commit-0",
+      "txid": "c8ed7fbba920c80e973960d13a5baa1b4d2b967c543d807c783ee9a8bc4b6009",
+      "vsize": 290937
+    },
+    {
+      "name": "assert-commit-1",
+      "txid": "2463031f499eac36ace93167bffb9aa54cbf18dfabed0588d18b0cecd4c21811",
+      "vsize": 76385
+    },
+    {
+      "name": "assert-final",
+      "txid": "f940487e7ae73474ef995c301b47f6bb9b9476f6436a29b82cf75bdb5fca7093",
+      "vsize": 321
+    },
+    {
+      "name": "refund",
+      "txid": "8b119dda52eafa2b5ec220a2661be65f646ba2a8dc6ddad69cbd5dd9f15d5de3",
+      "vsize": 277
+    }
+  ],
+  "rejected": [
+    {
+      "name": "kickoff",
+      "reason": "non-final"
+    },
+    {
+      "name": "assert-commit-0",
+      "reason": "mempool-script-verify-flag-failed (Operation not valid with the current stack size)"
+    },
+    {
+      "name": "assert-final",
+      "reason": "missing-inputs"
+    },
+    {
+      "name": "substituted-setup-keys",
+      "reason": "registration differs"
+    },
+    {
+      "name": "slash",
+      "reason": "mempool-script-verify-flag-failed (Script evaluated without error but finished with a false/empty top stack element)"
+    },
+    {
+      "name": "refund",
+      "reason": "non-BIP68-final"
+    }
+  ],
+  "payouts": [
+    {
+      "name": "refund",
+      "address": "bcrt1pnftjfpz8gx7hhxs53g3un3lfsq8ww4mrst5wyt4agc5c4mlvp02swzz4z6",
+      "sats": 98431000,
+      "txid": "8b119dda52eafa2b5ec220a2661be65f646ba2a8dc6ddad69cbd5dd9f15d5de3"
+    }
+  ],
+  "committeeExitedBeforeFunding": true,
+  "termEndWitnessesOnly": true,
+  "publicKeysCommittedBeforeFirstEpoch": true,
+  "nodeStopped": true
+}

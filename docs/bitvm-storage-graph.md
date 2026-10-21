@@ -98,8 +98,9 @@ that same keyed leaf on Core.
 
 ## Next work
 
-Connect a live provider's fresh term proof and chain claim to this graph, with keys committed before
-the storage term and assertion witnesses supplied at term end. Add the heavier-chain challenge so
+Connect a fresh term proof and chain claim from the same lifecycle run to this graph. The separate
+setup and term-end signing processes are now tested with the phase-6 proof
+(`bitvm-storage-lifecycle.md`). Add the heavier-chain challenge so
 a valid proof of a private fork cannot stand in for the intended chain. Per-epoch deal updates,
 distributed committee setup, fee changes and the production Groth16 ceremony remain separate work.
 No signet or public-service pilot has run.

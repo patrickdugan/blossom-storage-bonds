@@ -1,0 +1,78 @@
+{
+  "network": "regtest",
+  "core": "/Satoshi:31.1.0/",
+  "scenario": "silence",
+  "scope": "separate committee/provider lifecycle using the existing phase-6 proof; fresh-chain proof and heavier-chain challenge remain",
+  "events": [
+    {
+      "name": "provider_public_keys_committed",
+      "height": 101,
+      "at": "2026-10-21T12:13:54.117Z"
+    },
+    {
+      "name": "committee_exited_before_funding",
+      "height": 101,
+      "at": "2026-10-21T12:14:04.943Z"
+    },
+    {
+      "name": "funding_mined_before_first_epoch",
+      "height": 102,
+      "at": "2026-10-21T12:14:05.005Z"
+    },
+    {
+      "name": "term_end_reached_without_assertion_witnesses",
+      "height": 220,
+      "at": "2026-10-21T12:14:07.501Z"
+    }
+  ],
+  "mined": [
+    {
+      "name": "kickoff",
+      "txid": "56b7e6a67e5da15dd1056e423ffcdc9dd06a67102719f26184cfe322f91c29cc",
+      "vsize": 129
+    },
+    {
+      "name": "challenge",
+      "txid": "9a5d20ab571bcef073fc55b4feb3f441c792e2dd77d318a4add9f4baed9b8205",
+      "vsize": 16514
+    },
+    {
+      "name": "assert-timeout",
+      "txid": "62e5f144e60a59c135666acd01ebea718540555ed7851bc842f61cd379af2554",
+      "vsize": 129
+    },
+    {
+      "name": "slots-timeout",
+      "txid": "739c5c79888b9aa7ccd9368b90027bde578485ff44bcca5aa6b8535de9eabc2c",
+      "vsize": 31869
+    }
+  ],
+  "rejected": [
+    {
+      "name": "kickoff",
+      "reason": "non-final"
+    },
+    {
+      "name": "assert-timeout",
+      "reason": "non-BIP68-final"
+    }
+  ],
+  "payouts": [
+    {
+      "name": "assert-timeout",
+      "address": "bcrt1pgfwuususfn7xs374gveq0g6chjupg5zd3gs7wc8x73upe38zn4ysmylk4u",
+      "sats": 92314000,
+      "txid": "62e5f144e60a59c135666acd01ebea718540555ed7851bc842f61cd379af2554"
+    },
+    {
+      "name": "slots-timeout",
+      "address": "bcrt1pgfwuususfn7xs374gveq0g6chjupg5zd3gs7wc8x73upe38zn4ysmylk4u",
+      "sats": 7470000,
+      "txid": "739c5c79888b9aa7ccd9368b90027bde578485ff44bcca5aa6b8535de9eabc2c"
+    }
+  ],
+  "committeeExitedBeforeFunding": true,
+  "termEndWitnessesOnly": false,
+  "publicKeysCommittedBeforeFirstEpoch": true,
+  "nodeStopped": true
+}

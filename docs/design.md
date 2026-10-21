@@ -1072,7 +1072,9 @@ final-spv guests are Citrea's. Missing for this design:
   leaf, 381 on-chain Winternitz commitments, two-party MuSig2 control, provider refunds, client
   slashing and silence timeouts. Seven Core 31.1 regtest scenarios mined 32 graph transactions and
   rejected 32 premature or invalid spends, including a real Groth16 disprove at leaf 181. Fresh
-  proofs for the run's chain and a live provider's term-end assertion lifecycle are not wired in.
+  proofs for the run's chain remain. The setup and term-end signing lifecycle now runs in separate
+  processes with public keys registered before funding (`docs/bitvm-storage-lifecycle.md`); its
+  two Core regressions still use the phase-6 proof.
 - Public-input binding. An additional leaf now exists
   in `zk/bitvm-check/src/storage_binding.rs`: it pins the term prefix and wrapper constants,
   verifies Winternitz commitments to the public input and chain tip, and opens only for a binding
@@ -1154,7 +1156,8 @@ route brings back four things, and the spike found the third weaker than assumed
    which upstream's guests do not, but a fork from genesis is still a valid proof, and on regtest a
    block costs about two hashes. The term preimage therefore carries tip height, tip hash and total
    work, and the graph needs a challenge in which anyone shows a heavier chain; BitVM's version of
-   that is the placeholder above. Upstream's README says as much ("does not necessarily prevent the
+   that is the placeholder above. Such a challenge must show a conflicting branch with more work;
+   a later extension of the same chain must not slash an honest earlier claim. Upstream's README says as much ("does not necessarily prevent the
    malicious actors to generate proofs for their private forks").
 
 Two more come from Bitcoin's relay policy, the point finding 4a made about 520-byte answers.

@@ -1,0 +1,29 @@
+{
+  "guards": [
+    {
+      "case": "wrong-term",
+      "rejected": true,
+      "witnessFileWritten": false
+    },
+    {
+      "case": "wrong-wrapper",
+      "rejected": true,
+      "witnessFileWritten": false
+    },
+    {
+      "case": "false-proof",
+      "rejected": true,
+      "witnessFileWritten": false
+    },
+    {
+      "case": "unchecked-assertions",
+      "rejected": true,
+      "witnessFileWritten": false
+    },
+    {
+      "case": "one-shot",
+      "signedRequests": 1,
+      "secondRequestSigned": false
+    }
+  ]
+}

@@ -5,9 +5,10 @@ fresh, loopback-only Core regtest node. `prove-snapshot.sh` consumes that snapsh
 machine and runs the existing RISC Zero header, holdings and term guests, then the pinned
 Groth16 wrapper. No wallet or signing key belongs in the snapshot or the proving job.
 
-This is the fresh-proof step. It does not fund a storage graph, implement the pre-term one-time-key
-lifecycle, or provide a heavier-chain challenge. Those integrations remain necessary after the
-fresh Groth16 proof has been independently verified.
+This is the fresh-proof step. It does not fund a storage graph or provide a heavier-chain challenge.
+The separate pre-term setup and term-end signing lifecycle is documented in
+`bitvm-storage-lifecycle.md`. The fresh proof still needs to come from that same lifecycle run's chain
+and be independently verified before integration.
 
 ## Capture locally
 
