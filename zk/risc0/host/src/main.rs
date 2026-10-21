@@ -14,6 +14,8 @@
 // Research: bsb-r0 prove-fork <new.bin> --original R --response R --candidate R
 //   --original-headers H --response-headers H --candidate-headers H --term-preimage P
 //   --graph-id HEX --divergent-height N --epoch-index N [--exec]
+//   Compact commands append -compact: prove-fork-compact, fork-guards-compact,
+//   verify-fork-compact, groth16-fork-compact. These use a distinct pinned image.
 //   bsb-r0 verify-fork <receipt.bin>
 //   bsb-r0 groth16-fork <fork.bin> <new-dir>
 //   bsb-r0 fork-guards <input.bin> --original R --response R --candidate R
@@ -30,7 +32,7 @@ mod wrap;
 
 use anyhow::{bail, ensure, Context, Result};
 use borsh::BorshDeserialize;
-use bsb_methods::{FORGE_ELF, FORGE_ID, FORK_ID, HOLD_ELF, HOLD_ID, TERM_ELF, TERM_ID};
+use bsb_methods::{FORGE_ELF, FORGE_ID, FORK_ID, FORK_COMPACT_ID, HOLD_ELF, HOLD_ID, TERM_ELF, TERM_ID};
 use risc0_to_bitvm2_core::final_circuit::FinalCircuitInput;
 use risc0_to_bitvm2_core::header_chain::{BlockHeaderCircuitOutput, CircuitBlockHeader};
 use risc0_to_bitvm2_core::merkle_tree::BitcoinMerkleTree;
@@ -171,7 +173,7 @@ fn main() -> Result<()> {
     match args.get(1).map(String::as_str) {
         Some("ids") => {
             println!("{}", json!({ "hold": id_hex(HOLD_ID), "term": id_hex(TERM_ID), "forge": id_hex(FORGE_ID),
-                "fork": id_hex(FORK_ID), "header_chain": id_hex(chain::HEADER_CHAIN_ID), "hold_elf_bytes": HOLD_ELF.len(), "term_elf_bytes": TERM_ELF.len() }));
+                "fork": id_hex(FORK_ID), "fork_compact": id_hex(FORK_COMPACT_ID), "header_chain": id_hex(chain::HEADER_CHAIN_ID), "hold_elf_bytes": HOLD_ELF.len(), "term_elf_bytes": TERM_ELF.len() }));
         }
         Some("exec-hold") => {
             let input = std::fs::read(&args[2]).context("witness")?;
@@ -326,19 +328,21 @@ fn main() -> Result<()> {
             };
             println!("{report}");
         }
-        Some("prove-fork") => fork::prove(&args)?,
-        Some("fork-guards") => fork::guards(&args)?,
-        Some("verify-fork") => {
-            let receipt = read_receipt(&args[2])?; receipt.verify(FORK_ID)?;
+        Some("prove-fork") | Some("prove-fork-compact") => fork::prove(&args)?,
+        Some("fork-guards") | Some("fork-guards-compact") => fork::guards(&args)?,
+        Some("verify-fork") | Some("verify-fork-compact") => {
+            let image_id = if args[1].ends_with("-compact") { FORK_COMPACT_ID } else { FORK_ID };
+            let receipt = read_receipt(&args[2])?; receipt.verify(image_id)?;
+            if args[1].ends_with("-compact") { ensure!(receipt.verify(FORK_ID).is_err(), "compact receipt accepted under v1 image"); }
             ensure!(receipt.journal.bytes.len() == 32, "fork journal length");
             let mut changed = receipt.clone(); changed.journal.bytes[0] ^= 1;
-            ensure!(changed.verify(FORK_ID).is_err(), "changed journal verified");
+            ensure!(changed.verify(image_id).is_err(), "changed journal verified");
             ensure!(receipt.verify(chain::HEADER_CHAIN_ID).is_err(), "wrong image verified");
-            println!("{}", json!({"cmd":"verify-fork","verified":true,"changed_journal_rejected":true,"wrong_image_rejected":true,"image_id":id_hex(FORK_ID),"journal":hex::encode(&receipt.journal.bytes)}));
+            println!("{}", json!({"cmd":args[1],"verified":true,"changed_journal_rejected":true,"wrong_image_rejected":true,"image_id":id_hex(image_id),"journal":hex::encode(&receipt.journal.bytes)}));
         }
-        Some("groth16") | Some("groth16-fork") => {
-            let is_fork = args[1] == "groth16-fork";
-            let image_id = if is_fork { FORK_ID } else { TERM_ID };
+        Some("groth16") | Some("groth16-fork") | Some("groth16-fork-compact") => {
+            let is_fork = args[1].starts_with("groth16-fork");
+            let image_id = if args[1] == "groth16-fork-compact" { FORK_COMPACT_ID } else if is_fork { FORK_ID } else { TERM_ID };
             let receipt = read_receipt(&args[2])?;
             receipt.verify(image_id)?;
             let work = std::path::PathBuf::from(&args[3]);

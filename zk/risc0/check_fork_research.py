@@ -15,6 +15,7 @@ from pathlib import Path
 from fresh_snapshot import GENESIS, IDS, json_file, require, sha
 
 FORK_ID = "8cf297b91e31b0ee52b57c876888f120416950ab3e7169d26c7315751da39457"
+COMPACT_ID = "b1766c1d9ebf071acd684ea744d83908181a60d313ccb385661e3fe76ff855b1"
 
 
 def headers(raw):
@@ -40,7 +41,9 @@ def headers(raw):
     return {"height": len(hashes)-1, "hash": hashes[-1], "work": work, "hashes": hashes}
 
 
-def readback(inputs, output, verifier=None):
+def readback(inputs, output, verifier=None, compact=False):
+    version = "v2" if compact else "v1"
+    image_id = COMPACT_ID if compact else FORK_ID
     inputs, output = Path(inputs).resolve(), Path(output).resolve()
     manifest = json_file(inputs / "manifest.json")
     require(manifest["format"] == "bsb/fork-proof-research-inputs/v1", "input format")
@@ -51,7 +54,7 @@ def readback(inputs, output, verifier=None):
     for name, digest in manifest["files"].items():
         require(sha((inputs/name).read_bytes()).hex() == digest, f"input file hash: {name}")
     result_manifest = json_file(output / "manifest.json")
-    require(result_manifest["format"] == "bsb/fork-proof-research-output/v1", "output format")
+    require(result_manifest["format"] == f"bsb/fork-proof-research-output/{version}", "output format")
     required = {f"{name}.{ext}" for name in ("common", "original", "response", "candidate", "fork")
                 for ext in ("bin", "json", "time")}
     required.update({"fork.bin.input.bin", "fork.bin.statement.bin", "verify.json", "guards.json", "ids.json"})
@@ -62,7 +65,8 @@ def readback(inputs, output, verifier=None):
         require(path.is_relative_to(output), "output file escapes directory")
         require(sha(path.read_bytes()).hex() == digest, f"output file hash: {name}")
     ids = json_file(output/"ids.json")
-    require(all(ids[k] == value for k, value in IDS.items()) and ids["fork"] == FORK_ID, "guest IDs")
+    require(all(ids[k] == value for k, value in IDS.items()) and ids["fork"] == FORK_ID
+            and (not compact or ids["fork_compact"] == COMPACT_ID), "guest IDs")
     chains = {name: headers((inputs/f"{name}.bin").read_bytes()) for name in ("original", "response", "candidate")}
     original, response, candidate = (chains[name] for name in ("original", "response", "candidate"))
     require((inputs/"response.bin").read_bytes().startswith((inputs/"original.bin").read_bytes()), "response not an extension")
@@ -94,24 +98,27 @@ def readback(inputs, output, verifier=None):
         statement += struct.pack(">I", chain["height"]) + chain["hash"] + chain["work"].to_bytes(32, "big")
     statement += struct.pack(">II", epoch, divergent) + response["hashes"][divergent] + candidate["hashes"][divergent]
     require(len(statement) == 354, "statement size")
+    if compact:
+        statement = b"bsb/r0-fork|v2" + statement[14:78] + statement[146:282]
+        require(len(statement) == 214, "compact statement size")
     require(statement == (output/"fork.bin.statement.bin").read_bytes(), "statement bytes")
     proof = json_file(output/"fork.json")
     journal = sha(statement).hex()
-    require(proof["image_id"] == FORK_ID and proof["journal"] == journal and proof["statement_preimage"] == statement.hex(), "fork public statement")
+    require(proof["image_id"] == image_id and proof["journal"] == journal and proof["statement_preimage"] == statement.hex(), "fork public statement")
     verification = json_file(output/"verify.json")
-    require(verification["image_id"] == FORK_ID and verification["journal"] == journal and verification["verified"] is True
+    require(verification["image_id"] == image_id and verification["journal"] == journal and verification["verified"] is True
             and verification["changed_journal_rejected"] is True and verification["wrong_image_rejected"] is True, "recorded verification")
     guards = json_file(output/"guards.json")
     cases = {c["case"]: c for c in guards["cases"]}
     expected_cases = {"header-image", "genesis-path", "term-claim", "unrelated-response", "weaker-candidate", "equal-work", "after-seed", "divergence-path", "invented-authenticated-work"}
-    require(set(cases) == expected_cases and guards["image_id"] == FORK_ID and guards["graph_id_change_changes_journal"] is True, "guest guard cases")
+    require(set(cases) == expected_cases and guards["image_id"] == image_id and guards["graph_id_change_changes_journal"] is True, "guest guard cases")
     require(all(c.get("guest_rejected") is True or c.get("prover_rejected") is True for c in cases.values()), "guest guard failure")
     if verifier:
-        process = subprocess.run([str(verifier), "verify-fork", str(output/"fork.bin")], check=True, capture_output=True, text=True)
+        process = subprocess.run([str(verifier), "verify-fork-compact" if compact else "verify-fork", str(output/"fork.bin")], check=True, capture_output=True, text=True)
         verified = json.loads(process.stdout.strip().splitlines()[-1])
         require(verified == verification, "fresh receipt verification differs from recorded result")
-    return {"format": "bsb/fork-proof-readback/v1", "header_chains_checked": True, "statement_checked": True,
-            "journal": journal, "fork_image_id": FORK_ID, "original_work": original["work"], "response_work": response["work"],
+    return {"format": f"bsb/fork-proof-readback/{version}", "header_chains_checked": True, "statement_checked": True,
+            "journal": journal, "fork_image_id": image_id, "original_work": original["work"], "response_work": response["work"],
             "candidate_work": candidate["work"], "guest_rejection_cases": len(cases), "receipt_verified_now": bool(verifier),
             "scope": "Relative work certificate readback. Receipt verification is performed only when receipt_verified_now is true. No Groth16 or Bitcoin fork-dispute enforcement."}
 
@@ -121,5 +128,6 @@ if __name__ == "__main__":
     parser.add_argument("inputs", type=Path)
     parser.add_argument("output", type=Path)
     parser.add_argument("--receipt-verifier", type=Path)
+    parser.add_argument("--compact", action="store_true")
     args = parser.parse_args()
-    print(json.dumps(readback(args.inputs, args.output, args.receipt_verifier)))
+    print(json.dumps(readback(args.inputs, args.output, args.receipt_verifier, args.compact)))

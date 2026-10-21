@@ -218,6 +218,16 @@ pub fn check(input: &ForkInput, sha: impl Fn(&[u8]) -> [u8; 32] + Copy) -> Check
     Ok(statement)
 }
 
+/// The same complete predicate with a smaller public projection. Membership,
+/// eligible epoch, authenticated divergence and strict work remain checked above.
+pub fn check_compact(input: &ForkInput, sha: impl Fn(&[u8]) -> [u8; 32] + Copy) -> Check<Vec<u8>> {
+    let full = check(input, sha)?;
+    let mut compact = b"bsb/r0-fork|v2".to_vec();
+    compact.extend_from_slice(&full[14..78]);
+    compact.extend_from_slice(&full[146..282]);
+    Ok(compact)
+}
+
 #[cfg(test)]
 mod tests {
     // These test the relation on real captured headers. Receipt authentication is
@@ -228,6 +238,20 @@ mod tests {
         header_chain::{ChainState, CircuitBlockHeader},
         mmr_guest::MMRGuest,
     };
+    fn check(input: &ForkInput, sha: fn(&[u8]) -> [u8; 32]) -> Check<Vec<u8>> {
+        let full = super::check(input, sha);
+        let compact = super::check_compact(input, sha);
+        match (&full, &compact) {
+            (Ok(a), Ok(b)) => {
+                let expected = [b"bsb/r0-fork|v2".as_slice(), &a[14..78], &a[146..282]].concat();
+                assert_eq!(b, &expected);
+                assert_eq!(b.len(), 214);
+            }
+            (Err(a), Err(b)) => assert_eq!(a, b),
+            _ => panic!("compact projection changed the fork predicate"),
+        }
+        full
+    }
     fn branches() -> (Vec<CircuitBlockHeader>, Vec<CircuitBlockHeader>) {
         let v: serde_json::Value = serde_json::from_str(include_str!(
             "../../results/bitvm-cumulative-work-forks.json"

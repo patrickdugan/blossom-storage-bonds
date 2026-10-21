@@ -1,7 +1,7 @@
 {
   "schema": "bsb-fork-binding-arithmetic-v1",
   "bitvm_rev": "7d1ca36",
-  "scope": "Interpreter arithmetic and resource measurements. The compact relation is not yet proved, and these components are not registered in a funded graph. Permissionless challenger registration remains unresolved.",
+  "scope": "Interpreter arithmetic and resource measurements. The compact binding tests now use the genuine compact certificate public input. The components are not registered in a funded graph; permissionless challenger registration remains unresolved.",
   "hash_and_witness_probe": {
     "bitvm_rev": "7d1ca36",
     "hash_modes": [
@@ -48,7 +48,7 @@
       "kind": "compact-fork-arithmetic",
       "max_stack_items": 853,
       "measured_cases": 9,
-      "scope": "Proposed compact binding only; no compact guest or graph registration.",
+      "scope": "Arithmetic binding to the genuine compact certificate public input; no graph registration.",
       "script_bytes": 1241447
     }
   ],
@@ -75,5 +75,6 @@
     "Use the chunker public-input key for fork public-input binding",
     "Fresh pre-funding graph setup required",
     "Supply a permissionless challenge protocol before collateral enforcement"
-  ]
+  ],
+  "compact_proof_evidence": "results/bitvm-cumulative-work-compact.json"
 }

@@ -1,0 +1,23 @@
+[package]
+name = "bsb-fork-compact"
+version = "0.1.0"
+edition = "2021"
+
+[workspace]
+
+[[bin]]
+name = "fork_compact"
+path = "src/bin/fork_compact.rs"
+
+[dependencies]
+risc0-to-bitvm2-core = { git = "https://github.com/chainwayxyz/risc0-to-bitvm2", rev = "efc448e" }
+risc0-zkvm = { version = "2.0.1", default-features = false, features = ["std"] }
+borsh = { version = "1.5.3", features = ["derive"] }
+
+# As in risc0-to-bitvm2's header-chain guest: RISC Zero's accelerated forks.
+[patch.crates-io]
+sha2 = { git = "https://github.com/risc0/RustCrypto-hashes", tag = "sha2-v0.10.8-risczero.0" }
+crypto-bigint = { git = "https://github.com/risc0/RustCrypto-crypto-bigint", tag = "v0.5.5-risczero.0" }
+
+[profile.release]
+lto = "thin"

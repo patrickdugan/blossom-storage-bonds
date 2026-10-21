@@ -4,7 +4,26 @@ use crate::{
     fork_relation::{self, AuthChain, ForkInput},
 };
 use anyhow::{ensure, Context, Result};
-use bsb_methods::{FORK_ELF, FORK_ID};
+use bsb_methods::{FORK_COMPACT_ELF, FORK_COMPACT_ID, FORK_ELF, FORK_ID};
+
+fn compact(args: &[String]) -> bool {
+    args[1].ends_with("-compact")
+}
+fn method(args: &[String]) -> (&'static [u8], [u32; 8]) {
+    if compact(args) {
+        (FORK_COMPACT_ELF, FORK_COMPACT_ID)
+    } else {
+        (FORK_ELF, FORK_ID)
+    }
+}
+fn statement(args: &[String], input: &ForkInput) -> Result<Vec<u8>> {
+    if compact(args) {
+        fork_relation::check_compact(input, chain::sha256)
+    } else {
+        fork_relation::check(input, chain::sha256)
+    }
+    .map_err(anyhow::Error::msg)
+}
 use risc0_to_bitvm2_core::header_chain::BlockHeaderCircuitOutput;
 use risc0_zkvm::{ExecutorEnv, Receipt};
 use serde_json::json;
@@ -33,6 +52,7 @@ fn selected(args: &[String], flag: &str) -> Result<String> {
     super::flag(args, flag).with_context(|| flag.to_string())
 }
 pub fn prove(args: &[String]) -> Result<()> {
+    let (elf, id) = method(args);
     let output = args.get(2).context("prove-fork <new-receipt.bin>")?;
     let input_path = format!("{output}.input.bin");
     let statement_path = format!("{output}.statement.bin");
@@ -85,7 +105,7 @@ pub fn prove(args: &[String]) -> Result<()> {
         candidate_divergent_hash: headers[2][d as usize].compute_block_hash(),
         candidate_divergent_path: candidate_mmr.generate_proof(d).1.inclusion_proof,
     };
-    let statement = fork_relation::check(&input, chain::sha256).map_err(anyhow::Error::msg)?;
+    let statement = statement(args, &input)?;
     let bytes = borsh::to_vec(&input)?;
     std::fs::write(&input_path, &bytes)?;
     std::fs::write(&statement_path, &statement)?;
@@ -97,8 +117,8 @@ pub fn prove(args: &[String]) -> Result<()> {
     let exec = args.iter().any(|arg| arg == "--exec");
     let mut result = super::run(
         env.build()?,
-        FORK_ELF,
-        FORK_ID,
+        elf,
+        id,
         exec,
         if exec { None } else { Some(output) },
     )?;
@@ -106,8 +126,8 @@ pub fn prove(args: &[String]) -> Result<()> {
         result["journal"] == hex::encode(chain::sha256(&statement)),
         "guest journal differs from native relation"
     );
-    result["cmd"] = json!("prove-fork");
-    result["image_id"] = json!(super::id_hex(FORK_ID));
+    result["cmd"] = json!(args[1]);
+    result["image_id"] = json!(super::id_hex(id));
     result["statement_preimage"] = json!(hex::encode(&statement));
     result["input_bytes"] = json!(bytes.len());
     let summary = |c: &BlockHeaderCircuitOutput| json!({"height":c.chain_state.block_height,"hash_internal":hex::encode(c.chain_state.best_block_hash),"work_be":hex::encode(c.chain_state.total_work)});
@@ -121,6 +141,7 @@ pub fn prove(args: &[String]) -> Result<()> {
 
 /// Exercise the compiled guest on adversarial inputs after genuine receipts exist.
 pub fn guards(args: &[String]) -> Result<()> {
+    let (elf, id) = method(args);
     use borsh::BorshDeserialize;
     let base = std::fs::read(args.get(2).context("fork-guards <input.bin>")?)?;
     let original = ForkInput::try_from_slice(&base)?;
@@ -177,7 +198,7 @@ pub fn guards(args: &[String]) -> Result<()> {
             "divergence-path" => input.candidate_divergent_path[0][0] ^= 1,
             _ => unreachable!(),
         }
-        let execution = risc0_zkvm::default_executor().execute(env_for(&input)?, FORK_ELF);
+        let execution = risc0_zkvm::default_executor().execute(env_for(&input)?, elf);
         ensure!(
             execution.is_err(),
             "guest accepted invalid guard case {name}"
@@ -188,9 +209,8 @@ pub fn guards(args: &[String]) -> Result<()> {
     }
     let mut changed = ForkInput::try_from_slice(&base)?;
     changed.graph_id[0] ^= 1;
-    let execution = risc0_zkvm::default_executor().execute(env_for(&changed)?, FORK_ELF)?;
-    let old =
-        chain::sha256(&fork_relation::check(&original, chain::sha256).map_err(anyhow::Error::msg)?);
+    let execution = risc0_zkvm::default_executor().execute(env_for(&changed)?, elf)?;
+    let old = chain::sha256(&statement(args, &original)?);
     ensure!(
         execution.journal.bytes != old,
         "graph identity mutation did not change journal"
@@ -198,8 +218,8 @@ pub fn guards(args: &[String]) -> Result<()> {
     // Invented work passes the inequality but must fail receipt authentication when proving.
     let mut invented = ForkInput::try_from_slice(&base)?;
     invented.candidate.output.chain_state.total_work = [255; 32];
-    fork_relation::check(&invented, chain::sha256).map_err(anyhow::Error::msg)?;
-    let forgery = super::run(env_for(&invented)?, FORK_ELF, FORK_ID, false, None);
+    statement(args, &invented)?;
+    let forgery = super::run(env_for(&invented)?, elf, id, false, None);
     ensure!(
         forgery.is_err(),
         "prover accepted invented work without a matching header receipt"
@@ -207,7 +227,7 @@ pub fn guards(args: &[String]) -> Result<()> {
     cases.push(json!({"case":"invented-authenticated-work","prover_rejected":true,"error":format!("{:#}",forgery.err().unwrap())}));
     println!(
         "{}",
-        json!({"cmd":"fork-guards","image_id":super::id_hex(FORK_ID),"cases":cases,"graph_id_change_changes_journal":true,"scope":"Guest execution guards plus prover rejection of an unbacked header journal. No Bitcoin fork-dispute enforcement."})
+        json!({"cmd":args[1],"image_id":super::id_hex(id),"cases":cases,"graph_id_change_changes_journal":true,"scope":"Guest execution guards plus prover rejection of an unbacked header journal. No Bitcoin fork-dispute enforcement."})
     );
     Ok(())
 }

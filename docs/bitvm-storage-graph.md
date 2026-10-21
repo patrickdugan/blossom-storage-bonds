@@ -337,15 +337,15 @@ A proposed v2 public projection keeps the domain, graph identity, original term-
 response height/hash/work and candidate height/hash/work: 214 bytes. The original triple is already
 committed by the term journal. Epoch and divergence evidence may become private witnesses only
 if the new guest retains every original membership, seed-divergence and strict-work check.
-No compact guest or certificate has been generated at this stage; the proved v1 image is unchanged.
+A separate compact guest now proves this projection, as recorded below. The proved v1 image is unchanged.
 
 `fork_binding.rs` verifies eight setup-pinned WOTS signatures and recomputes that projection's
 SHA256/BLAKE3 wrapper input. Its complete arithmetic uses 1,241,447 script bytes and a maximum of
 853 stack items, including signature verification. The initial signature witness has 844 items.
 The honest case reaches false; each of eight independently signed field substitutions opens the
 disprove leaf. Changed setup identity, changed wrapper constants, an unrelated signing key and a
-noncanonical BN254 scalar alias are also tested. These tests use dummy wrapper constants and do
-not claim that the v1 Groth16 proof proves the compact statement.
+noncanonical BN254 scalar alias are also tested. The initial prototype used dummy wrapper constants. The current tests use the genuine compact
+certificate and its exact Groth16 public input. The v1 proof is a separate statement.
 
 A separate proposed `disprove_term_binding_with_journal` component binds a signed original term
 journal to the same 202-byte term and storage public input. It uses 1,232,157 bytes and at most 792
@@ -357,3 +357,62 @@ storage binding still measures 1,223,886 bytes and 760 stack items.
 tests. The resource probe is `examples/fork-binding-cost.rs`. These components require fresh setup
 and are not connected to the existing funded graph. They establish arithmetic feasibility only;
 challenger registration, input ownership, deadlines and collateral enforcement remain protocol work.
+
+The [BATTLE for Bitcoin paper, sections 2.4, 2.8.1 and 2.9.3](https://arxiv.org/html/2510.06468v1)
+provides a useful exact-work comparison design: dual counterproofs, or signed work scores linked
+to separately verified proofs. Its key exchange and challenger permutation are established during
+setup. Its score-carry variant also leaves a both-valid outcome requiring a persistent bond.
+These details matter before adapting its payout logic. My assessment is that its presented graph
+does not directly resolve registration of a previously unknown challenger in this storage graph;
+that stronger property still needs an explicit construction and adversarial transaction tests.
+
+### Proved compact certificate
+
+The separate `methods/fork_compact` guest calls the complete v1 predicate and publishes the 214-byte
+projection. The original-tip membership, eligible epoch and authenticated seed divergence remain
+checked inside the guest. The public statement now proves that an eligible divergent seed exists;
+it does not expose a particular epoch or divergence position. A protocol that requires a specific
+publicly selected epoch must bind that choice separately.
+
+The genuine VPS run reused the three already proved header-chain receipts and generated a fresh
+compact certificate and Groth16 wrap. The original holdings, term, header-chain and v1 fork image
+IDs reproduce unchanged. Seven paired native tests compare both predicates' acceptance/rejection
+and the exact projected layout; nine compiled-guest/prover rejection cases and sixteen independent
+readback checks pass. The latter include fresh seal verification and rejection of altered receipt
+bytes. The v1 verifier rejects the compact receipt, and the compact wrapper rejects the v1 receipt
+before creating an output directory.
+
+* Compact image: `b1766c1d9ebf071acd684ea744d83908181a60d313ccb385661e3fe76ff855b1`.
+* Compact journal: `68df3b15df54d3e287908949c9607d0ffb0ac7e60ee7a1d433c2944ab1dbe0a7`.
+* Groth16 public input: `440360104829126912423372908572745653223447774026933459930022392504055569461`.
+
+`results/bitvm-cumulative-work-compact.json` records the proof, timings and independent checks;
+`results/bitvm-cumulative-work-compact-groth16/` contains the public wrap. The certificate took
+4:26.58 and peaked at 2,408,124 KiB RSS. Wrapping took 3:13.47; its host RSS measurement excludes
+the Docker container. Header proving was reused, so these times are not an end-to-end fresh-header run.
+
+Native pairings accept the compact proof and reject a storage-proof replay, v1-fork-proof replay,
+wrong guest image and wrong graph identity. The Bitcoin binding tests use this actual proof's public
+input and wrapper constants. The complete compact binding remains 1,241,447 bytes with maximum stack
+853; all twenty library tests pass, including field substitutions and a noncanonical scalar alias.
+This compact proof has not been run through the full 364-script BitVM verifier; the full verifier
+result above belongs to v1. The existing verifying key still comes from the pinned testing setup.
+
+The proof's graph identifier is synthetic, its branches have no corresponding holdings proof in
+this experiment, and the binding is not registered in a funded graph. No challenger-role assumption
+has been changed: the after-setup, permissionless fork-to-collateral path remains unresolved.
+
+Reproduce with cached tools and the original experiment's header receipts:
+
+```text
+bash zk/risc0/build-pinned.sh <installed-cargo> <populated-guest-cargo-home> <new-wrapper-dir>
+bash zk/risc0/prove-fork-compact.sh <input-dir> <v1-proof-dir> <new-proof-dir> <bsb-r0>
+python3 zk/risc0/check_fork_research.py <input-dir> <proof-dir> --compact --receipt-verifier <bsb-r0>
+python3 zk/risc0/check_fork_research_test.py --compact --inputs <input-dir> --output <proof-dir> --receipt-verifier <bsb-r0>
+bsb-r0 groth16-fork-compact <proof-dir>/fork.bin <new-g16-dir>
+node zk/risc0/check-fork-public.ts --compact --g16 <g16-dir> --readback <readback.json> --out <new-public-report.json>
+node zk/risc0/fork-public-guards.ts --compact --g16 <g16-dir> --statement <proof-dir>/fork.bin.statement.bin --checker <bsb-bitvm-check> --dir <new-guard-dir> --out <new-guard-report.json>
+```
+
+Save the independent readback as `<readback.json>` and copy the pinned verifying key into the
+Groth16 directory before the final two checks. The recipe starts no Bitcoin node or downloader.

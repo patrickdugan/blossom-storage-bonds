@@ -67,6 +67,9 @@ class HeaderChecks(unittest.TestCase):
 
 
 class CertificateChecks(unittest.TestCase):
+    def checked(self, inputs, output, verifier=None):
+        return readback(inputs, output, verifier, OPTIONS.compact)
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
@@ -82,31 +85,31 @@ class CertificateChecks(unittest.TestCase):
         (self.output/"manifest.json").write_text(json.dumps(manifest))
 
     def test_real_readback(self):
-        result = readback(self.inputs, self.output, OPTIONS.receipt_verifier)
+        result = self.checked(self.inputs, self.output, OPTIONS.receipt_verifier)
         self.assertEqual((result["original_work"], result["response_work"], result["candidate_work"]), (442,466,468))
         self.assertEqual(result["receipt_verified_now"], bool(OPTIONS.receipt_verifier))
 
     def test_journal_cannot_be_repaired_by_changing_manifest_hash(self):
         self.replace_output_json("fork.json", lambda value: value.update(journal="00"*32))
-        with self.assertRaisesRegex(ValueError, "public statement"): readback(self.inputs, self.output)
+        with self.assertRaisesRegex(ValueError, "public statement"): self.checked(self.inputs, self.output)
 
     def test_image_cannot_be_repaired_by_changing_manifest_hash(self):
-        self.replace_output_json("ids.json", lambda value: value.update(fork="00"*32))
-        with self.assertRaisesRegex(ValueError, "guest IDs"): readback(self.inputs, self.output)
+        self.replace_output_json("ids.json", lambda value: value.update({"fork_compact" if OPTIONS.compact else "fork": "00"*32}))
+        with self.assertRaisesRegex(ValueError, "guest IDs"): self.checked(self.inputs, self.output)
 
     def test_different_graph_identity_is_bound_to_statement(self):
         manifest = json_file(self.inputs/"manifest.json");manifest["graph_id"] = "00"*32
         (self.inputs/"manifest.json").write_text(json.dumps(manifest))
-        with self.assertRaisesRegex(ValueError, "statement bytes"): readback(self.inputs, self.output)
+        with self.assertRaisesRegex(ValueError, "statement bytes"): self.checked(self.inputs, self.output)
 
     def test_invented_work_metadata(self):
         manifest = json_file(self.inputs/"manifest.json");manifest["response"]["work"] = "1"
         (self.inputs/"manifest.json").write_text(json.dumps(manifest))
-        with self.assertRaisesRegex(ValueError, "manifest response claim"): readback(self.inputs, self.output)
+        with self.assertRaisesRegex(ValueError, "manifest response claim"): self.checked(self.inputs, self.output)
 
     def test_missing_guard_case(self):
         self.replace_output_json("guards.json", lambda value: value["cases"].pop())
-        with self.assertRaisesRegex(ValueError, "guard cases"): readback(self.inputs, self.output)
+        with self.assertRaisesRegex(ValueError, "guard cases"): self.checked(self.inputs, self.output)
 
     def test_receipt_bytes_require_cryptographic_verification(self):
         receipt = bytearray((self.output/"fork.bin").read_bytes());receipt[-1] ^= 1
@@ -114,15 +117,16 @@ class CertificateChecks(unittest.TestCase):
         manifest = json_file(self.output/"manifest.json");manifest["files"]["fork.bin"] = sha(receipt).hex()
         (self.output/"manifest.json").write_text(json.dumps(manifest))
         # Honest scope: public readback alone cannot verify the altered seal.
-        self.assertFalse(readback(self.inputs, self.output)["receipt_verified_now"])
+        self.assertFalse(self.checked(self.inputs, self.output)["receipt_verified_now"])
         if OPTIONS.receipt_verifier:
             with self.assertRaises(subprocess.CalledProcessError):
-                readback(self.inputs, self.output, OPTIONS.receipt_verifier)
+                self.checked(self.inputs, self.output, OPTIONS.receipt_verifier)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--headers-only", action="store_true")
+    parser.add_argument("--compact", action="store_true")
     parser.add_argument("--inputs", type=Path)
     parser.add_argument("--output", type=Path)
     parser.add_argument("--receipt-verifier", type=Path)

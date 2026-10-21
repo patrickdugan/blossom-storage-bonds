@@ -15,7 +15,8 @@ const wrap=JSON.parse(readFileSync(join(g16,"groth16.json"),"utf8"));
 const publicInput=JSON.parse(readFileSync(join(g16,"public.json"),"utf8"));
 const sha=(b:Uint8Array)=>createHash("sha256").update(b).digest();
 const scalar=(constants:Buffer,journal:Buffer)=>BigInt("0x"+blake3Block(Buffer.concat([constants,journal])).subarray(0,31).toString("hex")).toString();
-assert.equal(statement.length,354);assert.equal(sha(statement).toString("hex"),wrap.journal);
+const compact=process.argv.includes("--compact");
+assert.equal(statement.length,compact?214:354);assert.equal(statement.subarray(0,14).toString(),compact?"bsb/r0-fork|v2":"bsb/r0-fork|v1");assert.equal(sha(statement).toString("hex"),wrap.journal);
 assert.equal(scalar(Buffer.from(wrap.constants_digest,"hex"),sha(statement)),publicInput[0]);
 const results:any[]=[];
 function run(name:string,proof:Buffer,value:string,expected:boolean){
@@ -29,6 +30,7 @@ function run(name:string,proof:Buffer,value:string,expected:boolean){
 const proof=readFileSync(join(g16,"proof.json"));
 run("honest-fork-certificate",proof,publicInput[0],true);
 run("old-storage-proof-with-fork-public-input",readFileSync(join(repo,"results/bitvm2-spike-groth16/proof.json")),publicInput[0],false);
+if(compact)run("old-v1-fork-proof-with-compact-public-input",readFileSync(join(repo,"results/bitvm-cumulative-work-groth16/proof.json")),publicInput[0],false);
 const bitReversed=Buffer.from(wrap.control_root,"hex").map(byte=>{let v=0;for(let i=0;i<8;i++)v|=((byte>>>i)&1)<<(7-i);return v;});
 const oldImage=JSON.parse(readFileSync(join(repo,"results/bitvm2-spike.json"),"utf8")).image_ids.term;
 assert.notEqual(oldImage,wrap.pre_state);
@@ -38,5 +40,5 @@ run("fork-proof-with-storage-guest-image",proof,wrongImagePublic,false);
 const otherGraph=Buffer.from(statement);otherGraph[14]^=1;
 const otherGraphPublic=scalar(Buffer.from(wrap.constants_digest,"hex"),sha(otherGraph));assert.notEqual(otherGraphPublic,publicInput[0]);
 run("fork-proof-with-different-graph-identity",proof,otherGraphPublic,false);
-const report={format:"bsb/fork-public-pairing-guards/v1",cases:results,scope:"Pairing verification and public-input binding checks. No Bitcoin collateral-dispute enforcement."};
+const report={format:compact?"bsb/fork-public-pairing-guards/v2":"bsb/fork-public-pairing-guards/v1",cases:results,scope:"Pairing verification and public-input binding checks. No Bitcoin collateral-dispute enforcement."};
 writeFileSync(output,JSON.stringify(report,null,2)+"\n",{flag:"wx"});console.log(JSON.stringify(report));

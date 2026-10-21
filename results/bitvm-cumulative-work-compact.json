@@ -1,0 +1,131 @@
+{
+  "format": "bsb/compact-cumulative-work-certificate/v1",
+  "network": "regtest",
+  "graph_id_is_synthetic": true,
+  "graph_id": "0b7132dd809e4fcccd14872aed3a152866d43197a28742d05549278ae116b010",
+  "fork_image_id": "b1766c1d9ebf071acd684ea744d83908181a60d313ccb385661e3fe76ff855b1",
+  "journal": "68df3b15df54d3e287908949c9607d0ffb0ac7e60ee7a1d433c2944ab1dbe0a7",
+  "statement_preimage": "6273622f72302d666f726b7c76320b7132dd809e4fcccd14872aed3a152866d43197a28742d05549278ae116b0103a365c36f29139756e46a5b33961b33933921cc9285bae1d07dfb8e4f287bfdc000000e85fc2c4c4189b86defb56da7d6c2dd90872c3355104ec44664f7dd6775fd03b6500000000000000000000000000000000000000000000000000000000000001d2000000e9bae61d6cfb9921d9e7807e2a87eeacb16b289a797562c13e77bb170856fce71500000000000000000000000000000000000000000000000000000000000001d4",
+  "statement_bytes": 214,
+  "term_preimage": "6273622f72302d7465726d7c76312ed618aa3231ba01749ec59d9172e4381eab81dbf900d0567160626372b116db5cb173ee191a3edca1f448066bf16eb1071c828d55141889a3365a93ff22917d0000001000000003dc1982a84c9196e4b22ab706cb33b754130c43c919b42a95f6eb676948d880cc000000aa0000000a0000000300000006000000dc71bb177f65a79b71a6c29ca5825cebc46ab4fb79e2f2061c3a3f020931fbfb1a00000000000000000000000000000000000000000000000000000000000001ba",
+  "term_journal": "3a365c36f29139756e46a5b33961b33933921cc9285bae1d07dfb8e4f287bfdc",
+  "original": {
+    "hash_internal": "71bb177f65a79b71a6c29ca5825cebc46ab4fb79e2f2061c3a3f020931fbfb1a",
+    "height": 220,
+    "work_be": "00000000000000000000000000000000000000000000000000000000000001ba"
+  },
+  "response": {
+    "hash_internal": "5fc2c4c4189b86defb56da7d6c2dd90872c3355104ec44664f7dd6775fd03b65",
+    "height": 232,
+    "work_be": "00000000000000000000000000000000000000000000000000000000000001d2"
+  },
+  "candidate": {
+    "hash_internal": "bae61d6cfb9921d9e7807e2a87eeacb16b289a797562c13e77bb170856fce715",
+    "height": 233,
+    "work_be": "00000000000000000000000000000000000000000000000000000000000001d4"
+  },
+  "verification": {
+    "paired_native_relation_tests": 7,
+    "compiled_guest_rejection_cases": 9,
+    "independent_readback_checks": 16,
+    "risc0_receipt_verified": true,
+    "v1_receipt_rejected_by_compact_wrapper": true,
+    "compact_receipt_rejected_by_v1_verifier": true,
+    "compact_full_bitvm_verifier_executed": false,
+    "public_scalar_independently_recomputed": true,
+    "pairing_guards": {
+      "format": "bsb/fork-public-pairing-guards/v2",
+      "cases": [
+        {
+          "name": "honest-fork-certificate",
+          "accepted": true,
+          "exit_code": 0,
+          "stdout": "arkworks: honest true, wrong public input false\n{\"verifies\":true,\"wrong_public_verifies\":false}",
+          "proof_sha256": "32eca71b9b4f619da079f4efb16b3ad66ec4b6efcdb70a4e2c51d12ef92e7334",
+          "public_input": "440360104829126912423372908572745653223447774026933459930022392504055569461"
+        },
+        {
+          "name": "old-storage-proof-with-fork-public-input",
+          "accepted": false,
+          "exit_code": 101,
+          "stdout": "arkworks: honest false, wrong public input false",
+          "proof_sha256": "b2220d1a7b806d4cefd050b49d48042276cc2ab0362ccf0f62548e1b3cafdd32",
+          "public_input": "440360104829126912423372908572745653223447774026933459930022392504055569461"
+        },
+        {
+          "name": "old-v1-fork-proof-with-compact-public-input",
+          "accepted": false,
+          "exit_code": 101,
+          "stdout": "arkworks: honest false, wrong public input false",
+          "proof_sha256": "ce176f91e7d5d2cfa28f0a0ac688f61de7f851b464f1da4726b2faeeb29badde",
+          "public_input": "440360104829126912423372908572745653223447774026933459930022392504055569461"
+        },
+        {
+          "name": "fork-proof-with-storage-guest-image",
+          "accepted": false,
+          "exit_code": 101,
+          "stdout": "arkworks: honest false, wrong public input false",
+          "proof_sha256": "32eca71b9b4f619da079f4efb16b3ad66ec4b6efcdb70a4e2c51d12ef92e7334",
+          "public_input": "118468593029349548263022536406568524735292657636650498355820096923188562563"
+        },
+        {
+          "name": "fork-proof-with-different-graph-identity",
+          "accepted": false,
+          "exit_code": 101,
+          "stdout": "arkworks: honest false, wrong public input false",
+          "proof_sha256": "32eca71b9b4f619da079f4efb16b3ad66ec4b6efcdb70a4e2c51d12ef92e7334",
+          "public_input": "33916322881158230080804353310125154504253751181027318961809972668186362258"
+        }
+      ],
+      "scope": "Pairing verification and public-input binding checks. No Bitcoin collateral-dispute enforcement."
+    },
+    "bitcoin_binding_library_tests": 20
+  },
+  "groth16": {
+    "image": "ozancw/risc0-to-bitvm2-groth16-prover@sha256:840b833190a86c87eb71473cd72bcaa3e3b90cefa9bf4ae785ab2de61bc9d262",
+    "constants_digest": "9223b62399d60ee3923e66a2ef18cdc1c5be47c4b1fc68da6f813bc3d366fe29",
+    "public_input": "440360104829126912423372908572745653223447774026933459930022392504055569461",
+    "vk_sha256": "2941dff0bd962ff8610773c9659c10d0dec561db1e2f6afecfbbe0d9cb457a7d",
+    "proof_sha256": "32eca71b9b4f619da079f4efb16b3ad66ec4b6efcdb70a4e2c51d12ef92e7334"
+  },
+  "measurements": {
+    "certificate": {
+      "elapsed": "4:26.58",
+      "peak_rss_kib": 2408124,
+      "exit_status": 0
+    },
+    "wrap_host": {
+      "elapsed": "3:13.47",
+      "peak_rss_kib": 1481000,
+      "exit_status": 0
+    },
+    "wrap_host_rss_excludes_container": true
+  },
+  "header_receipts_reused": true,
+  "archives": {
+    "return_sha256": "f15587aa0f1cc196515edaee8b6ea54f8068a346798da7d945f118980d852f2f",
+    "proof_source_sha256": "24be4ee66adbe859520a5a46bde99674fdbd1b9551ed6215ed2f5330e3ba3569",
+    "verification_source_sha256": "728dedbe818f771f62ad91b37c334f2e5548ca7f836b47233d14c4867fcc614f"
+  },
+  "scope": "Genuine compact relative-work certificate and Groth16 wrap. The original v1 image and funded storage graph remain unchanged. No holdings proof was generated for these experimental branches, and no fork certificate controls funded collateral. Permissionless challenger registration remains unresolved.",
+  "binding_interpreter": {
+    "complete_binding_measurements": [
+      {
+        "kind": "original-term-plus-journal-arithmetic",
+        "max_stack_items": 792,
+        "measured_cases": 4,
+        "scope": "Proposed journal commitment for future setup only; existing graph remains unchanged.",
+        "script_bytes": 1232157
+      },
+      {
+        "kind": "compact-fork-arithmetic",
+        "max_stack_items": 853,
+        "measured_cases": 9,
+        "scope": "Arithmetic binding to the genuine compact certificate public input; no graph registration.",
+        "script_bytes": 1241447
+      }
+    ],
+    "actual_compact_public_input_used": true,
+    "scope": "BitVM arithmetic interpreter only; no Core fork-defense transaction or funded graph registration."
+  }
+}

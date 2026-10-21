@@ -39,7 +39,9 @@ IDS=$("$TARGET_DIR/release/bsb-r0" ids)
 python3 - "$IDS" <<'PY'
 import json,sys
 from fresh_snapshot import IDS,require
+from check_fork_research import FORK_ID,COMPACT_ID
 actual=json.loads(sys.argv[1])
 require({k:actual[k] for k in IDS}==IDS,"compiled guest IDs differ from the committed setup")
+require(actual["fork"]==FORK_ID and actual["fork_compact"]==COMPACT_ID,"compiled fork guest IDs differ from pinned versions")
 print(json.dumps({"guest_ids_match":True,"ids":actual}))
 PY

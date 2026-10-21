@@ -1,5 +1,5 @@
 //! Binding arithmetic for a proposed compact relative-work statement.
-//! This supplies neither a compact-certificate guest nor challenger-key registration.
+//! These arithmetic leaves do not supply challenger-key registration or a funded graph.
 use crate::storage_binding::{
     blake3_word_order, bytes_to_alt, bytes_to_nibbles, public_input_mismatch,
 };
@@ -90,33 +90,44 @@ mod tests {
         fields: Vec<Vec<u8>>,
     }
     fn fixture() -> Fixture {
+        use ark_ff::{BigInteger, PrimeField};
+        use std::str::FromStr;
         let v: Value = serde_json::from_str(include_str!(
-            "../../../results/bitvm-cumulative-work-certificate.json"
+            "../../../results/bitvm-cumulative-work-compact.json"
         ))
         .unwrap();
-        let full = unhex(v["statement_preimage"].as_str().unwrap());
-        assert_eq!(full.len(), 354);
-        let graph = full[14..46].try_into().unwrap();
-        let constants = [42u8; 32];
-        let mut statement = b"bsb/r0-fork|v2".to_vec();
-        statement.extend_from_slice(&full[14..78]);
-        statement.extend_from_slice(&full[146..282]);
+        let statement = unhex(v["statement_preimage"].as_str().unwrap());
+        assert_eq!(statement.len(), 214);
+        assert_eq!(&statement[..14], b"bsb/r0-fork|v2");
+        let graph = statement[14..46].try_into().unwrap();
+        let constants: [u8; 32] = unhex(v["groth16"]["constants_digest"].as_str().unwrap())
+            .try_into()
+            .unwrap();
         let journal = sha256::Hash::hash(&statement).to_byte_array();
+        assert_eq!(journal.as_slice(), unhex(v["journal"].as_str().unwrap()));
         let digest = blake3::hash(&[constants.as_slice(), journal.as_slice()].concat());
         let mut public = vec![0];
         public.extend_from_slice(&digest.as_bytes()[..31]);
+        let actual = ark_bn254::Fr::from_str(v["groth16"]["public_input"].as_str().unwrap())
+            .unwrap()
+            .into_bigint()
+            .to_bytes_be();
+        assert_eq!(
+            public, actual,
+            "binding fixture must use the real Groth16 public input"
+        );
         for byte in &mut public {
             *byte = byte.rotate_left(4);
         }
         let fields = vec![
             public,
-            full[46..78].to_vec(),
-            full[146..150].to_vec(),
-            full[150..182].to_vec(),
-            full[182..214].to_vec(),
-            full[214..218].to_vec(),
-            full[218..250].to_vec(),
-            full[250..282].to_vec(),
+            statement[46..78].to_vec(),
+            statement[78..82].to_vec(),
+            statement[82..114].to_vec(),
+            statement[114..146].to_vec(),
+            statement[146..150].to_vec(),
+            statement[150..182].to_vec(),
+            statement[182..214].to_vec(),
         ];
         Fixture {
             graph,
@@ -187,7 +198,7 @@ mod tests {
         }
         println!(
             "BSB_BINDING_STATS {}",
-            serde_json::json!({"kind":"compact-fork-arithmetic","script_bytes":leaf.len(),"max_stack_items":maximum_stack,"measured_cases":9,"scope":"Proposed compact binding only; no compact guest or graph registration."})
+            serde_json::json!({"kind":"compact-fork-arithmetic","script_bytes":leaf.len(),"max_stack_items":maximum_stack,"measured_cases":9,"scope":"Arithmetic binding to the genuine compact certificate public input; no graph registration."})
         );
     }
     #[test]
