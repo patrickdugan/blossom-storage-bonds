@@ -328,7 +328,7 @@ pub struct GraphTx {
     pub prevouts: Vec<TxOut>,
 }
 impl GraphTx {
-    fn new(inputs: Vec<(OutPoint, TxOut, Sequence)>, outputs: Vec<TxOut>, lock: u32) -> Self {
+    pub fn new(inputs: Vec<(OutPoint, TxOut, Sequence)>, outputs: Vec<TxOut>, lock: u32) -> Self {
         let prevouts = inputs.iter().map(|(_, out, _)| out.clone()).collect();
         let input = inputs
             .into_iter()
@@ -358,7 +358,7 @@ impl GraphTx {
             .unwrap()
             .to_byte_array()
     }
-    fn committee_input(&mut self, index: usize, state: &State, committee: &Committee) {
+    pub fn committee_input(&mut self, index: usize, state: &State, committee: &Committee) {
         let sig = committee.sign(self.message(index, &state.script));
         self.tx.input[index].witness = state.finish(vec![sig], &state.script);
     }
@@ -370,7 +370,7 @@ impl GraphTx {
         );
         self.tx.input[index].witness = state.finish(vec![sig.as_ref().to_vec()], script);
     }
-    fn output(&self, index: usize) -> (OutPoint, TxOut) {
+    pub fn output(&self, index: usize) -> (OutPoint, TxOut) {
         (
             OutPoint::new(self.tx.compute_txid(), index as u32),
             self.tx.output[index].clone(),

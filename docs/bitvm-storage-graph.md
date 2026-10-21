@@ -728,3 +728,82 @@ overdisclosure leaf cannot recover collateral after an unrestricted withdrawal.
 cargo build --offline --locked --manifest-path zk/bitvm-check/Cargo.toml --example subset-penalty
 node zk/bitvm-check/subset-penalty-regtest.ts --bitcoind <core> --checker <subset-penalty> --dir <new-node-dir> --out <new-report.json>
 ```
+
+## Bounded provider-rebuttal contract
+
+The selected route now has a separate funded transaction prototype with direct verification of
+short real header branches. It keeps exact work and permits observers absent from setup to open
+and finish a dispute. It is not yet the long-chain compressed-proof contract or an integration
+with the storage v2 graph. No further proof job has been started.
+
+`short_headers.rs` validates at most three headers after a setup-pinned checkpoint. It checks
+every byte, previous-hash link, version, median of the previous eleven timestamps, pinned time
+bound, exact target and double SHA256 proof of work. The target is regtest's 0x207fffff throughout,
+so each validated header contributes exactly two work units. Since the checkpoint is shared,
+the header-count comparison is exact cumulative work here; it must not be generalized to a
+network with changing difficulty. The first post-checkpoint header is this prototype's seed.
+
+`rebuttal-contract.rs` uses the existing fixed-payout MuSig2 transaction helpers with NUMS
+internal keys. Committee presigning finishes before funding, and the private committee object
+is dropped. The separate provider signing phase keeps unused WOTS secrets in RAM. Funding is
+mined before the provider chooses and signs its original header; the response count is signed
+only after the real opening challenge confirms. This is a co-located fixture, not a distributed
+deletion ceremony. Neither the opening observer nor the later counterbranch submitter needs
+the client's private key, a committee private key or a new prover registration.
+
+```mermaid
+flowchart TD
+  F[Funded checkpoint contract] --> O[Validated one-header original claim]
+  F -->|claim deadline| FC[Fixed client recovery]
+  O -->|no opening, CSV 6| U[Fixed provider refund]
+  O --> C[Anyone supplies a valid stronger conflicting branch]
+  C -->|provider silent, CSV 6| SC[Fixed client recovery]
+  C --> R[Provider publishes a validated original-branch extension]
+  R -->|strictly stronger conflicting counterbranch| CC[Fixed client payout]
+  R -->|two signed original identities| EC[Fixed client equivocation payout]
+  R -->|counterbranch window passes, CSV 6| P[Fixed provider refund]
+```
+
+The provider's answer does not finish the contest immediately. Its output remains open to any
+valid stronger counterbranch for the dispute window. A weaker opening can therefore be rebutted
+without excluding a later stronger branch. The original and response signatures are public
+on-chain disclosures; the counterbranch constructor uses only those and the public presigned
+transaction. The actual candidate headers are checked in Script, rather than being assumed
+authentic by an off-chain comparison oracle. A provider that changes its signed original identity
+can be penalized before withdrawal.
+
+Core 31.1 mined 18 graph transactions and rejected 47 invalid attempts across six paths:
+
+| Path | Checked terminal payout |
+| --- | --- |
+| Opening fork is rebutted, then a stronger counterbranch arrives | Client: 95,600,000 sats |
+| Honest three-header extension; weaker and equal-work candidates fail | Provider: 97,597,000 sats |
+| Provider stops after a valid opening | Client: 98,397,000 sats |
+| No opening challenge | Provider: 99,197,000 sats |
+| Provider signs a different original identity in its response | Client: 97,550,000 sats |
+| Provider stops before signing any original header | Client: 99,997,000 sats |
+
+The rejection cases include unrelated response branches, mismatched signed work, old-graph
+underreported-work replay against an honest provider, invalid proof of work, wrong difficulty,
+median-time violations, obsolete versions, same-seed branches, early withdrawals and redirected
+payouts. The largest counterbranch leaf is 2,552,916 bytes; the observed native maximum stack is
+831 items. Exact target-boundary and timestamp-median checks are included among all 27 passing
+native library tests. Core readback and a separate transaction parser verify recipient and amount,
+and saved checkpoint/branch headers independently replay from genesis with the existing header
+validator. The node and provider processes exit cleanly. Evidence is
+`results/bitvm-provider-rebuttal-contract.json`, with hashes of the public vectors and sources.
+
+The harness enables nonstandard relay and raises the cluster size limit for these large leaves.
+It assumes an honest observer can confirm within the windows; competing spends at their boundary
+follow Bitcoin's ordinary confirmation rules. It does not establish public miner support.
+
+This milestone resolves the transaction ordering and fixed-payout behavior for the bounded
+direct verifier. It does not make a large candidate SNARK permissionlessly admissible to an
+optimistic verifier. The proof gate remains closed until that long-chain route and its storage
+bond integration are specified and tested. The existing exact cumulative-work certificate and
+storage proofs remain separate artifacts.
+
+```text
+cargo build --offline --locked --manifest-path zk/bitvm-check/Cargo.toml --example rebuttal-contract
+node zk/bitvm-check/rebuttal-regtest.ts --bitcoind <core> --checker <rebuttal-contract> --dir <new-node-dir> --out <new-report.json>
+```

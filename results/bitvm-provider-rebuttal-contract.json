@@ -1,0 +1,1013 @@
+{
+  "format": "bsb/bounded-provider-rebuttal-regtest/v1",
+  "network": "regtest",
+  "core": "/Satoshi:31.1.0/",
+  "policy": {
+    "acceptnonstdtxn": true,
+    "limitclustersizeKB": 2000,
+    "peers": 0
+  },
+  "maxHeaders": 3,
+  "seed": "first header after the pinned checkpoint",
+  "cases": [
+    {
+      "kind": "stronger-counterbranch",
+      "anchorHeight": 169,
+      "anchorHash": "4c38c46a45507efe143028b6459efac7fa0351f81a0280adf0823f74af706e18",
+      "providerResponseHeaders": 2,
+      "maxCandidateHeaders": 3,
+      "workPerValidatedHeader": "2",
+      "providerMessagesSelectedAfterPresigning": true,
+      "candidateChosenAfterCommitteePresigning": true,
+      "committeeDroppedBeforeFunding": true,
+      "providerResponseSignedAfterOpeningConfirmed": true,
+      "providerExitedBeforeResponseBroadcast": true,
+      "leafBytes": {
+        "claim": 856642,
+        "counter": [
+          857443,
+          1705180,
+          2552916
+        ],
+        "response": [
+          857435,
+          1705172,
+          2552908
+        ]
+      },
+      "admitted": [
+        {
+          "name": "claim",
+          "txid": "ad9800ea91fe3d718814a5c4071dc323c33503efb650b4d8946d768d1742c380",
+          "wtxid": "754789c00e8099c643a09a0969511a4f12acddff819e9f4fc4bf6e0cbc20fe4e"
+        },
+        {
+          "name": "permissionless-valid-fork-challenge",
+          "txid": "24f68b3f99067efc5140fd0497e0f5e8b265e149cfc8b12dd2d006f5b9f6d323",
+          "wtxid": "9eb8767e7e0a4c52e4ebb77aa978d7c42d1cdd478a4765dd89831c17253e7815"
+        },
+        {
+          "name": "provider-response",
+          "txid": "990dfd05875044e71bff75349dedbafa9544c545ccf8e7bf4dc4627d8479fbfc",
+          "wtxid": "451aec6adfb6ff05f98962ad2a27ca54f5d839ebbb87a3efe7b256b9ab2c692e"
+        },
+        {
+          "name": "stronger-candidate-after-weaker-attempts",
+          "txid": "30c1b8a0d872e29cbeb0a84b81b7997406c247d81de1fb73e0ac1645a362d3dc",
+          "wtxid": "b667db3f5d31c632699e4f88d369cc9c884e1158b3be0ee9456ca35ec088b869"
+        }
+      ],
+      "rejected": [
+        {
+          "name": "early-funding-timeout",
+          "reason": "non-final"
+        },
+        {
+          "name": "early-unchallenged-refund",
+          "reason": "non-BIP68-final"
+        },
+        {
+          "name": "opening-does-not-diverge",
+          "reason": "mempool-script-verify-flag-failed (Script failed an OP_VERIFY operation)"
+        },
+        {
+          "name": "redirected-opening-challenge",
+          "reason": "mempool-script-verify-flag-failed (Invalid Schnorr signature)"
+        },
+        {
+          "name": "early-silence-timeout",
+          "reason": "non-BIP68-final"
+        },
+        {
+          "name": "response-does-not-extend-original",
+          "reason": "mempool-script-verify-flag-failed (Script failed an OP_VERIFY operation)"
+        },
+        {
+          "name": "response-count-mismatch",
+          "reason": "mempool-script-verify-flag-failed (Script failed an OP_EQUALVERIFY operation)"
+        },
+        {
+          "name": "early-provider-refund",
+          "reason": "non-BIP68-final"
+        },
+        {
+          "name": "weaker-candidate",
+          "reason": "mempool-script-verify-flag-failed (Script failed an OP_VERIFY operation)"
+        },
+        {
+          "name": "equal-work-candidate",
+          "reason": "mempool-script-verify-flag-failed (Script failed an OP_VERIFY operation)"
+        },
+        {
+          "name": "same-seed-branch",
+          "reason": "mempool-script-verify-flag-failed (Script failed an OP_VERIFY operation)"
+        },
+        {
+          "name": "wrong-difficulty",
+          "reason": "mempool-script-verify-flag-failed (Script failed an OP_EQUALVERIFY operation)"
+        },
+        {
+          "name": "invalid-proof-of-work",
+          "reason": "mempool-script-verify-flag-failed (Script failed an OP_VERIFY operation)"
+        },
+        {
+          "name": "timestamp-at-median",
+          "reason": "mempool-script-verify-flag-failed (Script failed an OP_VERIFY operation)"
+        },
+        {
+          "name": "obsolete-version",
+          "reason": "mempool-script-verify-flag-failed (Script failed an OP_VERIFY operation)"
+        },
+        {
+          "name": "invented-response-work",
+          "reason": "mempool-script-verify-flag-failed (Script failed an OP_EQUALVERIFY operation)"
+        },
+        {
+          "name": "unrelated-original-key",
+          "reason": "mempool-script-verify-flag-failed (Script failed an OP_EQUALVERIFY operation)"
+        },
+        {
+          "name": "redirected-counter",
+          "reason": "mempool-script-verify-flag-failed (Invalid Schnorr signature)"
+        }
+      ],
+      "mined": [
+        {
+          "name": "claim",
+          "txid": "ad9800ea91fe3d718814a5c4071dc323c33503efb650b4d8946d768d1742c380",
+          "wtxid": "754789c00e8099c643a09a0969511a4f12acddff819e9f4fc4bf6e0cbc20fe4e",
+          "weight": 858876,
+          "vsize": 214719
+        },
+        {
+          "name": "permissionless-valid-fork-challenge",
+          "txid": "24f68b3f99067efc5140fd0497e0f5e8b265e149cfc8b12dd2d006f5b9f6d323",
+          "wtxid": "9eb8767e7e0a4c52e4ebb77aa978d7c42d1cdd478a4765dd89831c17253e7815",
+          "weight": 1706842,
+          "vsize": 426711
+        },
+        {
+          "name": "provider-response",
+          "txid": "990dfd05875044e71bff75349dedbafa9544c545ccf8e7bf4dc4627d8479fbfc",
+          "wtxid": "451aec6adfb6ff05f98962ad2a27ca54f5d839ebbb87a3efe7b256b9ab2c692e",
+          "weight": 1707851,
+          "vsize": 426963
+        },
+        {
+          "name": "stronger-candidate-after-weaker-attempts",
+          "txid": "30c1b8a0d872e29cbeb0a84b81b7997406c247d81de1fb73e0ac1645a362d3dc",
+          "wtxid": "b667db3f5d31c632699e4f88d369cc9c884e1158b3be0ee9456ca35ec088b869",
+          "weight": 2555808,
+          "vsize": 638952
+        }
+      ],
+      "payouts": [
+        {
+          "name": "stronger-candidate-after-weaker-attempts",
+          "txid": "30c1b8a0d872e29cbeb0a84b81b7997406c247d81de1fb73e0ac1645a362d3dc",
+          "address": "bcrt1pcna9t3zuuu2w4849flk6x2msqupa8xdxgclxgf0r775ws2r6my8qq5wtnx",
+          "sats": 95600000
+        }
+      ]
+    },
+    {
+      "kind": "honest-extension",
+      "anchorHeight": 174,
+      "anchorHash": "6bd4110a94bf0e757995a22296a68a714e218c6741173d6bb14deebf131070df",
+      "providerResponseHeaders": 3,
+      "maxCandidateHeaders": 3,
+      "workPerValidatedHeader": "2",
+      "providerMessagesSelectedAfterPresigning": true,
+      "candidateChosenAfterCommitteePresigning": true,
+      "committeeDroppedBeforeFunding": true,
+      "providerResponseSignedAfterOpeningConfirmed": true,
+      "providerExitedBeforeResponseBroadcast": true,
+      "leafBytes": {
+        "claim": 856642,
+        "counter": [
+          857443,
+          1705180,
+          2552916
+        ],
+        "response": [
+          857435,
+          1705172,
+          2552908
+        ]
+      },
+      "admitted": [
+        {
+          "name": "claim",
+          "txid": "d1bb4f16483fe44d4b5be875df99dd40a78645c50507b94db0965047a4c8e0ee",
+          "wtxid": "0f3ddab076dcd701bdddf9ca7795f12b8cf9bfa6fe8d26031f5cafbf1b388f02"
+        },
+        {
+          "name": "permissionless-valid-fork-challenge",
+          "txid": "5b56830e8f6769a3a75f08f6b8a8b11dd72a42850f8816463800b667bae64f18",
+          "wtxid": "74a42aaeaa2921b8a05b285e01ca4c849e9627686d061909458161c440ca2ec1"
+        },
+        {
+          "name": "provider-response",
+          "txid": "fdef22245a3327f25c2e7b4101607f35d0eaeec49aa6785b3a5a0d339be82fc4",
+          "wtxid": "a512fbfe6fa268a50dffd3b56da55e54779ebe19f2c5e18285391829dd99eb27"
+        },
+        {
+          "name": "honest-extension-refund",
+          "txid": "a3f9c5f509d5653a44e7acf9eb2ce534a31b9e5187a95f89d60cfe519250d715",
+          "wtxid": "6f2731072cd2af04c970cdb95e6a1565082d6a55b3c324c85f893a9cc5518632"
+        }
+      ],
+      "rejected": [
+        {
+          "name": "early-funding-timeout",
+          "reason": "non-final"
+        },
+        {
+          "name": "early-unchallenged-refund",
+          "reason": "non-BIP68-final"
+        },
+        {
+          "name": "opening-does-not-diverge",
+          "reason": "mempool-script-verify-flag-failed (Script failed an OP_VERIFY operation)"
+        },
+        {
+          "name": "redirected-opening-challenge",
+          "reason": "mempool-script-verify-flag-failed (Invalid Schnorr signature)"
+        },
+        {
+          "name": "early-silence-timeout",
+          "reason": "non-BIP68-final"
+        },
+        {
+          "name": "response-does-not-extend-original",
+          "reason": "mempool-script-verify-flag-failed (Script failed an OP_VERIFY operation)"
+        },
+        {
+          "name": "response-count-mismatch",
+          "reason": "mempool-script-verify-flag-failed (Script failed an OP_EQUALVERIFY operation)"
+        },
+        {
+          "name": "early-provider-refund",
+          "reason": "non-BIP68-final"
+        },
+        {
+          "name": "weaker-candidate",
+          "reason": "mempool-script-verify-flag-failed (Script failed an OP_VERIFY operation)"
+        },
+        {
+          "name": "equal-work-candidate",
+          "reason": "mempool-script-verify-flag-failed (Script failed an OP_VERIFY operation)"
+        },
+        {
+          "name": "same-seed-branch",
+          "reason": "mempool-script-verify-flag-failed (Script failed an OP_VERIFY operation)"
+        },
+        {
+          "name": "old-graph-underreported-work-replay",
+          "reason": "mempool-script-verify-flag-failed (Script failed an OP_EQUALVERIFY operation)"
+        }
+      ],
+      "mined": [
+        {
+          "name": "claim",
+          "txid": "d1bb4f16483fe44d4b5be875df99dd40a78645c50507b94db0965047a4c8e0ee",
+          "wtxid": "0f3ddab076dcd701bdddf9ca7795f12b8cf9bfa6fe8d26031f5cafbf1b388f02",
+          "weight": 858884,
+          "vsize": 214721
+        },
+        {
+          "name": "permissionless-valid-fork-challenge",
+          "txid": "5b56830e8f6769a3a75f08f6b8a8b11dd72a42850f8816463800b667bae64f18",
+          "wtxid": "74a42aaeaa2921b8a05b285e01ca4c849e9627686d061909458161c440ca2ec1",
+          "weight": 1706845,
+          "vsize": 426712
+        },
+        {
+          "name": "provider-response",
+          "txid": "fdef22245a3327f25c2e7b4101607f35d0eaeec49aa6785b3a5a0d339be82fc4",
+          "wtxid": "a512fbfe6fa268a50dffd3b56da55e54779ebe19f2c5e18285391829dd99eb27",
+          "weight": 2555778,
+          "vsize": 638945
+        },
+        {
+          "name": "honest-extension-refund",
+          "txid": "a3f9c5f509d5653a44e7acf9eb2ce534a31b9e5187a95f89d60cfe519250d715",
+          "wtxid": "6f2731072cd2af04c970cdb95e6a1565082d6a55b3c324c85f893a9cc5518632",
+          "weight": 612,
+          "vsize": 153
+        }
+      ],
+      "payouts": [
+        {
+          "name": "honest-extension-refund",
+          "txid": "a3f9c5f509d5653a44e7acf9eb2ce534a31b9e5187a95f89d60cfe519250d715",
+          "address": "bcrt1p87tyhtgresk9jczfsr350ct62hq5p8fdea8fsmufgvxmy57wt0gqx3yaav",
+          "sats": 97597000
+        }
+      ]
+    },
+    {
+      "kind": "silent-provider",
+      "anchorHeight": 184,
+      "anchorHash": "2bd0b595987a7f6b92714569984b424429f667171b98362037fcdba43d7e679c",
+      "providerResponseHeaders": 0,
+      "maxCandidateHeaders": 3,
+      "workPerValidatedHeader": "2",
+      "providerMessagesSelectedAfterPresigning": true,
+      "candidateChosenAfterCommitteePresigning": true,
+      "committeeDroppedBeforeFunding": true,
+      "providerResponseSignedAfterOpeningConfirmed": false,
+      "providerExitedBeforeResponseBroadcast": true,
+      "leafBytes": {
+        "claim": 856642,
+        "counter": [
+          857443,
+          1705180,
+          2552916
+        ],
+        "response": [
+          857435,
+          1705172,
+          2552908
+        ]
+      },
+      "admitted": [
+        {
+          "name": "claim",
+          "txid": "a64bfbaa4bd277094a021294141eceea78f5dd4ff4d9c908e6d66c329ec8b52f",
+          "wtxid": "6e0b410be84968c3b5e7fd2135ebc3a6b723930c12127e074bd522b6d1cd8741"
+        },
+        {
+          "name": "permissionless-valid-fork-challenge",
+          "txid": "23f84944ff5d819c0878b766652caf9d105d1313e70927706a08903337bf73f8",
+          "wtxid": "3aad4f4ab46ebd9bb5e6f40efd78b710c1ce566109125c60ad71a08565849f63"
+        },
+        {
+          "name": "provider-silence",
+          "txid": "b9bf8e5f8c1c03fc5d49e198b37abc86f80e4e1cc1e18812269e36fa45d54ac3",
+          "wtxid": "c06a41bbb7f2eaadf3cdd3cf18638e99b5a16c8fcdd4fc1ca84bac922089157b"
+        }
+      ],
+      "rejected": [
+        {
+          "name": "early-funding-timeout",
+          "reason": "non-final"
+        },
+        {
+          "name": "early-unchallenged-refund",
+          "reason": "non-BIP68-final"
+        },
+        {
+          "name": "opening-does-not-diverge",
+          "reason": "mempool-script-verify-flag-failed (Script failed an OP_VERIFY operation)"
+        },
+        {
+          "name": "redirected-opening-challenge",
+          "reason": "mempool-script-verify-flag-failed (Invalid Schnorr signature)"
+        },
+        {
+          "name": "early-silence-timeout",
+          "reason": "non-BIP68-final"
+        }
+      ],
+      "mined": [
+        {
+          "name": "claim",
+          "txid": "a64bfbaa4bd277094a021294141eceea78f5dd4ff4d9c908e6d66c329ec8b52f",
+          "wtxid": "6e0b410be84968c3b5e7fd2135ebc3a6b723930c12127e074bd522b6d1cd8741",
+          "weight": 858876,
+          "vsize": 214719
+        },
+        {
+          "name": "permissionless-valid-fork-challenge",
+          "txid": "23f84944ff5d819c0878b766652caf9d105d1313e70927706a08903337bf73f8",
+          "wtxid": "3aad4f4ab46ebd9bb5e6f40efd78b710c1ce566109125c60ad71a08565849f63",
+          "weight": 1706850,
+          "vsize": 426713
+        },
+        {
+          "name": "provider-silence",
+          "txid": "b9bf8e5f8c1c03fc5d49e198b37abc86f80e4e1cc1e18812269e36fa45d54ac3",
+          "wtxid": "c06a41bbb7f2eaadf3cdd3cf18638e99b5a16c8fcdd4fc1ca84bac922089157b",
+          "weight": 580,
+          "vsize": 145
+        }
+      ],
+      "payouts": [
+        {
+          "name": "provider-silence",
+          "txid": "b9bf8e5f8c1c03fc5d49e198b37abc86f80e4e1cc1e18812269e36fa45d54ac3",
+          "address": "bcrt1pawryjf8jlf4h53zqgwh0sjan7yymz2llw4tyw6kaarsxfdmzzvus6kkpn6",
+          "sats": 98397000
+        }
+      ]
+    },
+    {
+      "kind": "unchallenged",
+      "anchorHeight": 193,
+      "anchorHash": "0d0523970babde2ec53c529c672392374cb9263434a6f6b19deba62ea5adee4e",
+      "providerResponseHeaders": 0,
+      "maxCandidateHeaders": 3,
+      "workPerValidatedHeader": "2",
+      "providerMessagesSelectedAfterPresigning": true,
+      "candidateChosenAfterCommitteePresigning": true,
+      "committeeDroppedBeforeFunding": true,
+      "providerResponseSignedAfterOpeningConfirmed": false,
+      "providerExitedBeforeResponseBroadcast": true,
+      "leafBytes": {
+        "claim": 856642,
+        "counter": [
+          857443,
+          1705180,
+          2552916
+        ],
+        "response": [
+          857435,
+          1705172,
+          2552908
+        ]
+      },
+      "admitted": [
+        {
+          "name": "claim",
+          "txid": "273d9b6cf8c1cdb9b5dd6a6dabd9285576f08c66e946254efafd1ad1f7faa052",
+          "wtxid": "9a9d0bd8a8f0a83aa7b9dd33985fa90eedf97fffbc8774f473272909509fb093"
+        },
+        {
+          "name": "unchallenged-refund",
+          "txid": "93e55696e5fb776b570b80890027195ba6f2056ce9dce717e743301834fc58f9",
+          "wtxid": "346104c6ade9da8c0a1e5431c67ea1a00f5c07ab17d6f5a33d04d9335522d9c4"
+        }
+      ],
+      "rejected": [
+        {
+          "name": "early-funding-timeout",
+          "reason": "non-final"
+        },
+        {
+          "name": "early-unchallenged-refund",
+          "reason": "non-BIP68-final"
+        }
+      ],
+      "mined": [
+        {
+          "name": "claim",
+          "txid": "273d9b6cf8c1cdb9b5dd6a6dabd9285576f08c66e946254efafd1ad1f7faa052",
+          "wtxid": "9a9d0bd8a8f0a83aa7b9dd33985fa90eedf97fffbc8774f473272909509fb093",
+          "weight": 858878,
+          "vsize": 214720
+        },
+        {
+          "name": "unchallenged-refund",
+          "txid": "93e55696e5fb776b570b80890027195ba6f2056ce9dce717e743301834fc58f9",
+          "wtxid": "346104c6ade9da8c0a1e5431c67ea1a00f5c07ab17d6f5a33d04d9335522d9c4",
+          "weight": 580,
+          "vsize": 145
+        }
+      ],
+      "payouts": [
+        {
+          "name": "unchallenged-refund",
+          "txid": "93e55696e5fb776b570b80890027195ba6f2056ce9dce717e743301834fc58f9",
+          "address": "bcrt1py5x2yzzc0hr8q224x86e0dcm6cj7dh4xy87ancek6ps6mu2tpwvssv5x0t",
+          "sats": 99197000
+        }
+      ]
+    },
+    {
+      "kind": "equivocated-original",
+      "anchorHeight": 201,
+      "anchorHash": "14748927628a5ccc8197f9bdba29648640eb704b1451094954f7400ddf7f4575",
+      "providerResponseHeaders": 2,
+      "maxCandidateHeaders": 3,
+      "workPerValidatedHeader": "2",
+      "providerMessagesSelectedAfterPresigning": true,
+      "candidateChosenAfterCommitteePresigning": true,
+      "committeeDroppedBeforeFunding": true,
+      "providerResponseSignedAfterOpeningConfirmed": true,
+      "providerExitedBeforeResponseBroadcast": true,
+      "leafBytes": {
+        "claim": 856642,
+        "counter": [
+          857443,
+          1705180,
+          2552916
+        ],
+        "response": [
+          857435,
+          1705172,
+          2552908
+        ]
+      },
+      "admitted": [
+        {
+          "name": "claim",
+          "txid": "67575de430932dd01029c4adec6ee0947cf063aee72baa4c9cb740cf0cb77ae1",
+          "wtxid": "5e1fed5532e1f567c7a98ffbbabce63e6d2b14bbd6802fafb2511d41b7b4d2fa"
+        },
+        {
+          "name": "permissionless-valid-fork-challenge",
+          "txid": "455026141881857471eed9e7e8c4f208abd72f14d1d2bbfc0db5305059316dbc",
+          "wtxid": "db6b3e6a00081df3c343b68b0d05db9854b494c1c75388c0bc22632d4139346f"
+        },
+        {
+          "name": "provider-response",
+          "txid": "f6c16467ffda78e813d6f5f6615b5b1cc63530d429b430b9d5a51583ebe67bc0",
+          "wtxid": "aefe9863ef4eccd1e1832b0b31481bbd68b44fe887a070b39658b6c70c14d747"
+        },
+        {
+          "name": "original-equivocation",
+          "txid": "209fa793a0acd59ba80512c58dde57c02eec34c4324e503fdccc482c51874ac8",
+          "wtxid": "064eaeec105be3b3260782ea0860ec713ec4034f1d0916b6c6cf883ee6e0acf9"
+        }
+      ],
+      "rejected": [
+        {
+          "name": "early-funding-timeout",
+          "reason": "non-final"
+        },
+        {
+          "name": "early-unchallenged-refund",
+          "reason": "non-BIP68-final"
+        },
+        {
+          "name": "opening-does-not-diverge",
+          "reason": "mempool-script-verify-flag-failed (Script failed an OP_VERIFY operation)"
+        },
+        {
+          "name": "redirected-opening-challenge",
+          "reason": "mempool-script-verify-flag-failed (Invalid Schnorr signature)"
+        },
+        {
+          "name": "early-silence-timeout",
+          "reason": "non-BIP68-final"
+        },
+        {
+          "name": "response-count-mismatch",
+          "reason": "mempool-script-verify-flag-failed (Script failed an OP_VERIFY operation)"
+        },
+        {
+          "name": "early-provider-refund",
+          "reason": "non-BIP68-final"
+        },
+        {
+          "name": "redirected-equivocation",
+          "reason": "mempool-script-verify-flag-failed (Invalid Schnorr signature)"
+        }
+      ],
+      "mined": [
+        {
+          "name": "claim",
+          "txid": "67575de430932dd01029c4adec6ee0947cf063aee72baa4c9cb740cf0cb77ae1",
+          "wtxid": "5e1fed5532e1f567c7a98ffbbabce63e6d2b14bbd6802fafb2511d41b7b4d2fa",
+          "weight": 858879,
+          "vsize": 214720
+        },
+        {
+          "name": "permissionless-valid-fork-challenge",
+          "txid": "455026141881857471eed9e7e8c4f208abd72f14d1d2bbfc0db5305059316dbc",
+          "wtxid": "db6b3e6a00081df3c343b68b0d05db9854b494c1c75388c0bc22632d4139346f",
+          "weight": 1706837,
+          "vsize": 426710
+        },
+        {
+          "name": "provider-response",
+          "txid": "f6c16467ffda78e813d6f5f6615b5b1cc63530d429b430b9d5a51583ebe67bc0",
+          "wtxid": "aefe9863ef4eccd1e1832b0b31481bbd68b44fe887a070b39658b6c70c14d747",
+          "weight": 1707845,
+          "vsize": 426962
+        },
+        {
+          "name": "original-equivocation",
+          "txid": "209fa793a0acd59ba80512c58dde57c02eec34c4324e503fdccc482c51874ac8",
+          "wtxid": "064eaeec105be3b3260782ea0860ec713ec4034f1d0916b6c6cf883ee6e0acf9",
+          "weight": 14070,
+          "vsize": 3518
+        }
+      ],
+      "payouts": [
+        {
+          "name": "original-equivocation",
+          "txid": "209fa793a0acd59ba80512c58dde57c02eec34c4324e503fdccc482c51874ac8",
+          "address": "bcrt1pgstfsn0ckcacyqqwdrknm3uxkql0y7tdvltwwj3fettrf5cvvn5q0sv7wv",
+          "sats": 97550000
+        }
+      ]
+    },
+    {
+      "kind": "funding-timeout",
+      "anchorHeight": 206,
+      "anchorHash": "03f9d38dd457d3020b40bf56ed7f8f0b05a68c30eb2372127fec1d9d653793e1",
+      "providerResponseHeaders": 0,
+      "maxCandidateHeaders": 3,
+      "workPerValidatedHeader": "2",
+      "committeeDroppedBeforeFunding": true,
+      "providerMessagesSigned": false,
+      "providerExitedBeforeTimeout": true,
+      "leafBytes": {
+        "claim": 856642,
+        "counter": [
+          857443,
+          1705180,
+          2552916
+        ],
+        "response": [
+          857435,
+          1705172,
+          2552908
+        ]
+      },
+      "admitted": [
+        {
+          "name": "funding-timeout",
+          "txid": "1454954ac9a432907033c7a40407c6c19097f11a61a91b4f2cbf6cad30cd1966",
+          "wtxid": "f99b6282c41c2ac9ac3555b3b256910bc3435963d1062ddc8f0f71789662e4f1"
+        }
+      ],
+      "rejected": [
+        {
+          "name": "early-funding-timeout",
+          "reason": "non-final"
+        },
+        {
+          "name": "redirected-funding-timeout",
+          "reason": "mempool-script-verify-flag-failed (Invalid Schnorr signature)"
+        }
+      ],
+      "mined": [
+        {
+          "name": "funding-timeout",
+          "txid": "1454954ac9a432907033c7a40407c6c19097f11a61a91b4f2cbf6cad30cd1966",
+          "wtxid": "f99b6282c41c2ac9ac3555b3b256910bc3435963d1062ddc8f0f71789662e4f1",
+          "weight": 550,
+          "vsize": 138
+        }
+      ],
+      "payouts": [
+        {
+          "name": "funding-timeout",
+          "txid": "1454954ac9a432907033c7a40407c6c19097f11a61a91b4f2cbf6cad30cd1966",
+          "address": "bcrt1pc52r23p8npw7t2k3stn4qslq5gnpa5n9nngqchg4rzra7hzps0dqvf98g4",
+          "sats": 99997000
+        }
+      ]
+    }
+  ],
+  "generated": "2026-10-21T22:19:18.875Z",
+  "scope": "Complete standalone transaction paths for a bounded direct-header counterbranch contest. Exact work under pinned regtest target, verified public fork challenge, provider branch response, outsider counterbranch, fixed payouts and timeout/equivocation paths. Direct verification of bounded challenger branches is still required; this does not solve long-chain optimistic challenge-input binding, candidate-set rebuttal or Groth16 admission. The no-more-proofs gate remains closed.",
+  "nodeStopped": true,
+  "provenance": {
+    "sources": {
+      "zk/bitvm-check/src/lib.rs": "94092775275b4ee7c68d7aaf93910e211c6507a82671b6851931e8f01cb66580",
+      "zk/bitvm-check/src/storage_graph.rs": "abd6003a421cb14f62ec6c4dd5f96747dfbd707239e378c8840e9f6e8232419d",
+      "zk/bitvm-check/src/short_headers.rs": "95ce4b66daa893b9ce85f5321e1277f29790a2eb725b1382d8438b3c02dd22da",
+      "zk/bitvm-check/examples/rebuttal-contract.rs": "be2a3c669761acb7fe44dba2aef62e58bc7e0edb4b34562b3f32bf36de64165b",
+      "zk/bitvm-check/rebuttal-regtest.ts": "958498273ab34c7577d884cfc3aefd2f8986bdb5155f32c3993758674139a873"
+    },
+    "nativeBinarySha256": "ec2d9f1865cbc4aece49c1bff0cc7f1f0561ef380524b35b1e47319a661700ae",
+    "archive": "bitvm-provider-rebuttal-vectors.tar.gz",
+    "archiveSha256": "779e482b0b088fbe668d8841911e5881257162a3f6d1e2c3445b7e998aeee5e5",
+    "archiveBytes": 13490790,
+    "publicFiles": {
+      "equivocated-original/anchor.json": "4b920220a4535184b9786865cbd59c5987a7f2ffad737b0ad88caabebca54291",
+      "equivocated-original/branches.json": "b8f657e8d0025def7d6875134e3512bce5f47c5ad950c1d5ea64aa726807e000",
+      "equivocated-original/challenge-headers.json": "c46e37ee6baaecf43ecf7895d97475187dd341bb6188f6249a7b3614e8b6c852",
+      "equivocated-original/checkpoint-headers.json": "b22a37fed788869ab6e8e099b57023883c1c609e6bffab77ee3ba4dbea57a305",
+      "equivocated-original/count-mismatch-headers.json": "f39f163b64c8944559a9579acefcde3cf43fe6bf1b5b1bb11941b9cd68fc98ad",
+      "equivocated-original/same-seed-opening-headers.json": "c4920aca0bd63bbf4011c31095db30d2df5c881d704c6c4a21f1f92f29aaa823",
+      "equivocated-original/setup.log": "a53d8712592820d32c06f32337086e595a6621e3ffe7cfed2326414a01c293ed",
+      "equivocated-original/vectors/challenge-2-template.json": "e445e376d6743bd7eb8de06dc945d934ed9c8d9e790fd2ad2cefa99d8c7756c7",
+      "equivocated-original/vectors/challenge-3-template.json": "e8706056b9105dd64ff0858099ea74dd8c21723d3e025dda71faa7fbfd5cd487",
+      "equivocated-original/vectors/challenge.json": "858fc28bde11d8c51282a86ecac91ab050e5f3146fc4a510bfe23097e4fb8789",
+      "equivocated-original/vectors/claim-metadata.json": "46276b97917c7d2de5bd0961c91886305469a9905fcb2895727e30dc37fb2034",
+      "equivocated-original/vectors/claim-template.json": "e2bfea9782eb5985f679cadc205f1f961a2fe62fcda10b2ec6ab8779a1262b0e",
+      "equivocated-original/vectors/claim.json": "6fff2c54e675d58ccba09955597443b286a02d954e7ee520e25f22edfbe8c9f3",
+      "equivocated-original/vectors/count-mismatch.json": "2c7ea664ef69cc0ae32f5cbf43f00668fcba9fecfd2c7a838a5a5da60eb4ae1e",
+      "equivocated-original/vectors/counter-1-template.json": "652935773e27026f1d04a6ba6415c12d1dfe1e55d51ac9d7c9a58be1dbbe8947",
+      "equivocated-original/vectors/counter-2-template.json": "621afdf77c0444469b4a5cbdae5023d155f2ed54d2c23abcafc4529060ea79f6",
+      "equivocated-original/vectors/counter-3-template.json": "336dd17eb035d53048d5527632e9c3378d6e62ab0778fe98f1e8fc85c67208b1",
+      "equivocated-original/vectors/equivocation-template.json": "ac5c7a6debe6e3ede24480882368848beed61ac3b7248281d46da3eb7f59aa6f",
+      "equivocated-original/vectors/equivocation.json": "16ed4b40def547016f70c7567642f1c1ad5e3a1fa0d82d2a6cfb3127dfbcdc05",
+      "equivocated-original/vectors/fund-timeout.json": "146e191d89b28cb009146f2601b41101dd2aa7e30138a3b4983e8dfc3dc3c6bb",
+      "equivocated-original/vectors/funding.json": "a7ff0846962e7a9449af9568e4a9ef71c77bd9fd763a1b217ecc64d98e5aae42",
+      "equivocated-original/vectors/metadata.json": "dc43e10783beb459ac118a55993994fff007e1a0e042eacd1ab822d7eaee5bd4",
+      "equivocated-original/vectors/redirected-equivocation.json": "3f84e46f9871f5a00d5f06861a76d8479ed21cb45c1a9cc4403b2b3758d62b18",
+      "equivocated-original/vectors/redirected-opening.json": "bc446a68e947c25b6617539dd1fcb0dc3672934e5adef73a71cd940f3f96cf87",
+      "equivocated-original/vectors/refund.json": "087a9c1617ee0ad86ea0da902c8c21f44c9c24dd8b7a90e05a46fba31f979dfb",
+      "equivocated-original/vectors/response-1-template.json": "6ac9ea488e950328d7a90036d3d12108a847f80b7fc8e86a85a3c6464391766f",
+      "equivocated-original/vectors/response-2-template.json": "d16edc90503a70d8f4c202dfd94294970955e0ee4b6c9c5734294b1f83dd5912",
+      "equivocated-original/vectors/response-3-template.json": "382c34918046a3d2b1dbe3a22ba7f1fdeba2b31a413f7a5b1415abdb89480d44",
+      "equivocated-original/vectors/response.json": "9074a16548d82bb211145b4b8f232692094c29081692e2a52ac909a3ced12589",
+      "equivocated-original/vectors/same-seed-opening.json": "fb3874dd79e4b58da6bb90074396bc30d3b4ed5ba49e93f657da647defec2945",
+      "equivocated-original/vectors/silence.json": "96ffe3b9cf580c9b3e5d60a34c43d07b51f294e2ba896b5054612c3fa14d8e0c",
+      "equivocated-original/vectors/unchallenged.json": "74a7e0addf11ecdcd017f23c96db3a302f5c1b7704ee82b25972cf37f63558c3",
+      "funding-timeout/anchor.json": "1a9b6672dc81e47019c4901cf48dfedcad4f76e2b754442711daaf0493324ca1",
+      "funding-timeout/branches.json": "448e056afe05c1425a7277d6babfb72d8681cebac3299ccc8ce7b3eef2a65e32",
+      "funding-timeout/checkpoint-headers.json": "7771714cae66c95a822afc9ff6cfac104f7c8aef481f436a85e1d03c1265cfd0",
+      "funding-timeout/setup.log": "5f23d34e1576feaab6a0434348e8011d63ee7fffa183683965cfbd0be703d85a",
+      "funding-timeout/vectors/challenge-2-template.json": "fe4be1245fc2ba4b70f4efc8984548216c08fe9322e3a494cb32e135a52be7c8",
+      "funding-timeout/vectors/challenge-3-template.json": "827a18e7337ecf05f40b4bfe95ff4354fa4c222e5659adc7c366ec9a0d952b2b",
+      "funding-timeout/vectors/claim-template.json": "b13d1ead059a4ff78ba483178f610939bde66ea89f7629faab9c9777a1ded6e7",
+      "funding-timeout/vectors/counter-1-template.json": "18def708b10a2f67940411f80c5ed96259b62e5cc50dd1dc2762cda0a4478b89",
+      "funding-timeout/vectors/counter-2-template.json": "b3081bd614cfa16e6a376eac919515b7fc6b4d85dada6bfaba0565c8b5b08678",
+      "funding-timeout/vectors/counter-3-template.json": "0eb9c6eb664dcb4ba21ab10de2c633a6614147eb100c945cd857c4817f1a3fac",
+      "funding-timeout/vectors/equivocation-template.json": "5e56476dc997c5dfd8efb303e5778d8dc7c51be35ff968becd4b122623730528",
+      "funding-timeout/vectors/fund-timeout.json": "f6ef77bb9fcaf7cea19fe49a90ef76d060981aa66244690ff12369218d934239",
+      "funding-timeout/vectors/funding.json": "8c559d253c517eecdf97862ea8397e2dd597ff9717b43c6d8490385b75851578",
+      "funding-timeout/vectors/metadata.json": "f826ba34b095cb17bfeb57c95e4ade6ac7b7b33c3005382826cbbaa5a6f37ebb",
+      "funding-timeout/vectors/redirected-funding-timeout.json": "6d05c9df63394767e3bba2c7738b69b04a4c43f1af398c52b9f06a8eaddf0bc7",
+      "funding-timeout/vectors/refund.json": "466404416ec3b7570b4c64df9731006e2f99d182b2c40b7748c01894f4030e59",
+      "funding-timeout/vectors/response-1-template.json": "a801613110175846cb65b8b44360a2e1822b681fb77099179f75d3df5d60246a",
+      "funding-timeout/vectors/response-2-template.json": "6fcc1b252726892ba071881f814aaa809b7bf64db51e49bab3a6ac03e05c80c7",
+      "funding-timeout/vectors/response-3-template.json": "220939dc67c7bd7113ce4a612339a2a743dceec956048a39ec5de04a1c1438d0",
+      "funding-timeout/vectors/silence.json": "844e73820950d9eb7c25411123f2dbbf338ae36e43c8f53f4b270cbd92a48ce2",
+      "funding-timeout/vectors/unchallenged.json": "29e391d220356049ce61c4ba7e88602dc5b4d18bd76bc6306b7a5111400b9847",
+      "honest-extension/anchor.json": "c1aeebcdfb32bfb790f50e74bafa15a9fc5ed495c41b2a42264fbb25dcbaddda",
+      "honest-extension/branches.json": "edafec53ed0a3684f7f22c3beef7b2f3ca44eb9bea7d18beeb64c8ec606a79a1",
+      "honest-extension/challenge-headers.json": "26d52f786df2d87de69fd38be5e758011845440bd8e50fdb1cfb4aaefccf3224",
+      "honest-extension/checkpoint-headers.json": "b86c693e88d0c18db6467b10b9b502a39304410ec3f0162e36ef27e8e44d4802",
+      "honest-extension/count-mismatch-headers.json": "7fdbf75e1e0f76d1cec55ccfde19a048f69fae4171ea853f16b9bc9a1779ddbf",
+      "honest-extension/equal-headers.json": "c32851c5945476dd51544edfee3e796b8d7019b7bd5e6bb3f581a370370f3171",
+      "honest-extension/honest-counter-template-headers.json": "c32851c5945476dd51544edfee3e796b8d7019b7bd5e6bb3f581a370370f3171",
+      "honest-extension/same-seed-headers.json": "b9a69809487caf32dd5f6d8d2f55881a28c77328dd2746959a464a63b60e919a",
+      "honest-extension/same-seed-opening-headers.json": "7fdbf75e1e0f76d1cec55ccfde19a048f69fae4171ea853f16b9bc9a1779ddbf",
+      "honest-extension/setup.log": "068e02bdf982396553541eef7740da11f769ad238f597580e8725850de96b2cf",
+      "honest-extension/unrelated-response-headers.json": "c32851c5945476dd51544edfee3e796b8d7019b7bd5e6bb3f581a370370f3171",
+      "honest-extension/vectors/challenge-2-template.json": "382e4c8823686b861c459bcb8cf67863fc707b3be62e1d6ed8ebb420627855b2",
+      "honest-extension/vectors/challenge-3-template.json": "b01b755602eb388e58e0941623b7414405974937d2b9487e95d2f82311f0c7f4",
+      "honest-extension/vectors/challenge.json": "4f7bd78cd12c7590a9348eb309e60748742ec7591f97a0cafc21bb3a714865af",
+      "honest-extension/vectors/claim-metadata.json": "4c4047cfcefd94331449c618ebe2d37490c5f325e169acb8c8fa25b97e77800b",
+      "honest-extension/vectors/claim-template.json": "d50a42f020705d7d03952e8337d635fd65db673edf574d6091c99e5ce27654fe",
+      "honest-extension/vectors/claim.json": "17620697b92d16c665efcc906a409f99984c844d8b5fdbf5ac16ee23ccdf9488",
+      "honest-extension/vectors/count-mismatch.json": "dab07132dbadda67bad345f5f3d6bc29a71ec3c1a9648253209c7f33acb2279f",
+      "honest-extension/vectors/counter-1-template.json": "faa020c5f6ad0d401be20e18a13a1b71e94ac79c56b21f6f51285e93440f8ca3",
+      "honest-extension/vectors/counter-2-template.json": "97fe23191ce8e81c58d83cf1fc3bd9ba0b4f98e8eb3affc417a4fcfc0f42d6e3",
+      "honest-extension/vectors/counter-3-template.json": "014ebc6d76becacb1516dbf9cbd26971b2170444ac354f86605864725da40c78",
+      "honest-extension/vectors/equal.json": "16b667976f3a79a5bb99d2f157840edfb1872413d96c239608f83bcc9e261bb0",
+      "honest-extension/vectors/equivocation-template.json": "9fc2fb2ca56a45e9e1199ba2b900c8ce876c329661e250b5693080bd676074d6",
+      "honest-extension/vectors/equivocation.json": "abb1dce362f60e6f43d36d51176f4fa47cc72a686b37e6ceba37d54940a99978",
+      "honest-extension/vectors/fund-timeout.json": "fe1bbcc1e2fbbee0d8d345974ae3f162b6a5b19f990409392f7e577d97f83021",
+      "honest-extension/vectors/funding.json": "2d302ba4218d639a592c7001959701cce4332266c9e9809166542a87c59a0095",
+      "honest-extension/vectors/honest-counter-template.json": "16b667976f3a79a5bb99d2f157840edfb1872413d96c239608f83bcc9e261bb0",
+      "honest-extension/vectors/metadata.json": "fc9f0cf227de08dd27a2830f5350084e3978d2f11139eb039dba6c8136f4212f",
+      "honest-extension/vectors/redirected-opening.json": "6aaac49a069484acf3e159b7d75848edc930178b1f149e0060d6efdd0adbfcb7",
+      "honest-extension/vectors/refund.json": "c760f1223e0d34973b7e3a30d82b68c711e6474daffe63bb8919c04f766bcde1",
+      "honest-extension/vectors/replayed-old-count.json": "762e40fac66857809510af54dccd655ca10939ba0250112951d8f01156f4b0b8",
+      "honest-extension/vectors/response-1-template.json": "96b2489744468a108f9c0533434d8921cdc86ae4fc110d15b192addba484cc8c",
+      "honest-extension/vectors/response-2-template.json": "898941d454230936a909f9d50a42b4641814340bf2999d4012fc2c77a52f963a",
+      "honest-extension/vectors/response-3-template.json": "f42b682645a387ab95f12adff8a09f1827ec52159ff9c608574c117dbb48f19a",
+      "honest-extension/vectors/response.json": "2d8b958d78d84ec65951453e70b43a9b743cfadba451217cd76248b3795f42b0",
+      "honest-extension/vectors/same-seed-opening.json": "5b7dd5566e94b5ff810f3870a6ad99f3ec58bec5ee86a7638ab9c02b7cba8e25",
+      "honest-extension/vectors/same-seed.json": "a30c04673cd18bb95995aa0bcfb88530a5e4c8ce3196dd9d9ce8097cdcddf085",
+      "honest-extension/vectors/silence.json": "9ba4c34b04b537da4f5f6edbac8af73cb896e681e4d04a577719f657df1620f2",
+      "honest-extension/vectors/unchallenged.json": "d632a589d8682dbe5dd6dd44127ee386126d25d5696238a708e9d239d553314b",
+      "honest-extension/vectors/unrelated-response.json": "56e39b1714f944632caabce321c1ae8cd2af7fe3620396a6d6a7e36147cccd0b",
+      "honest-extension/vectors/weaker.json": "a6c81adf856ab2ac8b203f3cf97a74fee234b79e731d3e336da07ad1b33ffd19",
+      "honest-extension/weaker-headers.json": "e6b6fd5bb4bc7b4f703a032aac14f172a30796670c7bb1631e596dc16ca33b31",
+      "silent-provider/anchor.json": "21e74458f72f64e03683a9a541d775695783fd6558b374cb12100716af517a6d",
+      "silent-provider/branches.json": "fa8255f0a6d3bef256e995e80a8d1beeda363e6c2a539d8240ec76a905590af1",
+      "silent-provider/challenge-headers.json": "962f88ef65cfd1cd6ef22c7d8254215ddc12aec5a4eaaa23d08bc5fcefa64882",
+      "silent-provider/checkpoint-headers.json": "94b0366404e71e18b35692697d5d95eac8db97e4efcd9b18a8bf47a35da0fe55",
+      "silent-provider/same-seed-opening-headers.json": "5303926170c1181eac6c4650d26ed920475ab9c931efd29652dcdbf1721e939a",
+      "silent-provider/setup.log": "b3c67321c6dd2da8b515d414b9bc1da5ddaac0250d996b0402edfec2470d0453",
+      "silent-provider/vectors/challenge-2-template.json": "7982e811e097977ec7807c80783779314dfe0dec8f86832a53d120e997006788",
+      "silent-provider/vectors/challenge-3-template.json": "c388f33f2373fc347e1a20fc95bb708b4b9788cf6913d7976dedf40b1b8f6661",
+      "silent-provider/vectors/challenge.json": "448ce3acea977cea84f2211fb07b48c9e0b30e6134987860250adb7ee696f57b",
+      "silent-provider/vectors/claim-metadata.json": "a92d6c2a639a2674802b7107e09783d70220b12eb0c34f966be3f0c0411fcfab",
+      "silent-provider/vectors/claim-template.json": "b7f686df1e08eb680cfb75eae76fbddb5d09f084a25b5bc75e1741e44e348a4f",
+      "silent-provider/vectors/claim.json": "ecbee38e31f0164ca8dd72da693779c929ecaabc056219518c227d799c823b96",
+      "silent-provider/vectors/counter-1-template.json": "dd480665a964b2d80fd891785437e444a349bb872dceb9d636194026078bc963",
+      "silent-provider/vectors/counter-2-template.json": "2dff73e9186b0e760470192d5c843edde10cbb9356c9dc4393e54f4fbeed3df8",
+      "silent-provider/vectors/counter-3-template.json": "e07fef1455af5cd18a0def89e6c493d4fcfc6ed64512e23f5a654885a58d45ec",
+      "silent-provider/vectors/equivocation-template.json": "169d0c6f40adda5ebb5a9abcbf96435fd323b603c4f695d667468378ce721972",
+      "silent-provider/vectors/fund-timeout.json": "742df1968febe22ec34a7562b199bab28876464da3c017baa703119ec03ddd4d",
+      "silent-provider/vectors/funding.json": "48c018b2bbedb5416bd86be512ee622c6e309928be00729de6f00cebc44348b9",
+      "silent-provider/vectors/metadata.json": "72665306e20616a544a6383ce9b6fe36f7fb498f6ea35070c5fdbd73fe7decfb",
+      "silent-provider/vectors/redirected-opening.json": "5d700d0ca4e6693bc4f56f37e5f57b2ef0711f2ff22315942f25dd2b332ad7cf",
+      "silent-provider/vectors/refund.json": "687138a220491cf2abea475ffda769a7728e984a4d5c34b886073080656f752d",
+      "silent-provider/vectors/response-1-template.json": "63930c2d1cf487c7ef5758a6ece4b8ce8a95aef527ca02a464205382dd234a2e",
+      "silent-provider/vectors/response-2-template.json": "290e4fb4c2e42076e6142582d990e3c7443bc96bd09b5fbcb1249b32aca7188f",
+      "silent-provider/vectors/response-3-template.json": "169d856f9cb53ba11c9215f8ea81b2ea54238d93b4eb548836fdb0eff32248a0",
+      "silent-provider/vectors/same-seed-opening.json": "5fa3e7cf4c57821c97d6e5d3a43649163d15dac8a1c39135005fd5d2e4239e86",
+      "silent-provider/vectors/silence.json": "e8f9d2c066538b6f91754bed3941df48a6a594e1b28275b4055740716ef698c3",
+      "silent-provider/vectors/unchallenged.json": "f95cadeaa4dab2cc8286c023b48ec126faef326fff3cb6b22e0f5545c46471d8",
+      "stronger-counterbranch/anchor.json": "c21e48eaf7e2c50f539f64311b0b9f33fc4dd5b62454ffa7a59ac5d75622f1d6",
+      "stronger-counterbranch/bad-mtp-headers.json": "e8d845b982b71e31c57e4c935724c25c2e46113996d16f34b11c635d8a91a2fd",
+      "stronger-counterbranch/bad-pow-headers.json": "4618b36e0ad60c0a9ff180d0b8b6c56e1ff1aedfa2478f712411fd97f6aca90c",
+      "stronger-counterbranch/bad-version-headers.json": "b2ddef85c20c4f34165772fe83fe774646445c6eaf4a01f1a342aee5e36c3978",
+      "stronger-counterbranch/branches.json": "be60b0dff4b1eeed797ec2e3ef28aa9bb0b3b3de9d0a7d6b3c723b9e140feaa9",
+      "stronger-counterbranch/challenge-headers.json": "ab5da2596956f60e24287701dc6bdef3a8cbfe3bce2c14c56de930b90bab2632",
+      "stronger-counterbranch/checkpoint-headers.json": "851a7fb998cdf326d6d3603bfa1e557b4baca96fa4cae40eaad65d7c6b37d5e3",
+      "stronger-counterbranch/count-mismatch-headers.json": "701642e86c28829647c6f5442be2605e5ea06215bc65812ddebd849b4f61ff32",
+      "stronger-counterbranch/equal-headers.json": "ab5da2596956f60e24287701dc6bdef3a8cbfe3bce2c14c56de930b90bab2632",
+      "stronger-counterbranch/same-seed-headers.json": "701642e86c28829647c6f5442be2605e5ea06215bc65812ddebd849b4f61ff32",
+      "stronger-counterbranch/same-seed-opening-headers.json": "989edb6b75a29293deda39231051c6ca119b06f9f2de04ef545b769e2e29d41f",
+      "stronger-counterbranch/setup.log": "38a534e11ed7af8edc5a61254e4ac3bf804c046351002b7e5084bd658262ed73",
+      "stronger-counterbranch/stronger-headers.json": "678f513ba57b88bffdcc2402235768f3999da6f20481c3e610e40390f95507cc",
+      "stronger-counterbranch/unrelated-response-headers.json": "ab5da2596956f60e24287701dc6bdef3a8cbfe3bce2c14c56de930b90bab2632",
+      "stronger-counterbranch/vectors/bad-mtp.json": "c6b3cb4b02fbb7c43a757a27971332ccbfc991d23bcca77902efd394b7f62d9d",
+      "stronger-counterbranch/vectors/bad-pow.json": "86e8a7704f8e7a54d2ca6876416cafc258ea9139c260349676c703a8261df4a8",
+      "stronger-counterbranch/vectors/bad-version.json": "19207a0976f93572c5a94910f5ec7b5325319caf510151b40c520de8cb89cfe5",
+      "stronger-counterbranch/vectors/challenge-2-template.json": "52e3f80eb99e7a3702f42104c300f9d7db1aa5284efbf2014f95a0d9bc6e0ff2",
+      "stronger-counterbranch/vectors/challenge-3-template.json": "aabfc1e5bc5f3681226b4c32fd9d2940715fdfa231263cb3982b8e126e1cff08",
+      "stronger-counterbranch/vectors/challenge.json": "23dd3258d4af6adbec397515f9c7a18559929a9783a35979b2b1c230f98f69bd",
+      "stronger-counterbranch/vectors/claim-metadata.json": "b7352119335032e67fa06de3ea7c104d99cad4ba19f467c8af1320a7f2046ce0",
+      "stronger-counterbranch/vectors/claim-template.json": "b3e090152760f3bd3d432d6a33f8b28c3feaaa088a65e2a236fe5f816ee35918",
+      "stronger-counterbranch/vectors/claim.json": "66aeda75869905463752fb8a6ed950ed46a6245dfae4fd5f7b38a48a213e2334",
+      "stronger-counterbranch/vectors/count-mismatch.json": "1408a6fc32ceda8b0f1ff758fb6f8bcf27ed9f4a67a31c0f21e6c1b32be13659",
+      "stronger-counterbranch/vectors/counter-1-template.json": "a5a17499d3f4a1218f5b729772557d97eb847ff518b2c189551b944f8c31f9dd",
+      "stronger-counterbranch/vectors/counter-2-template.json": "80a9d6ffd90fa1eb49660f636d2b498f8e31c2d5bd1f6e21943b966274f7098c",
+      "stronger-counterbranch/vectors/counter-3-template.json": "384c7743ec23b37521030ccd8a2449d1d6364b49bd192697251562e890f003a3",
+      "stronger-counterbranch/vectors/equal.json": "5bd5401cb904b092a432610013f1898facf303abad686ea10fd74c656ec51b58",
+      "stronger-counterbranch/vectors/equivocation-template.json": "1a10f483713372e4b23bf5b6d3a1b69beb905cbfb6a4b96d8d03828184db4501",
+      "stronger-counterbranch/vectors/equivocation.json": "6084a6f9d62c16c82edd9125ad416556b3457ffa10a77b1259cae0669f8735de",
+      "stronger-counterbranch/vectors/fund-timeout.json": "b826adf21b424802bea3725ccc3be60ba84354a38de125b31eb687170e01f687",
+      "stronger-counterbranch/vectors/funding.json": "1075cc5a538b93a2c02636d01027395a73bb377901bdd1daa2fc811602e77061",
+      "stronger-counterbranch/vectors/invented-response-work.json": "be61e612355a88cf985afb8a2533c9236e5322ec6194712e3b811f56c2447d31",
+      "stronger-counterbranch/vectors/metadata.json": "ea60850ac1595e6670d3477f4e3f129408f4ec9297884e3638b7e3385dcaa27a",
+      "stronger-counterbranch/vectors/redirected-counter.json": "44d1710b2c4565820a987010c91dfaf89ac3c1b9c2b324505ab49464379fa4a5",
+      "stronger-counterbranch/vectors/redirected-opening.json": "f5d679f0abc08c3f4e4f8026a38ce6571b48d6f4c28fea3d6ef1d1fe24449803",
+      "stronger-counterbranch/vectors/refund.json": "4714187ab1f8fd27fe4f7ed7de976474c293d72e57103ac5fcc7b7cbe031c09c",
+      "stronger-counterbranch/vectors/response-1-template.json": "d9be715e99904dc451b5bcdbea6ea0f96fef54ca810713d93cf5f5194d09a48a",
+      "stronger-counterbranch/vectors/response-2-template.json": "601a4ea8e50d65175d3cc4aff0d917ba0f8e429aadb43b32ff777a41799c2601",
+      "stronger-counterbranch/vectors/response-3-template.json": "efbbcf63176d416bfb8a49a67d4d854bf8cf059f26ef268403878f79f05e70aa",
+      "stronger-counterbranch/vectors/response.json": "02a6d08f609a19c8929141bd0efaa56291c8f34aec6044cd0130fdb32615ba7a",
+      "stronger-counterbranch/vectors/same-seed-opening.json": "70214fa3793186a1daddb528f4b549554f4c01c65ae509a66033f96982c51a71",
+      "stronger-counterbranch/vectors/same-seed.json": "28ace79355549b3f5add12843dd8b46942820eff4c0a944b356d78e5b34dc12e",
+      "stronger-counterbranch/vectors/silence.json": "63f9243e94bdf0cb074c5f26414585dea3a316320f13faee89f8ed3950b2b7c6",
+      "stronger-counterbranch/vectors/stronger.json": "55870182158fbda0ea6570dfe1a7711d1128cdf05c5d12de569ac30e231a3f25",
+      "stronger-counterbranch/vectors/unchallenged.json": "32b5a80b74627d92dddf89634c8049a2bd566585e0ca1047397741baf282e455",
+      "stronger-counterbranch/vectors/unrelated-original-key.json": "97cb2e44630ecfba84916155a872a83605b2c622aef4f0e41a3a9d4b9f68d85e",
+      "stronger-counterbranch/vectors/unrelated-response.json": "61d09df39509703d19139bc62fd8f2b605769149b5a9bd7b0a993f63ed976f0f",
+      "stronger-counterbranch/vectors/weaker.json": "13f42f5cb56ff8ea68a448c250d6988d11803505d164dd43a85bdbcc80f19d3d",
+      "stronger-counterbranch/vectors/wrong-bits.json": "495a8196a500700b680b9eea5bdda13cb739a99d912794c8e281faa9005a77bd",
+      "stronger-counterbranch/weaker-headers.json": "f668f7538fc741ce9bbb35a03aacc892e9b7993dadc35f0bcae31d8517542532",
+      "stronger-counterbranch/wrong-bits-headers.json": "a0fdc9a51fe4d607223dc9f1e11d40a4bc121355a45c1d94a697974e0bdb275f",
+      "unchallenged/anchor.json": "4ac38d1ec08b91d8cd7acf77b4a3587f9ebf2871174fe8e997999b8be03aedd8",
+      "unchallenged/branches.json": "09a48ce720b3289c3cf25fd8dc1db657174c5786ed7f64eec19c0e13a3d3c99f",
+      "unchallenged/checkpoint-headers.json": "53f26b0d3dcc5d15b56b5e1d54d7ddf9ee12d5a966fdd74223c4ce460885c5f0",
+      "unchallenged/setup.log": "60b072fe5d6d6d3b5824ac29e689392e410a3be4a12882de527ff5d1e4ffec8c",
+      "unchallenged/vectors/challenge-2-template.json": "ce1326a19124e0da307629eab1e9b85dc268f943a5f9ce8ddd5989d8df309cfb",
+      "unchallenged/vectors/challenge-3-template.json": "8cbbc4afe3b8581cf9ef10328aa0b434436855e229f9a9c547aed1404976e719",
+      "unchallenged/vectors/claim-metadata.json": "2a18e212266af4642383efaf551f821099a811faf7442fe379c5276df5eb16b8",
+      "unchallenged/vectors/claim-template.json": "2ca74362441b747f5b0367ced1d36c4b61d167262fcefd56c94b866e329b5ea4",
+      "unchallenged/vectors/claim.json": "b9e68b5306756bc03c2d1b4cc5d9023a309c98fbabb74b805ec1c0107ef021f7",
+      "unchallenged/vectors/counter-1-template.json": "9a4ca9e720ede5a4f3679537dbb6dcd8ba36e2d5ef57d589ab0250260f7a0793",
+      "unchallenged/vectors/counter-2-template.json": "24504444bc7f410dcd286bbba745b2374447c668398b0b69096cbca73c532ffa",
+      "unchallenged/vectors/counter-3-template.json": "fbba68618273a80be2a0e9426e98f460e79beab14773cc28c3a7deb5716f88f1",
+      "unchallenged/vectors/equivocation-template.json": "de16f6e6749ee5be29a1c8712c4251523c15f1b24a68e9d725b1d001f665afdb",
+      "unchallenged/vectors/fund-timeout.json": "9fecdbcd2996e171857ec4003d85ad30969476116a9974f13b2061b0a77f68b2",
+      "unchallenged/vectors/funding.json": "004cdd9a7f735bdb3e151dc38e79e388b42f0c072dfb90b69e5ae027067e4e55",
+      "unchallenged/vectors/metadata.json": "72936e065bfb9067f14a9e5759b46ef1c4e634a9e2ce55c41105aff05f247b84",
+      "unchallenged/vectors/refund.json": "d3102bb975d100a1d7e052137c22c306d59a616dcc65d612a4b9e71989a713fc",
+      "unchallenged/vectors/response-1-template.json": "c1c90691fb76b48cc73550468b6a8e740379dd7369ecac50dc8dfa6059650f49",
+      "unchallenged/vectors/response-2-template.json": "92f889048642b903453ebe6b00e747c62c957b91538d27adb4174a1c16a30398",
+      "unchallenged/vectors/response-3-template.json": "1d5593a87b910907ff5bf46dec22c7cf5a48b800b47e1566ed0555d1d58133c8",
+      "unchallenged/vectors/silence.json": "dccb8306ac67034a011a7d494582e20dbfb77980a4d8dd556bb5193fa7edab1c",
+      "unchallenged/vectors/unchallenged.json": "eddcd2b3a717d4fdf4785edcb113dfd39fc8a3afeb2b7d327fbe2d446452130d"
+    }
+  },
+  "independentHeaderReplay": [
+    {
+      "case": "stronger-counterbranch",
+      "checkpointHeight": 169,
+      "checkpointHash": "4c38c46a45507efe143028b6459efac7fa0351f81a0280adf0823f74af706e18",
+      "checkpointWork": "340",
+      "branches": [
+        {
+          "branch": "original",
+          "headers": 3,
+          "tip": "35d2a999e4553f0f72f5132967a88dbed4a853dbf01fa5b4891c8068ee89fb37",
+          "work": "346"
+        },
+        {
+          "branch": "alternate",
+          "headers": 3,
+          "tip": "51b0ef0e30e9e65555239d654b39b262a50edd116416a2f37bfcec80f5b8d87d",
+          "work": "346"
+        }
+      ]
+    },
+    {
+      "case": "honest-extension",
+      "checkpointHeight": 174,
+      "checkpointHash": "6bd4110a94bf0e757995a22296a68a714e218c6741173d6bb14deebf131070df",
+      "checkpointWork": "350",
+      "branches": [
+        {
+          "branch": "original",
+          "headers": 3,
+          "tip": "711a1c3f32441519c6dae8f22b80568630fc237a033ab8fcc4d750cad82fcbea",
+          "work": "356"
+        },
+        {
+          "branch": "alternate",
+          "headers": 3,
+          "tip": "35ce52782e92d232e602e6c0a316c400be55123175bf73159dbe1d8515ad6ba7",
+          "work": "356"
+        }
+      ]
+    },
+    {
+      "case": "silent-provider",
+      "checkpointHeight": 184,
+      "checkpointHash": "2bd0b595987a7f6b92714569984b424429f667171b98362037fcdba43d7e679c",
+      "checkpointWork": "370",
+      "branches": [
+        {
+          "branch": "original",
+          "headers": 2,
+          "tip": "01425130e52035b22c7d9095cc65dbab78aea1e29b46928bcda31cde0a2f2087",
+          "work": "374"
+        },
+        {
+          "branch": "alternate",
+          "headers": 3,
+          "tip": "26b23f245631de47fb6f02166e3cda171e0d1ff64a8c3da1b3473c17ee81aa6e",
+          "work": "376"
+        }
+      ]
+    },
+    {
+      "case": "unchallenged",
+      "checkpointHeight": 193,
+      "checkpointHash": "0d0523970babde2ec53c529c672392374cb9263434a6f6b19deba62ea5adee4e",
+      "checkpointWork": "388",
+      "branches": [
+        {
+          "branch": "original",
+          "headers": 2,
+          "tip": "07ed98edd8aa93fb74bee83bcbe6721199359e9089000f5d67a69e2b38a47117",
+          "work": "392"
+        },
+        {
+          "branch": "alternate",
+          "headers": 3,
+          "tip": "51a1e46e37b4683b968aa8824fe25d52cd26cee788b701dddaaa7628415da232",
+          "work": "394"
+        }
+      ]
+    },
+    {
+      "case": "equivocated-original",
+      "checkpointHeight": 201,
+      "checkpointHash": "14748927628a5ccc8197f9bdba29648640eb704b1451094954f7400ddf7f4575",
+      "checkpointWork": "404",
+      "branches": [
+        {
+          "branch": "original",
+          "headers": 3,
+          "tip": "1766bf011d5ee69027f160523878e387c1e2a2029bad4f64eee328982f6f3e0c",
+          "work": "410"
+        },
+        {
+          "branch": "alternate",
+          "headers": 3,
+          "tip": "4337ecfcd7cfd2bcfb9497993824d031694055ae5c5f9da1630e9dd38249ca03",
+          "work": "410"
+        }
+      ]
+    },
+    {
+      "case": "funding-timeout",
+      "checkpointHeight": 206,
+      "checkpointHash": "03f9d38dd457d3020b40bf56ed7f8f0b05a68c30eb2372127fec1d9d653793e1",
+      "checkpointWork": "414",
+      "branches": [
+        {
+          "branch": "original",
+          "headers": 1,
+          "tip": "35a347e2342d5617bfa30cd3fcc97b4d03232984c03369f5078d020acb1b0587",
+          "work": "416"
+        }
+      ]
+    }
+  ],
+  "validation": {
+    "nativeLibraryTestsPassed": 27,
+    "nativeLibraryTestsFailed": 0,
+    "coreGraphTransactionsMined": 18,
+    "coreRejectedAttempts": 47,
+    "maxObservedNativeStackItems": 831,
+    "maxCounterScriptBytes": 2552916,
+    "proofJobsStarted": 0
+  },
+  "design": {
+    "opening": "An observer absent from setup supplies an actual validated conflicting branch with more work than the one-header original claim. The public committee presignature fixes the reply output; no challenger key is registered.",
+    "response": "After the opening confirms, the provider signs its branch length once and supplies a validated extension using its registered original-hash key. The response creates a six-block public counterbranch/equivocation window before refund.",
+    "strongerCandidates": "The opening candidate does not exhaust the contest. Any valid conflicting branch outweighing the signed response can pay the fixed client during the counterbranch window. No maximum-register oracle or further provider signature is needed in this bounded direct verifier.",
+    "inputBinding": "The full short branches are verified directly in Script; publicly disclosed provider signatures bind original identity and response work to this graph. No claim is made that this solves general late-input binding for a compressed optimistic challenger proof.",
+    "exactWork": "Every header must carry the pinned regtest target 0x207fffff. Its exact integer work is 2; both branches share a pinned checkpoint, so comparison of validated header counts is exactly comparison of cumulative work in this network.",
+    "setup": "A local co-located MuSig2 setup drops its private committee object before funding. Provider WOTS secrets remain in RAM until the later claim/response selection; unused secrets are not exported. This is not a distributed key-deletion ceremony."
+  },
+  "limits": [
+    "At most three post-checkpoint headers; fixed regtest difficulty, first post-checkpoint header is the seed, and timestamps below the pinned pre-2038 upper bound.",
+    "Requires an honest observer able to confirm the relevant spend within the response/dispute windows; last-moment competing spends follow Bitcoin first-confirmation rules.",
+    "Megabyte scripts require nonstandard mining policy. Private Core mining is not evidence of public miner support.",
+    "Separate contract; no storage deal roots, long-chain Groth16 certificate admission, Binohash execution or integration with the funded storage v2 graph."
+  ],
+  "proofGate": {
+    "status": "closed",
+    "reason": "The bounded direct-header transaction milestone is verified. General long-chain optimistic challenge admission and full storage-bond integration must be concrete and tested before further proof jobs."
+  }
+}

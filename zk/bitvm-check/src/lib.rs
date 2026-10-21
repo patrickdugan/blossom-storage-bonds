@@ -6,3 +6,4 @@ pub mod verifier_report;
 pub mod fork_binding;
 pub mod equivocation;
 pub mod subset_equivocation;
+pub mod short_headers;

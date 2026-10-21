@@ -32,39 +32,43 @@
     },
     {
       "requirement": "Authenticate original graph and cross-party comparison values in Bitcoin",
-      "status": "incomplete; key reuse alone permits a false disprove",
+      "status": "long-chain certificate binding to storage v2 incomplete; bounded funded direct-header binding verified",
       "evidence": [
         "results/bitvm-compact-fork-binding-regtest.json",
-        "results/bitvm-fork-equivocation.json"
+        "results/bitvm-fork-equivocation.json",
+        "results/bitvm-provider-rebuttal-contract.json"
       ],
-      "missing": "The certificate graph identity is a synthetic research identity, not the pending v2 funded graph. Provider-owned input keys do not pin their earlier values against their owner."
+      "missing": "The compact certificate graph identity remains synthetic and its long-chain values are not integrated with the storage v2 bond. The separate bounded contract authenticates short headers directly and penalizes conflicting original signatures; that result does not establish the compressed-certificate route."
     },
     {
       "requirement": "Enforce equivocation response before the relevant collateral can leave",
-      "status": "separate WOTS escrow and subset-overdisclosure penalty verified; full fork graph unimplemented",
+      "status": "bounded contract enforces its refund window and original-identity equivocation path; full storage fork graph unimplemented",
       "evidence": [
         "results/bitvm-fork-equivocation.json",
-        "results/bitvm-subset-penalty.json"
+        "results/bitvm-subset-penalty.json",
+        "results/bitvm-provider-rebuttal-contract.json"
       ],
-      "missing": "Every withdrawal and competing payout must honor the response window; this escrow is not integrated into the storage bond."
+      "missing": "The bounded prototype covers its tested withdrawal states; equivalent protection across all storage v2 and long-chain fork-contest payouts is not integrated."
     },
     {
       "requirement": "An observer absent from setup can submit a binding positive work certificate",
-      "status": "unimplemented",
+      "status": "bounded direct-header contract verified; long-chain compressed-certificate admission unimplemented",
       "evidence": [
-        "docs/bitvm-storage-graph.md"
+        "docs/bitvm-storage-graph.md",
+        "results/bitvm-provider-rebuttal-contract.json"
       ],
-      "missing": "No authenticated late challenger keys or equivalent positive-proof route. Original-client keys would introduce a designated role and are not assumed."
+      "missing": "No tested route for general compressed positive work certificates submitted by an observer absent from setup. The verified bounded direct-header path needs no challenger key or new prover role; original-client keys are still not assumed."
     },
     {
       "requirement": "Freeze candidates and responses, allow an honest extension, reject replay/ties, and handle silence under bounded deadlines",
-      "status": "relation guards and Core branch comparison exist; collateral contest rules remain unimplemented",
+      "status": "bounded funded contest ordering, strict comparison, replay and timeout paths verified; full storage/long-chain protocol unimplemented",
       "evidence": [
         "results/bitvm-cumulative-work-forks.json",
         "results/bitvm-cumulative-work-certificate.json",
-        "results/bitvm-fork-contest-model.json"
+        "results/bitvm-fork-contest-model.json",
+        "results/bitvm-provider-rebuttal-contract.json"
       ],
-      "missing": "No complete Bitcoin transaction graph enforces all contest states and final payouts. The model additionally rejects a first-candidate slot that suppresses a timely stronger candidate, even when payout waits until the window closes."
+      "missing": "The complete long-chain storage-bond contest is still absent. The bounded prototype addresses first-candidate exhaustion with a universal positive counterbranch window; a scalable equivalent with compressed proofs remains unimplemented."
     }
   ],
   "research": [
@@ -140,10 +144,27 @@
       "limitation": "Not Binohash, a message-binding proof, escrow integration or unknown challenger admission; 208 non-push opcodes exceed the legacy limit."
     }
   },
-  "lastUpdatedUtc": "2026-10-21T21:29:03.337Z",
+  "lastUpdatedUtc": "2026-10-21T22:21:07.161Z",
   "userDecision": {
     "requirement": "Preserve permissionless fork challenges",
     "status": "explicitly confirmed",
-    "consequence": "Do not substitute original-client challenge keys or another trusted online signer."
+    "consequence": "Do not substitute original-client challenge keys or another trusted online signer.",
+    "route": "Provider rebuttal; exact cumulative work and permissionless challenges retained; small end-to-end dispute before more proof jobs."
+  },
+  "boundedProviderRebuttal": {
+    "status": "Core verified",
+    "report": "results/bitvm-provider-rebuttal-contract.json",
+    "maxHeaders": 3,
+    "mined": 18,
+    "rejected": 47,
+    "nativeTests": 27,
+    "runtimeProviderResponse": true,
+    "permissionlessSubmitters": true,
+    "exactWorkInPinnedRegtestDomain": true,
+    "fullGoalComplete": false
+  },
+  "proofGate": {
+    "status": "closed",
+    "reason": "The bounded direct-header transaction milestone is verified. General long-chain optimistic challenge admission and full storage-bond integration must be concrete and tested before further proof jobs."
   }
 }
