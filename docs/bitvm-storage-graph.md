@@ -518,3 +518,57 @@ bond. The scope remains separate from the full Groth16 BitVM verifier and from t
 cargo build --offline --locked --manifest-path zk/bitvm-check/Cargo.toml --bin bsb-fork-binding
 node zk/bitvm-check/fork-binding-regtest.ts --bitcoind <installed-bitcoind> --checker <bsb-fork-binding> --dir <new-data-dir> --out <new-report.json>
 ```
+
+## False-disprove and delayed equivocation recovery
+
+The shared-key risk now has an executable counterexample. `examples/fork-equivocation.rs` starts
+with the genuine compact certificate's public input and all eight correctly signed fields. Its
+honest binding disprove is rejected. The provider then deliberately signs a different term-journal
+digest under the same key; substituting only that valid signature opens the binding leaf against
+the otherwise honest certificate. Core mines this false disprove. Thus reusing a provider key
+does not authenticate its earlier value for an opponent's computation.
+
+The experiment directs this disprove into an escrow, enforced by two setup presignatures using
+SIGHASH_DEFAULT/ALL. The presigners exit before funding. The escrow permits a fixed client payout
+on two distinct WOTS32 messages under the journal key; alternatively, the provider can withdraw
+after CSV 6. The plain equivocation script is 10,380 bytes and uses at most 277 stack items; the
+escrow branch with its two committee signature checks is 10,448 bytes.
+
+| Core case | Measured outcome |
+| --- | --- |
+| Equivocation response before refund | False disprove mines; two conflicting signatures recover 99,950,000 sats to the fixed client; the provider refund then has spent inputs |
+| No response before refund | After six additional blocks the provider receives 99,997,000 sats; the later penalty has spent inputs |
+
+Both cases reject the honest binding, premature refund, shortened refund sequence, two signatures
+for the same message, an unrelated signing key and a redirected penalty payout. The two cases
+mine four transactions and reject fourteen spends. An independent decoder checks the public
+funding amounts and terminal txids/addresses. All 22 native library tests pass. The evidence is
+`results/bitvm-fork-equivocation.json`.
+
+This is a separate contract with setup-fixed keys. It neither modifies the funded storage v2
+graph nor supplies permissionless challenger admission. It demonstrates why a proposed
+equivocation remedy needs a payout escrow and a live response window: a penalty that becomes
+available only after an unrestricted withdrawal cannot recover that spent collateral. A complete
+fork game must enforce this ordering across all relevant payout and response states.
+
+```text
+cargo build --offline --locked --manifest-path zk/bitvm-check/Cargo.toml --example fork-equivocation
+node zk/bitvm-check/fork-equivocation-regtest.ts --bitcoind <core> --checker <fork-equivocation> --dir <new-node-dir> --out <new-result.json>
+```
+
+### Other proof systems do not settle the input-role question
+
+[BABE, sections 3, 6.1 and 8.1](https://docs.babylonlabs.io/papers/BABE_Research_Paper_Jan_2026.pdf)
+defines a two-party setup that fixes the statement and transaction skeletons. Its proving phase
+requires the verifier to supply labels matching the prover's committed proof element; the
+multiple-party extension does not itself specify admission of a previously unknown prover into
+this storage bond. My assessment is that its cheaper pairing verification does not directly
+resolve our late challenger keys and cross-party term input. Its witness-encryption and garbling
+construction would also be a separate implementation and assumption review.
+
+The [BitVMX garbling implementation description](https://bitvmx.org/knowledge/implementing-garbled-circuits-for-bitvmx)
+likewise authenticates future inputs with label commitments supplied during setup, backed by
+garbling and commitment-consistency proofs. It provides a useful way to evaluate a setup-bound
+claim and release a penalty label. That alone does not specify how an unknown fork challenger
+obtains a new proving role under this already funded graph. These comparisons preserve the
+cumulative-work research direction and the unresolved permissionless admission requirement.

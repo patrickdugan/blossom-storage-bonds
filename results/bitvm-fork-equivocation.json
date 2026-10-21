@@ -1,0 +1,159 @@
+{
+  "format": "bsb/fork-equivocation-regtest/v1",
+  "generated": "2026-10-21T19:34:11.632Z",
+  "network": "regtest",
+  "core": "/Satoshi:31.1.0/",
+  "policy": {
+    "acceptnonstdtxn": true,
+    "limitclustersizeKB": 2000
+  },
+  "scope": "Actual false-disprove using another journal signature from its owner, followed by setup-pinned delayed recovery. Fixed-key experiment; challenger registration and integration with a storage/fork collateral game remain unresolved.",
+  "cases": [
+    {
+      "kind": "recover-before-deadline",
+      "committeeExitedBeforeFunding": true,
+      "alternate_journal": "3b365c36f29139756e46a5b33961b33933921cc9285bae1d07dfb8e4f287bfdc",
+      "binding_bytes": 1241447,
+      "equivocation_bytes": 10448,
+      "network": "regtest",
+      "original_journal": "3a365c36f29139756e46a5b33961b33933921cc9285bae1d07dfb8e4f287bfdc",
+      "scope": "Counterexample and delayed recovery with setup-fixed keys; no permissionless challenger admission or production fork graph.",
+      "window": 6,
+      "checks": [
+        {
+          "name": "honest-binding",
+          "reason": "mempool-script-verify-flag-failed (Script evaluated without error but finished with a false/empty top stack element)"
+        },
+        {
+          "name": "provider-refund",
+          "reason": "non-BIP68-final"
+        },
+        {
+          "name": "shortened-refund",
+          "reason": "mempool-script-verify-flag-failed (Locktime requirement not satisfied)"
+        },
+        {
+          "name": "same-message",
+          "reason": "mempool-script-verify-flag-failed (Script evaluated without error but finished with a false/empty top stack element)"
+        },
+        {
+          "name": "wrong-key",
+          "reason": "mempool-script-verify-flag-failed (Script failed an OP_EQUALVERIFY operation)"
+        },
+        {
+          "name": "redirected-penalty",
+          "reason": "mempool-script-verify-flag-failed (Invalid Schnorr signature)"
+        },
+        {
+          "name": "provider-refund",
+          "reason": "missing-inputs"
+        }
+      ],
+      "mined": [
+        {
+          "name": "false-disprove",
+          "txid": "94f610563444e70b0bada0b141a8cdfb94e5369ea94ed92a0d60e5e2f89c826c",
+          "weight": 1251825,
+          "vsize": 312957
+        },
+        {
+          "name": "equivocation-penalty",
+          "txid": "ad8938b334715c7f2c028384f83faf9edccd931e93da0841a0ae423d4b6e00d5",
+          "weight": 14108,
+          "vsize": 3527
+        }
+      ],
+      "payout": {
+        "name": "equivocation-penalty",
+        "address": "bcrt1p8dhsfqdsahtzztenrhfwkppdrkcwr9lk9e6um8dfsfw69mkv8yhs88we2z",
+        "sats": 99950000,
+        "txid": "ad8938b334715c7f2c028384f83faf9edccd931e93da0841a0ae423d4b6e00d5"
+      }
+    },
+    {
+      "kind": "no-response-before-refund",
+      "committeeExitedBeforeFunding": true,
+      "alternate_journal": "3b365c36f29139756e46a5b33961b33933921cc9285bae1d07dfb8e4f287bfdc",
+      "binding_bytes": 1241447,
+      "equivocation_bytes": 10448,
+      "network": "regtest",
+      "original_journal": "3a365c36f29139756e46a5b33961b33933921cc9285bae1d07dfb8e4f287bfdc",
+      "scope": "Counterexample and delayed recovery with setup-fixed keys; no permissionless challenger admission or production fork graph.",
+      "window": 6,
+      "checks": [
+        {
+          "name": "honest-binding",
+          "reason": "mempool-script-verify-flag-failed (Script evaluated without error but finished with a false/empty top stack element)"
+        },
+        {
+          "name": "provider-refund",
+          "reason": "non-BIP68-final"
+        },
+        {
+          "name": "shortened-refund",
+          "reason": "mempool-script-verify-flag-failed (Locktime requirement not satisfied)"
+        },
+        {
+          "name": "same-message",
+          "reason": "mempool-script-verify-flag-failed (Script evaluated without error but finished with a false/empty top stack element)"
+        },
+        {
+          "name": "wrong-key",
+          "reason": "mempool-script-verify-flag-failed (Script failed an OP_EQUALVERIFY operation)"
+        },
+        {
+          "name": "redirected-penalty",
+          "reason": "mempool-script-verify-flag-failed (Invalid Schnorr signature)"
+        },
+        {
+          "name": "equivocation-penalty",
+          "reason": "missing-inputs"
+        }
+      ],
+      "mined": [
+        {
+          "name": "false-disprove",
+          "txid": "d4f22cc70c892c513ad3b7b5f20bf4dda0bcbfb797068894057fe8d5b0ee6854",
+          "weight": 1251825,
+          "vsize": 312957
+        },
+        {
+          "name": "provider-refund",
+          "txid": "afb9782a00721f64b0e3591d6496a8216892313e52a140a71f55ecd4a1e02af3",
+          "weight": 548,
+          "vsize": 137
+        }
+      ],
+      "payout": {
+        "name": "provider-refund",
+        "address": "bcrt1p847h9007rc39lzm93fp42mj957u5snaexyhjptgedr4dusyqx6esv5ngmz",
+        "sats": 99997000,
+        "txid": "afb9782a00721f64b0e3591d6496a8216892313e52a140a71f55ecd4a1e02af3"
+      }
+    }
+  ],
+  "nodeStopped": true,
+  "nativeLibraryTests": 22,
+  "equivocationPrimitive": {
+    "scriptBytes": 10380,
+    "maxStackItems": 277,
+    "cases": [
+      "same authenticated message rejected",
+      "different first nibble accepted",
+      "different last nibble accepted",
+      "unrelated signing key rejected"
+    ]
+  },
+  "source_sha256": {
+    "zk/bitvm-check/src/equivocation.rs": "3d1fdce38840d0891f335382aad2489f22c9c78119f5dd03c8cf7b2015ad911e",
+    "zk/bitvm-check/src/lib.rs": "ae20bdae876ef004b87010bd80ae3fd04244b451d2a7c7e67128cdf7d06d0cca",
+    "zk/bitvm-check/examples/fork-equivocation.rs": "b9fc52feec4d995e8fb155fc9c1bbe06cd5ba1659714668625413d8f328391d7",
+    "zk/bitvm-check/fork-equivocation-regtest.ts": "fa5fa4335568e6a9cb3f8844bf9c32d3eeb5aa54bafda0ed50af30c4f7b33b65"
+  },
+  "remaining": [
+    "This experiment has setup-fixed challenger and provider keys; it does not admit an unknown future challenger.",
+    "The escrow is a new isolated contract, not the pending funded storage v2 graph.",
+    "An observer must act before the CSV refund; missing the window permits withdrawal even after equivocation.",
+    "A complete exact-work dispute needs authenticated cross-party values and an enforced path through every relevant collateral and response state."
+  ]
+}
