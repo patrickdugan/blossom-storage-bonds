@@ -1,0 +1,146 @@
+{
+  "format": "bsb/fork-contest-model/v1",
+  "generated": "2026-10-21T21:16:50.970Z",
+  "network": "regtest",
+  "scope": "Finite abstract state-machine counterexample for hypothetical first-candidate contest rules. Replays saved Core headers locally; performs no new Core transaction, ZK proof, signature admission, payout enforcement or miner test. This is not an exploit of the existing storage graph, which has no fork contest.",
+  "assumptions": [
+    "All compared branch headers pass the existing local HeaderChain validator.",
+    "Every candidate is assumed delivered and authenticated to the hypothetical contract before the submission deadline; that contract mechanism is still absent.",
+    "The provider may respond with the validated extension of its original tip before the response deadline.",
+    "Payouts occur only after both windows; no censorship or early payout is needed for the counterexample."
+  ],
+  "provenance": {
+    "fixture": "results/bitvm-cumulative-work-forks.json",
+    "fixtureSha256": "48a6720b539b217b3b046d875dfbb722f861671b711542de3c7a70d7b9ab2f79",
+    "model": "zk/bitvm-check/fork-contest-model.ts",
+    "modelSha256": "e6c2fa1e7a88320b77e2fd45e1e2ae616a849a76d138f7599fc63553d287f2a5"
+  },
+  "branches": {
+    "original": {
+      "height": 220,
+      "hash": "1afbfb3109023f3a1c06f2e279fbb46ac4eb5c82a59cc2a6719ba7657f17bb71",
+      "work": "442"
+    },
+    "response": {
+      "height": 232,
+      "hash": "653bd05f77d67d4f6644ec045135c37208d92d6c7dda56fbde869b18c4c4c25f",
+      "work": "466"
+    },
+    "weak": {
+      "height": 221,
+      "hash": "2fd0989d602174ad26fa97dcbc5fdd8c71da52509c4fcafa0c6821f492b0533f",
+      "work": "444"
+    },
+    "tie": {
+      "height": 232,
+      "hash": "4787dd58408feb1433769a8131c18af4fa319fc2c87e9a4c263eec9acd3d2786",
+      "work": "466"
+    },
+    "strong": {
+      "height": 233,
+      "hash": "15e7fc560817bb773ec16275799a286bb1acee872a7e80e7d92199fb6c1de6ba",
+      "work": "468"
+    }
+  },
+  "schedules": [
+    {
+      "order": [
+        "weak-candidate",
+        "strong-candidate",
+        "provider-extension"
+      ],
+      "firstCandidateWinner": "provider",
+      "strongestCandidateWinner": "challenger"
+    },
+    {
+      "order": [
+        "weak-candidate",
+        "provider-extension",
+        "strong-candidate"
+      ],
+      "firstCandidateWinner": "provider",
+      "strongestCandidateWinner": "challenger"
+    },
+    {
+      "order": [
+        "strong-candidate",
+        "weak-candidate",
+        "provider-extension"
+      ],
+      "firstCandidateWinner": "challenger",
+      "strongestCandidateWinner": "challenger"
+    },
+    {
+      "order": [
+        "strong-candidate",
+        "provider-extension",
+        "weak-candidate"
+      ],
+      "firstCandidateWinner": "challenger",
+      "strongestCandidateWinner": "challenger"
+    },
+    {
+      "order": [
+        "provider-extension",
+        "weak-candidate",
+        "strong-candidate"
+      ],
+      "firstCandidateWinner": "provider",
+      "strongestCandidateWinner": "challenger"
+    },
+    {
+      "order": [
+        "provider-extension",
+        "strong-candidate",
+        "weak-candidate"
+      ],
+      "firstCandidateWinner": "challenger",
+      "strongestCandidateWinner": "challenger"
+    }
+  ],
+  "summary": {
+    "enumeratedSchedules": 6,
+    "firstCandidateUnsafeSchedules": 3,
+    "strongestCandidateUnsafeSchedules": 0
+  },
+  "counterexample": [
+    {
+      "event": "weak-candidate",
+      "action": "admit candidate",
+      "candidateWork": "444",
+      "responseWork": null
+    },
+    {
+      "event": "provider-extension",
+      "action": "record valid original-branch extension",
+      "candidateWork": "444",
+      "responseWork": "466"
+    },
+    {
+      "event": "strong-candidate",
+      "action": "reject: public challenge slot already consumed",
+      "candidateWork": "444",
+      "responseWork": "466"
+    },
+    {
+      "event": "close submission window and finish response window",
+      "action": "fixed provider payout",
+      "candidateWork": "444",
+      "responseWork": "466"
+    }
+  ],
+  "controls": {
+    "weakOnly": "provider",
+    "equalWork": "provider",
+    "silence": "challenger",
+    "noChallenge": "provider"
+  },
+  "requiredInvariant": "An earlier weaker or rebutted candidate must not permanently exclude a timely stronger candidate; merely delaying the final payout is insufficient.",
+  "missing": [
+    "Bitcoin-authenticated candidate admission and supersession",
+    "Provider response linked to the actual frozen candidate set",
+    "A bounded transaction graph supporting the required adversarial update order",
+    "Fixed payout, replay binding, fee and timeout enforcement"
+  ],
+  "strongestCandidateAbstraction": "A finite comparison oracle illustrates the missing invariant only. It is not a proposed implemented max-register, does not establish safety for arbitrary schedules or branches, and does not solve the presigned-parent or unknown-input binding problems."
+}

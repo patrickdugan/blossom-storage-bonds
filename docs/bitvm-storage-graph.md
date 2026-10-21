@@ -635,3 +635,55 @@ garbling and commitment-consistency proofs. It provides a useful way to evaluate
 claim and release a penalty label. That alone does not specify how an unknown fork challenger
 obtains a new proving role under this already funded graph. These comparisons preserve the
 cumulative-work research direction and the unresolved permissionless admission requirement.
+
+### A first challenge must not exhaust the contest
+
+The provider-rebuttal hypothesis also needs an explicit rule for competing public candidates.
+`fork-contest-model.ts` replays the saved Core experiment's raw regtest headers with the existing
+HeaderChain validator. The original tip has work 442; its provider extension has 466. A conflicting
+branch has prefixes of work 444, 466 and 468, with divergence before the storage seed.
+
+Consider a hypothetical rule that admits the first candidate and permanently consumes the public
+challenge slot. A colluding observer submits the genuine 444-work prefix, the provider rebuts with
+its 466-work extension, and an honest observer submits the 468-work prefix before the submission
+deadline. The first-candidate rule excludes the stronger candidate and ultimately refunds the
+provider. This trace requires neither censorship nor early payout: waiting until both windows end
+still leaves the consumed slot unavailable.
+
+The model enumerates all six orders of those two submissions and the provider response. Three
+produce that unsafe refund. An idealized rule retaining the greatest-work candidate avoids those
+six failures, while controls preserve an honest extension, equal-work incumbent, silence penalty
+and no-challenge refund. That comparison oracle is only a specification aid: it assumes candidate
+delivery and authentication and supplies no Bitcoin transaction or proof-admission mechanism.
+It proves neither general protocol safety nor an implemented maximum register. The counterexample
+is against this hypothetical rule, not the current storage graph, which has no fork contest.
+
+The required invariant is that an earlier weaker or rebutted challenge cannot permanently exclude
+a timely stronger candidate. A concrete design must enforce this under adversarial ordering,
+authenticate the candidate set against the actual response, and retain bounded deadlines and
+fixed payouts. `results/bitvm-fork-contest-model.json` records the trace, all schedules, assumptions
+and source hashes. Invented-work and broken-header-link fixtures both fail validation before a
+report is written.
+
+```text
+node zk/bitvm-check/fork-contest-model.ts --forks results/bitvm-cumulative-work-forks.json --out <new-model-report.json>
+```
+
+### Dynamic-input proposals and their remaining roles
+
+[ESSPI, sections 5.2 and 7](https://bitvmx.org/files/esspi-ecdsa-input-bitvmx.pdf) separates data
+publication through a handle from the fixed dispute graph. A second BitVMX instance checks a
+claimed digest against a signed publication. In that mismatch dispute the verifier becomes prover;
+its OTS inputs and public keys are established during setup. The envelope variant also leaves
+the winner's fund-release details outside its scope. My assessment is that its publication method
+is relevant, but its specified role reversal does not provide an observer absent from setup with
+our required positive-proof role and fixed collateral payout. Adapting it would still require a
+permissionless mismatch route and enforcement across independent publication and collateral states.
+
+[GOAT's deferred BABE binding, sections 2 and 3](https://hackmd.io/@goatresearch/HkKp2g1Zfl)
+extends garbling to dynamic public inputs using blinded point computation and linked circuits.
+Its protocol retains a designated verifier that supplies labels and pre-established input
+commitments. My assessment is that changing when a scalar is chosen does not establish admission
+of a challenger absent from setup or bind the provider to that observer's actual challenge.
+Neither proposal has been adopted, downloaded as a dependency or implemented here; both need
+a separate construction for our selected role and collateral requirements.

@@ -60,9 +60,10 @@
       "status": "relation guards and Core branch comparison exist; collateral contest rules remain unimplemented",
       "evidence": [
         "results/bitvm-cumulative-work-forks.json",
-        "results/bitvm-cumulative-work-certificate.json"
+        "results/bitvm-cumulative-work-certificate.json",
+        "results/bitvm-fork-contest-model.json"
       ],
-      "missing": "No complete Bitcoin transaction graph enforces all contest states and final payouts."
+      "missing": "No complete Bitcoin transaction graph enforces all contest states and final payouts. The model additionally rejects a first-candidate slot that suppresses a timely stronger candidate, even when payout waits until the window closes."
     }
   ],
   "research": [
@@ -89,6 +90,18 @@
       "datePublished": "2026-09-16",
       "finding": "Its standard WE definition protects false instances and explicitly does not promise secrecy on true instances without a witness; the theorem uses fresh random group encodings and oracle access.",
       "disposition": "Does not establish the extractable, concretely instantiated authorization primitive needed here."
+    },
+    {
+      "source": "https://bitvmx.org/files/esspi-ecdsa-input-bitvmx.pdf",
+      "section": "5.2 and 7",
+      "finding": "Separate publication handles avoid placing all data in the fixed dispute ancestry, but the mismatch instance reverses setup-bound prover/verifier roles; envelope payout details are outside its scope.",
+      "disposition": "Relevant input-publication technique; does not specify our setup-independent challenger admission and fixed collateral payout."
+    },
+    {
+      "source": "https://hackmd.io/@goatresearch/HkKp2g1Zfl",
+      "section": "2 and 3",
+      "finding": "Dynamic public scalars use additional blinded garbled computation while a designated verifier still supplies committed labels.",
+      "disposition": "Dynamic input values alone do not establish unknown-challenger admission or authentication of the actual public challenge."
     }
   ],
   "unchangedConstraints": [
@@ -117,9 +130,10 @@
       "evidence": "results/bitvm-late-parent-successor.json",
       "finding": "A late-output parent can reuse SINGLE|ANYONECANPAY, but every presigned Taproot child signature mode rejects its changed outpoint.",
       "scope": "Rules out the tested naive graft; a different successor/payout construction remains open."
-    }
+    },
+    "contestInvariant": "An earlier weaker or rebutted candidate must not permanently exclude a timely stronger candidate. Evidence: results/bitvm-fork-contest-model.json; abstract, not Bitcoin enforcement."
   },
-  "lastUpdatedUtc": "2026-10-21T21:12:15.969Z",
+  "lastUpdatedUtc": "2026-10-21T21:17:43.885Z",
   "userDecision": {
     "requirement": "Preserve permissionless fork challenges",
     "status": "explicitly confirmed",
