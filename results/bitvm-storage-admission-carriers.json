@@ -1,0 +1,340 @@
+{
+  "format": "bsb/storage-admission-carrier-regression/v1",
+  "checkedUtc": "2026-10-21T22:48:05.949Z",
+  "implementationStatus": "Long-chain admission and storage fork enforcement are still unimplemented.",
+  "payoutVerification": "independent transaction decoder; exact txids accepted and mined by Core",
+  "generated": "2026-10-21T22:47:13.638Z",
+  "network": "regtest",
+  "core": "/Satoshi:31.1.0/",
+  "policy": {
+    "acceptnonstdtxn": true,
+    "limitclustersizeKB": 2000
+  },
+  "scope": "Negative carrier regression on a freshly funded journal-enabled storage graph with the checked phase-6 proof fixture. Not a new proof, same-funded-chain storage lifecycle, complete private-fork attack, Binohash implementation or secure challenger-admission contract.",
+  "cases": [
+    {
+      "scenario": "honest",
+      "checks": [
+        {
+          "name": "kickoff",
+          "rejected": true,
+          "reason": "non-final"
+        },
+        {
+          "name": "assert-timeout",
+          "rejected": true,
+          "reason": "non-BIP68-final"
+        },
+        {
+          "name": "assert-final",
+          "rejected": true,
+          "reason": "missing-inputs"
+        },
+        {
+          "name": "skipped-commitment",
+          "rejected": true,
+          "reason": "mempool-script-verify-flag-failed (Operation not valid with the current stack size)"
+        },
+        {
+          "name": "skipped-journal",
+          "rejected": true,
+          "reason": "mempool-script-verify-flag-failed (Operation not valid with the current stack size)"
+        },
+        {
+          "name": "refund",
+          "rejected": true,
+          "reason": "non-BIP68-final"
+        },
+        {
+          "name": "slash",
+          "rejected": true,
+          "reason": "mempool-script-verify-flag-failed (Script evaluated without error but finished with a false/empty top stack element)"
+        }
+      ],
+      "mined": [
+        {
+          "name": "kickoff",
+          "txid": "d3c75836b39dbe497dc401219cd6442d0fc8631c49ae118e94f5e626879b427d",
+          "vsize": 129,
+          "feeSats": 3000
+        },
+        {
+          "name": "challenge",
+          "txid": "76631b5bc5824b6e667379849acf6194e0ae4ab33e5345042dd0ef5cbe0d0a0f",
+          "vsize": 16557,
+          "feeSats": 60000
+        },
+        {
+          "name": "assert-commit-0",
+          "txid": "dc7ec085f90245b5bb4e10bfa65e6e3eb87233e9476a3ac8f02f80ee80d828fc",
+          "vsize": 290937,
+          "feeSats": 1000000
+        },
+        {
+          "name": "assert-commit-1",
+          "txid": "c000eceddeca152866a66cec4ad7234df3d849dcf6e8876e7a5e82f347d03d1e",
+          "vsize": 78088,
+          "feeSats": 500000
+        },
+        {
+          "name": "assert-final",
+          "txid": "331999e20486308acad0a7dfc86ed43853d82d3a2745118697d4b612cb6a7587",
+          "vsize": 321,
+          "feeSats": 3000
+        },
+        {
+          "name": "refund",
+          "txid": "c35356b25d86188601cd38efc5f3b918c834632a27b81178caf087b263f41d0d",
+          "vsize": 277,
+          "feeSats": 3000
+        }
+      ],
+      "disproveLeaf": 364,
+      "commitments": 382,
+      "journalBinding": true,
+      "claimedTermJournal": "85b913f92c411211e62c6bc1fcb432bd3d4051ed9700850e5427d43c3066399a",
+      "admission": {
+        "classification": "negative integration regression; admission remains unimplemented",
+        "fixedProofReused": true,
+        "sameFundedChainStorageProof": false,
+        "scope": "Authentic current storage v2 transaction graph and verifier leaves; its phase-6 storage proof is a regression fixture. Generated header branches and public intent are fresh. This is an admission-carrier test, not a private-fork storage attack or completed long-chain contract.",
+        "candidateHeadersAfterCheckpoint": 151,
+        "intent": {
+          "format": "bsb/long-chain-admission-intent/v1",
+          "network": "regtest",
+          "funding": {
+            "txid": "10dfc1782ec529009de9dfe03a2070062fba57a48de53e11c569468c164af7f9",
+            "vout": 1
+          },
+          "storageChallengeTxid": "76631b5bc5824b6e667379849acf6194e0ae4ab33e5345042dd0ef5cbe0d0a0f",
+          "storageTermJournal": "85b913f92c411211e62c6bc1fcb432bd3d4051ed9700850e5427d43c3066399a",
+          "checkpointHeight": 169,
+          "checkpointHash": "32dbcf6cf002b8f2cf88c734f60fe0433bb87dbc822f0d1a972fff312a699f6c",
+          "firstSeedHeight": 170,
+          "provider": {
+            "height": 232,
+            "hash": "65542065f1eb18da08f065d086c38914f9de7f7e26106d1185b60b2debd6dddb",
+            "work": "466"
+          },
+          "candidate": {
+            "height": 320,
+            "hash": "554fc90314e26b16e72afd756c5da97e6f7e38a435db42a38d50c670d1a38b28",
+            "work": "642",
+            "headersSha256": "131d50e891120adb8e12949bd2465561535ed291c551d3eef3a9cf4240068cac"
+          },
+          "outsiderNonce": "ff54048c0e68482ca4dba82d06f5b81646f3a4f0a997267fd30bb9fbd776406e"
+        },
+        "commitment": "98f18b5d933a9e373ff3dd106a94481fee05e10537bc14f2d1984312b36e2e2b",
+        "publication": {
+          "txid": "8272a3f890e2c2f3f8ac0bd2c23f2d096001a0a096a219ea3bd63a16cc954c04",
+          "blockhash": "40780248204ee1565dd150d7ea7c04d5ec4e9cb3d9c3709e846ded1dac4d36a4"
+        },
+        "nativeExactWorkValidated": true,
+        "brokenHeaderLinkRejected": true,
+        "outsideSetup": true,
+        "carrierRejections": [
+          {
+            "stage": "challenge",
+            "carrier": "output",
+            "txid": "344c022d2a63b6190d93684c6e6feaf6f832c3f4e17a38ce033b4b6750aa5fb0",
+            "wtxid": "67fe3264dd9a3a2ac0e802b209e82fd106e0ea27a6125167909a014c1f467007",
+            "txidUnchanged": false,
+            "reason": "mempool-script-verify-flag-failed (Invalid Schnorr signature)"
+          },
+          {
+            "stage": "challenge",
+            "carrier": "annex",
+            "txid": "76631b5bc5824b6e667379849acf6194e0ae4ab33e5345042dd0ef5cbe0d0a0f",
+            "wtxid": "027ab578410a55f0c2ff272aaa226e38f928dbb4013a64c5f6abc5f9f1825ae1",
+            "txidUnchanged": true,
+            "reason": "mempool-script-verify-flag-failed (Invalid Schnorr signature)"
+          },
+          {
+            "stage": "challenge",
+            "carrier": "stack",
+            "txid": "76631b5bc5824b6e667379849acf6194e0ae4ab33e5345042dd0ef5cbe0d0a0f",
+            "wtxid": "13075646eeb6c843fbcba6fcfdf2eef4c98c8ab8e7635b3be965a4039ef9b88b",
+            "txidUnchanged": true,
+            "reason": "mempool-script-verify-flag-failed (Stack size must be exactly one after execution)"
+          },
+          {
+            "stage": "assert-final",
+            "carrier": "output",
+            "txid": "f862c6508bd33a8a2b6c0397ea3c5931cf91b5905520bdf3654126ec832c386e",
+            "wtxid": "283b1ad72dd8a3f76b3d25b303719157d3051e8c19d56b8fcfffdcd215fb10aa",
+            "txidUnchanged": false,
+            "reason": "mempool-script-verify-flag-failed (Invalid Schnorr signature)"
+          },
+          {
+            "stage": "assert-final",
+            "carrier": "annex",
+            "txid": "331999e20486308acad0a7dfc86ed43853d82d3a2745118697d4b612cb6a7587",
+            "wtxid": "7afe92893563a74847956881a2abb99388874627c513301c68db4a62f95ff424",
+            "txidUnchanged": true,
+            "reason": "mempool-script-verify-flag-failed (Invalid Schnorr signature)"
+          },
+          {
+            "stage": "assert-final",
+            "carrier": "stack",
+            "txid": "331999e20486308acad0a7dfc86ed43853d82d3a2745118697d4b612cb6a7587",
+            "wtxid": "59dbb78dbd99dc5782493c04a48d50de641af26d44c6371407071ad8c8b91ef5",
+            "txidUnchanged": true,
+            "reason": "mempool-script-verify-flag-failed (Stack size must be exactly one after execution)"
+          },
+          {
+            "stage": "refund",
+            "carrier": "output",
+            "txid": "8be678bfb722862b410e17d4a63e0c24d25fdd96828db61c803603fc69bc0659",
+            "wtxid": "d0cd197e2c8918b84c7037e8bdd4252b9a8e5b367698fec1712d6fe759eefbb8",
+            "txidUnchanged": false,
+            "reason": "mempool-script-verify-flag-failed (Invalid Schnorr signature)"
+          },
+          {
+            "stage": "refund",
+            "carrier": "annex",
+            "txid": "c35356b25d86188601cd38efc5f3b918c834632a27b81178caf087b263f41d0d",
+            "wtxid": "9687acab654759e4d0a1945c7e12533beecb494185b5cacfa12ee0829566a082",
+            "txidUnchanged": true,
+            "reason": "mempool-script-verify-flag-failed (Invalid Schnorr signature)"
+          },
+          {
+            "stage": "refund",
+            "carrier": "stack",
+            "txid": "c35356b25d86188601cd38efc5f3b918c834632a27b81178caf087b263f41d0d",
+            "wtxid": "0ab3031df23a50497623ed0cf688a26acc89b8eee64520e9d2e9794ccc96441d",
+            "txidUnchanged": true,
+            "reason": "mempool-script-verify-flag-failed (Stack size must be exactly one after execution)"
+          }
+        ],
+        "proofGate": "closed",
+        "authenticatedOnchainAdmission": false,
+        "observed": {
+          "providerRefundMined": true,
+          "txid": "c35356b25d86188601cd38efc5f3b918c834632a27b81178caf087b263f41d0d",
+          "observedTip": "72b1203c5515784bb3658eae2ae0b83eef56ff740c76c33b2dacb4ac079f00ad",
+          "observedWork": "492",
+          "candidateStillStronger": true,
+          "publicationStillConfirmed": true
+        }
+      },
+      "client": "bcrt1p0wl6ap5wsu283pdkap7lmy40v0aess4dvwj0vyvqzjv5k6vtk44q4w884t",
+      "provider": "bcrt1p467rtntfss2kqc8up0999gychxz66ueyxjex4vu8rd56my42kl6svf80mw",
+      "payouts": [
+        {
+          "name": "refund",
+          "beneficiary": "provider",
+          "address": "bcrt1p467rtntfss2kqc8up0999gychxz66ueyxjex4vu8rd56my42kl6svf80mw",
+          "sats": 98431000,
+          "txid": "c35356b25d86188601cd38efc5f3b918c834632a27b81178caf087b263f41d0d"
+        }
+      ]
+    }
+  ],
+  "measurements": {
+    "storageTransactionsMined": 6,
+    "publicationTransactionsMined": 1,
+    "ordinaryRejections": 7,
+    "carrierRejections": 9,
+    "independentHeaderReplay": {
+      "originalHeaders": {
+        "height": 232,
+        "hash": "65542065f1eb18da08f065d086c38914f9de7f7e26106d1185b60b2debd6dddb",
+        "work": "466"
+      },
+      "candidateHeaders": {
+        "height": 320,
+        "hash": "554fc90314e26b16e72afd756c5da97e6f7e38a435db42a38d50c670d1a38b28",
+        "work": "642"
+      },
+      "withdrawalHeaders": {
+        "height": 245,
+        "hash": "72b1203c5515784bb3658eae2ae0b83eef56ff740c76c33b2dacb4ac079f00ad",
+        "work": "492"
+      }
+    }
+  },
+  "observations": [
+    "A separately confirmed intent binds the public funding outpoint, storage challenge txid, fixture term journal, outsider nonce and exact-work candidate digest, but has no authenticated admission edge into the storage graph.",
+    "All three ordinary output commitments fail the fixed committee signatures.",
+    "All three annex commitments retain txid but change the Taproot signature digest; all fail signature verification.",
+    "All three extra witness-stack commitments retain txid but fail cleanstack.",
+    "The existing fixed provider refund mines while the independent valid candidate remains strictly stronger. The reused proof fixture is not about these new branches; this is the missing-hook regression, not proof of a private-fork storage attack."
+  ],
+  "remainingConstruction": [
+    "Authenticate a runtime outsider certificate and any new prover input keys to the actual admitted challenge, without trusting provider/client selection or an off-chain oracle.",
+    "Bind the provider rebuttal to that authenticated request and enforce fixed payouts/timeouts through every withdrawal.",
+    "Keep a path for timely stronger candidates after an earlier weaker or rebutted candidate.",
+    "Implement and test that admission construction inside the actual storage graph before generating more RISC Zero/Groth16 proofs."
+  ],
+  "nodeStopped": true,
+  "setupExitedBeforeFunding": true,
+  "proofGate": {
+    "status": "closed",
+    "newProofJobsStarted": 0,
+    "reason": "No sound long-chain admission plus storage integration has been implemented."
+  },
+  "provenance": {
+    "sources": {
+      "zk/bitvm-check/graph-regtest.ts": "83f387b9ec2f9d25df5dcf20c7f8823e0cfab004c4fb5bbf1496e91bfdb78d77",
+      "zk/bitvm-check/admission-carriers.ts": "2eb0f87d981634b199f105b8fa052e8ac920a09f932e6fdc3d6cf9591af60259",
+      "zk/bitvm-check/examples/admission-carrier.rs": "443f30049d772915418a84c68cc8260d5f7244d22900ffd3fa02f770782dc0ef",
+      "zk/bitvm-check/src/storage_graph.rs": "abd6003a421cb14f62ec6c4dd5f96747dfbd707239e378c8840e9f6e8232419d"
+    },
+    "binaries": {
+      "storageGraph": "79e2cf496fd39e4d98eb34c94771db7af844809586ea92c0cfc63975a6988a65",
+      "carrier": "b9fd0cb185ce401bd5e1524127f56645cb4b643f79716de133b062f048bc36ed"
+    }
+  },
+  "publicEvidence": {
+    "archive": "bitvm-storage-admission-carriers.tar.gz",
+    "bytes": 2076360,
+    "sha256": "22bb1f110ca888fbb45d7253f496bb20d6b1426afcd411b1d7c5c0703eb0c969",
+    "files": {
+      "graph-honest/admission-carriers/admission.json": "a16f716204c0c7f3624595be368c8759c0246e22cbfebebf90cc79238a3e9d16",
+      "graph-honest/admission-carriers/assert-final/annex.json": "84d38369d7f59e28b6b352fb3f77765e56bf895ad4716285d67821e4d1eaa53c",
+      "graph-honest/admission-carriers/assert-final/base.json": "75a990060c99a64ff1c3413c172496131acb065123a0ee89f0308b202c087ef1",
+      "graph-honest/admission-carriers/assert-final/output.json": "ec3a6fa29e3f75e4e65a0c78c367758620c20c378e0b082f25ca9f7de6001a2c",
+      "graph-honest/admission-carriers/assert-final/stack.json": "30851e9fd1d6d7c74c1c1d800c7a604539a8533cc45fcbb9ceab639fa4fcd241",
+      "graph-honest/admission-carriers/challenge/annex.json": "446868d5cb21f669938476245b8adc63700861b682bff2ba060f3bc58bbf13e5",
+      "graph-honest/admission-carriers/challenge/base.json": "5e20188508a6fa758035ad3a41f040e8d7f37c630b83c66ac1953bb1f6f721ca",
+      "graph-honest/admission-carriers/challenge/output.json": "adf154e66752fd910f03706342c6d4f4bde5910a5b0bea2c738ab81e389841ec",
+      "graph-honest/admission-carriers/challenge/stack.json": "b1390d9e245e909008b5f14e83c1cce430fc95853f6fdd1ab3dd06eab4c01cc3",
+      "graph-honest/admission-carriers/headers.json": "24d494da56fa8e7b16509b6f875bfa0298ac8825fd23e54bebfadaedaed19dcc",
+      "graph-honest/admission-carriers/intent.json": "98f18b5d933a9e373ff3dd106a94481fee05e10537bc14f2d1984312b36e2e2b",
+      "graph-honest/admission-carriers/publication.json": "080021625b2d6fd850eb54985c9d47a09b3e6fb73a42e2c68c3dc35040dba186",
+      "graph-honest/admission-carriers/refund/annex.json": "62734f9437262aa01b16686b1f3ff746ea66d63eeff2091ab2f65a46f5bafabc",
+      "graph-honest/admission-carriers/refund/base.json": "a1f24edc8b9b69840d6f383ff42853ea54551b9495f9d5321750b565b3c24f31",
+      "graph-honest/admission-carriers/refund/output.json": "98618763ee736f46c7e315b5465f2295eff7c9b330aacc3be1b4984366e0f0c1",
+      "graph-honest/admission-carriers/refund/stack.json": "9bda0f7cc885781c3cc0db26b64e20eb11bfc8cca6a15363e3b18621c8f82212",
+      "graph-honest/admission-carriers/withdrawal-headers.json": "0f4cd732259c433ac52cd81d0bd337c3016ced21e21df17a0e908a3fafa90805",
+      "graph-honest/assert-commit-0.json": "6302a08efe66a176b24b9ed4cdc8f9bd2597e7baded2a18a71974e917e8d8d3f",
+      "graph-honest/assert-commit-1.json": "15f41a47a599561e4d23925488c858faea3e0254de61dd9515dbf3a5c738b66a",
+      "graph-honest/assert-final.json": "55efc0970b2630f2e4100277bfd4fb9cf1c0793fbcc847ac7ec5f9c1cc9c23b8",
+      "graph-honest/assert-timeout.json": "6f388e3a301959a8ae693cdcc6c8ddb509fbbcbb0cac8de6382deb09366011d5",
+      "graph-honest/challenge.json": "d32d05cd41a5963b782323b6090bf36464ce585d0d504ad870c9ea0d099f77a8",
+      "graph-honest/final-timeout.json": "acffc2c51a7f23c32c2e80fc80b399ef67e31a8696d36e31bec5abe323fff944",
+      "graph-honest/graph.json": "6e5fc014d19303efc5e49ff979a11b0c2fda3360e98eaf34c6de10889331a48a",
+      "graph-honest/kickoff-timeout.json": "0082f22755b444a6f079a7f099aa15f3ee6ecd4590744d21969ffe662b5e93a5",
+      "graph-honest/kickoff.json": "0023103bee589cd488c5cd40127104c72415c04c7153cd579644e03e282b7be9",
+      "graph-honest/marker-burn.json": "87e572dada2bd016e45c43243881559565eab1889bbeba84f9475657b3d07f8a",
+      "graph-honest/redirected-slash.json": "6cbaa2f2e989763d1cd3e0aa8efe25163f4ba82a672be50a1ace5110b48867a6",
+      "graph-honest/refund.json": "b8f22c53cf78c71ce7d95d72dc31b97a5d3948a652adafbfbb204d980dc3f993",
+      "graph-honest/skipped-commitment.json": "551ceeb7549f8c0dd87d94adcf65bb4123051975de8573bee9fce3a094e6fd3b",
+      "graph-honest/skipped-journal.json": "3d3a98ab61bda909d3246395e2460a58077935f5ad0d9dcfb8181f04f20b0ca4",
+      "graph-honest/slash.json": "9c43b6c565a3373249e95dfe4a25e1673cd1751a7ac0380d3c60c0fa549286d0",
+      "graph-honest/slot-timeouts.json": "b101aa3238470f18665f517c77c65482f3bbfd397b11d06a8f4862df993a0821",
+      "graph-honest/slots-timeout.json": "481fdf3f96959b4718f957db9e4e8d7ebccd77e09b4cd0d080320b0a4ce2c01e",
+      "graph-honest/unchallenged-refund.json": "ec11b6288b75eaeeb31db9dfd71cc0478ace8fc8be78f87312507cb822ffab7c"
+    }
+  },
+  "researchedSource": {
+    "url": "https://robinlinus.com/binohash.pdf",
+    "sections": [
+      "1.2",
+      "2.7",
+      "6.4",
+      "7.1"
+    ],
+    "assessment": "Readable transaction digest and subset-signature import are relevant ingredients, not a complete candidate-admission/collateral state machine. Not implemented or security-tested by this experiment."
+  }
+}

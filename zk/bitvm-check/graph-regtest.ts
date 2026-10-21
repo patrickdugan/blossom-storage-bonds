@@ -3,6 +3,7 @@
 //   --partials <checked verifier cache> --assertions <checked assertions> --dir <new directory> --out <new result.json>
 import assert from "node:assert/strict";
 import { verifyGraphPayouts } from "./graph-payouts.ts";
+import { prepareAdmissionCarriers } from "./admission-carriers.ts";
 import { spawn } from "node:child_process";
 import { createWriteStream, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
@@ -35,7 +36,9 @@ try{
   const mine=async(n:number)=>{if(n>0)await rpc("generatetoaddress",[n,mining]);};
   const mineTo=async(height:number)=>mine(Math.max(0,height-await rpc("getblockcount")));
   const kinds=(opt("scenarios")??(journal?"no-kickoff,no-challenge,silence,honest,wrong-term,wrong-journal,corrupt-proof,burn-marker":"no-kickoff,no-challenge,silence,honest,wrong-term,corrupt-proof,burn-marker")).split(",");
+  if(opt("admission-checker"))assert.ok(journal && kinds.length===1 && kinds[0]==="honest","admission carrier regression requires --journal --scenarios honest");
   for(const kind of kinds){
+    let admission:Awaited<ReturnType<typeof prepareAdmissionCarriers>>|undefined;
     const graphDir=join(dir,`graph-${kind}`),log=createWriteStream(join(dir,`setup-${kind}.log`),{flags:"wx"});
     let readyOk!:(v:any)=>void,readyBad!:(e:Error)=>void,completeOk!:(v:any)=>void,completeBad!:(e:Error)=>void;
     let sawReady=false,sawComplete=false;
@@ -66,10 +69,13 @@ try{
     if(kind==="no-kickoff"){
       await reject("kickoff-timeout",/non-final/);await mineTo(graph.kickoff_deadline);await send("kickoff-timeout");
     }else{
-      await reject("kickoff",/non-final/);await mineTo(graph.term_end);await send("kickoff");
+      await reject("kickoff",/non-final/);await mineTo(graph.term_end);
+      if(opt("admission-checker"))admission=await prepareAdmissionCarriers({rpc,mine,graphDir,graph,record,checker:opt("admission-checker")!,fundingTxid:decoded.txid,fundingVout:coin.n});
+      await send("kickoff");
       if(kind==="no-challenge"){
         await reject("unchallenged-refund",/non-BIP68-final/);await mine(graph.challenge_blocks);await send("unchallenged-refund");
       }else{
+        if(admission)await admission.rejectAt("challenge");
         await send("challenge");
         await reject("assert-timeout",/non-BIP68-final/);
         if(kind==="silence"){
@@ -79,10 +85,10 @@ try{
           await reject("skipped-commitment",/script/,JSON.parse(readFileSync(join(graphDir,"skipped-commitment.json"),"utf8")).hex);
           await send("assert-commit-0");
           if(journal)await reject("skipped-journal",/script/,JSON.parse(readFileSync(join(graphDir,"skipped-journal.json"),"utf8")).hex);
-          await send("assert-commit-1");await send("assert-final");
+          await send("assert-commit-1");if(admission)await admission.rejectAt("assert-final");await send("assert-final");
           await reject("refund",/non-BIP68-final/);
           if(kind==="honest"){
-            await reject("slash",/script/);await mine(graph.dispute_blocks);await send("refund");
+            await reject("slash",/script/);await mine(graph.dispute_blocks);if(admission)await admission.rejectAt("refund");await send("refund");if(admission)await admission.finish(tx("refund").txid);
           }else if(kind==="burn-marker"){
             await send("marker-burn");await mine(graph.dispute_blocks);await reject("refund",/missing|spent/);await reject("final-timeout",/non-final/);await mineTo(graph.final_deadline);await send("final-timeout");
           }else{

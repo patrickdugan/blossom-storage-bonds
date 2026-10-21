@@ -807,3 +807,57 @@ storage proofs remain separate artifacts.
 cargo build --offline --locked --manifest-path zk/bitvm-check/Cargo.toml --example rebuttal-contract
 node zk/bitvm-check/rebuttal-regtest.ts --bitcoind <core> --checker <rebuttal-contract> --dir <new-node-dir> --out <new-report.json>
 ```
+
+## Long-chain admission carriers in the storage graph
+
+The long-chain follow-up now has a negative integration regression in the actual journal-enabled
+storage graph. It does not implement admission. The harness uses the checked phase-6 proof and
+real verifier leaves, with fresh funding, keys, branches and transactions. That fixture proof is
+not about these new branches, so this is neither a same-funded-chain storage lifecycle nor a
+complete private-fork attack.
+
+The test retains funding below a common checkpoint at height 169, validates both real branches
+from genesis with HeaderChain, and checks their exact work against Core. The response-side branch
+reaches height 232, work 466; the conflicting candidate reaches height 320, work 642. Its 151
+post-checkpoint headers exceed the earlier three-header verifier. An external publication commits
+to the actual funding outpoint, storage challenge txid, fixture journal, candidate digest and a
+new outsider nonce. Its OP_RETURN is independently decoded and confirmed before storage kickoff.
+No setup party authorizes that publication. A broken header-link control is rejected.
+
+The six ordinary storage transactions still mine through the fixed 98,431,000-satoshi provider
+refund. At withdrawal the observed branch has work 492, the candidate still has 642, and the
+publication remains confirmed. This measures the absent admission edge: a public intent and
+correct off-chain validation do not themselves constrain the existing storage contract.
+
+Nine attempts to carry the commitment through the challenge, final assertion and refund fail:
+
+| Carrier at each of the three states | Core outcome |
+| --- | --- |
+| Append an OP_RETURN output | Invalid committee Schnorr signature |
+| Append a Taproot annex | Same txid, but invalid Schnorr signature |
+| Prepend a witness stack item | Same txid, but cleanstack failure |
+
+The run additionally passes the ordinary honest-fixture checks: skipped commitments, skipped
+journal, missing inputs, early withdrawals and an inapplicable binding disprove are rejected.
+There are six mined graph transactions, one confirmed publication, seven ordinary rejections and
+nine carrier rejections. A separate transaction decoder checks the fixed payout. The saved headers
+also replay independently after withdrawal; Core shuts down cleanly.
+
+[Binohash sections 1.2, 2.7, 6.4 and 7.1](https://robinlinus.com/binohash.pdf) describe a readable
+transaction digest and subset-signature import into BitVM. My assessment is that these are
+relevant ingredients, but the paper does not supply our complete admission and withdrawal graph.
+This regression implements neither Binohash nor its security parameters. It also does not prove
+that all possible admission constructions fail; it rules out the tested carriers in this graph.
+
+The remaining construction must authenticate an outsider's runtime certificate and any new prover
+input keys to the actual challenge, force the provider to answer it, preserve fixed payouts and
+timeouts, and keep later stronger candidates admissible. A provider-signed acknowledgement alone
+does not enforce acknowledgement of the submitted candidate. A comparison in the coordinator
+does not enforce it in Bitcoin. The long-chain/storage integration remains unfinished and the
+no-more-proofs gate remains closed. Evidence is
+`results/bitvm-storage-admission-carriers.json`.
+
+Reproduce with the existing checked fixture cache and assertions. Build the
+`admission-carrier` example, then add `--journal --scenarios honest
+--admission-checker <admission-carrier>` to `graph-regtest.ts`'s normal arguments.
+No RISC Zero, Groth16 or full-verifier proof job is launched by this diagnostic.

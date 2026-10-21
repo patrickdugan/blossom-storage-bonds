@@ -144,12 +144,12 @@
       "limitation": "Not Binohash, a message-binding proof, escrow integration or unknown challenger admission; 208 non-push opcodes exceed the legacy limit."
     }
   },
-  "lastUpdatedUtc": "2026-10-21T22:21:07.161Z",
+  "lastUpdatedUtc": "2026-10-21T22:48:05.949Z",
   "userDecision": {
     "requirement": "Preserve permissionless fork challenges",
     "status": "explicitly confirmed",
     "consequence": "Do not substitute original-client challenge keys or another trusted online signer.",
-    "route": "Provider rebuttal; exact cumulative work and permissionless challenges retained; small end-to-end dispute before more proof jobs."
+    "route": "Provider rebuttal; keep exact cumulative work and permissionless challenges. Long-chain admission must work inside storage before any more proof jobs."
   },
   "boundedProviderRebuttal": {
     "status": "Core verified",
@@ -165,6 +165,18 @@
   },
   "proofGate": {
     "status": "closed",
-    "reason": "The bounded direct-header transaction milestone is verified. General long-chain optimistic challenge admission and full storage-bond integration must be concrete and tested before further proof jobs."
+    "newProofJobsStarted": 0,
+    "reason": "No sound long-chain admission plus storage integration has been implemented."
+  },
+  "storageAdmissionCarriers": {
+    "status": "negative integration regression verified",
+    "report": "results/bitvm-storage-admission-carriers.json",
+    "candidateHeadersAfterCheckpoint": 151,
+    "storageTransactionsMined": 6,
+    "publicationTransactionsMined": 1,
+    "carrierRejections": 9,
+    "providerRefundUnaffected": true,
+    "sameFundedChainStorageProof": false,
+    "admissionImplemented": false
   }
 }
