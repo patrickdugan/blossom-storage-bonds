@@ -8,3 +8,4 @@ node_modules/
 /zk/risc0/methods/guest/target/
 /zk/risc0/methods/term/target/
 /zk/bitvm-check/target/
+/zk/risc0/__pycache__/
