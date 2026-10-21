@@ -1,0 +1,65 @@
+{
+  "arkworks": {
+    "verifies": true,
+    "verify_s": 0.007622755,
+    "wrong_public_verifies": false
+  },
+  "bitvm_rev": "7d1ca36",
+  "corrupted_intermediate": {
+    "exec_s": 0.167778209,
+    "executes": true,
+    "found": true,
+    "locking_script_bytes": 3472345,
+    "max_stack_items": 946,
+    "script_plus_witness_bytes": 3475679,
+    "tap_index": 181,
+    "under_4mb_less_16k": true,
+    "validate_s": 94.507276108,
+    "witness_script_bytes": 3334
+  },
+  "honest": {
+    "all_disprove_scripts_fail": true,
+    "assertion_witness_bytes": 286765,
+    "assertions": {
+      "hash": 363,
+      "u256": 15
+    },
+    "sign_and_execute_all_s": 238.617549434,
+    "validate": {
+      "found": false,
+      "s": 193.873080456,
+      "validate_s": 193.87303834
+    }
+  },
+  "tapscripts": {
+    "compile_s": 159.016759502,
+    "count": 364,
+    "largest_bytes": 3948063,
+    "smallest_bytes": 338312,
+    "total_bytes": 1110838305
+  },
+  "warning": "BitVM: DO NOT USE IN PRODUCTION. Winternitz secrets are test values.",
+  "wrong_public_input": {
+    "exec_s": 0.05183826,
+    "executes": true,
+    "found": true,
+    "locking_script_bytes": 947271,
+    "max_stack_items": 744,
+    "script_plus_witness_bytes": 955010,
+    "tap_index": 363,
+    "under_4mb_less_16k": true,
+    "validate_s": 197.518735592,
+    "witness_script_bytes": 7739
+  },
+  "verification_context": {
+    "scope": "Fresh proof and full VPS BitVM verification from this funded v2 graph chain, with setup before funding, a journal commitment at slot 381, and one signing event after verification. No cumulative-work collateral contest or permissionless new challenger admission.",
+    "public_input": "159564898053732827180188766074262870992629568785009679552908879788307178958",
+    "proof_sha256": "b039c43e56ccd4731d10bc0f638d02ba128f2c3ddde1334670c6ce02c861c8b4",
+    "vk_sha256": "2941dff0bd962ff8610773c9659c10d0dec561db1e2f6afecfbbe0d9cb457a7d",
+    "assertions_sha256": "a4340072ec1686078547f5b4ea4a48421cf42857f52efc3533c9388bcb768195",
+    "raw_report_sha256": "19f69c55b562689d50c308e9c497a283dee8108091beeb9a79810dd8646557e2",
+    "checker_sha256": "a62b3d8bd56bd91f64da9b47e3949e39c2992048f4405def962dde9682f41fc6",
+    "wall": "18:43.22",
+    "peakRssKiB": 4883608
+  }
+}

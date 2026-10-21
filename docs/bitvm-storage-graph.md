@@ -353,7 +353,8 @@ stack items. The optional v2 storage setup now includes this leaf and a 382nd on
 slot; Core mined the honest refund, bad-journal slash and silent-provider recovery. An omitted
 journal signature is rejected. The evidence is `results/bitvm-storage-journal.json`, with setup
 and attachment details in `bitvm-storage-lifecycle.md`. This regression uses the phase-6 proof;
-the existing fresh-chain proof uses v1. The original storage binding remains 1,223,886 bytes and
+both v1 and v2 now have successful fresh-chain lifecycles; the v2 full-verifier and mined result
+are recorded in `results/bitvm-storage-journal-lifecycle-fresh.json`. The original storage binding remains 1,223,886 bytes and
 760 stack items.
 
 This binds the provider's own storage assertion. It does not safely bind a challenger to that

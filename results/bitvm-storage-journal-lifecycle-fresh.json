@@ -1,0 +1,203 @@
+{
+  "network": "regtest",
+  "core": "/Satoshi:31.1.0/",
+  "setupVersion": "v2",
+  "commitments": 382,
+  "journalBinding": true,
+  "termJournal": "a695ab8ccdaf6f85c7ea4403727deee05a69322a27f354f210ee30330a6dc81f",
+  "termJournalSlot": 381,
+  "scenario": "honest",
+  "scope": "Fresh proof and full VPS BitVM verification from this funded v2 graph chain, with setup before funding, a journal commitment at slot 381, and one signing event after verification. No cumulative-work collateral contest or permissionless new challenger admission.",
+  "freshProof": {
+    "snapshot_journal": "a695ab8ccdaf6f85c7ea4403727deee05a69322a27f354f210ee30330a6dc81f",
+    "tip_height": 220,
+    "tip_hash": "7ac61c95733f59043a46770d5675ad373e17187036fc5c36f092e0bc5fde8e49",
+    "public_input": "159564898053732827180188766074262870992629568785009679552908879788307178958",
+    "nativeGroth16Verified": true,
+    "unsignedChunksExecuted": false,
+    "fullBitvmExecutedOnVps": true,
+    "returnedBitvm": {
+      "checkerSha256": "a62b3d8bd56bd91f64da9b47e3949e39c2992048f4405def962dde9682f41fc6",
+      "files": [
+        "bitvm/manifest.json",
+        "bitvm/result.json",
+        "bitvm/assertions.json"
+      ],
+      "assertionsSha256": "a4340072ec1686078547f5b4ea4a48421cf42857f52efc3533c9388bcb768195"
+    },
+    "returnedFiles": {
+      "fixture.json": "9747d54dadaea13df2555f95a9f196b4ca2fa0f84c7913aa8fc9b6115d06d2d2",
+      "ids.json": "9153e5b186126e8937d2bce06b9b026ecb758ab84db027ba3581939eb1e896e9",
+      "chain.json": "a6469f254d34a3d543ee3a13b3e11b3af88cf671290eef0ea724598f873e3598",
+      "term.json": "30b446fe5748d699b53007050f187954de906389da065d1116f2ce7299466451",
+      "g16/groth16.json": "7884133b205e9ba671f68e51e841bc0ba3259fe984c8f0193f647a10253c2f74",
+      "g16/vk.json": "2941dff0bd962ff8610773c9659c10d0dec561db1e2f6afecfbbe0d9cb457a7d",
+      "g16/proof.json": "b039c43e56ccd4731d10bc0f638d02ba128f2c3ddde1334670c6ce02c861c8b4",
+      "g16/public.json": "bd29eb1c848700e8fda259134a43e224e21fb9fee5ffb0df4aa1b8bacaede521",
+      "bitvm/manifest.json": "36553c8bc0e82cc38473bc0bdc5233a9ccd19a4563d3adb42c1c1fc4926f1560",
+      "bitvm/result.json": "19f69c55b562689d50c308e9c497a283dee8108091beeb9a79810dd8646557e2",
+      "bitvm/assertions.json": "a4340072ec1686078547f5b4ea4a48421cf42857f52efc3533c9388bcb768195"
+    }
+  },
+  "events": [
+    {
+      "name": "provider_public_keys_committed",
+      "height": 101,
+      "at": "2026-10-21T19:16:11.297Z"
+    },
+    {
+      "name": "committee_exited_before_funding",
+      "height": 101,
+      "at": "2026-10-21T19:16:17.382Z"
+    },
+    {
+      "name": "funding_mined_before_first_epoch",
+      "height": 102,
+      "at": "2026-10-21T19:16:17.429Z"
+    },
+    {
+      "name": "term_end_reached_without_assertion_witnesses",
+      "height": 220,
+      "at": "2026-10-21T19:16:19.791Z"
+    },
+    {
+      "name": "own_chain_snapshot_ready_for_proving",
+      "height": 220,
+      "at": "2026-10-21T19:16:26.253Z"
+    },
+    {
+      "name": "fresh_proof_verified_for_own_chain",
+      "height": 220,
+      "at": "2026-10-21T20:15:09.256Z"
+    },
+    {
+      "name": "provider_signed_once_at_term_end",
+      "height": 222,
+      "at": "2026-10-21T20:15:10.038Z"
+    }
+  ],
+  "mined": [
+    {
+      "name": "kickoff",
+      "txid": "264ecb671699564a4fbe0fe344ad36010d4e810f76ae518cd41246174be811fd",
+      "vsize": 129
+    },
+    {
+      "name": "challenge",
+      "txid": "02a8c602414097ef85a34fce9399d646738f82c3cae4247ddbe686281227970c",
+      "vsize": 16557
+    },
+    {
+      "name": "assert-commit-0",
+      "txid": "e1f42ad595db8280cca5ee20024257d0f1150c5f24668114d363a42e2d92b5c4",
+      "vsize": 290932
+    },
+    {
+      "name": "assert-commit-1",
+      "txid": "40a2bc4aa6ea5a689a9f42ee891ef24e2faac826850565bb2918039038ecfe25",
+      "vsize": 78092
+    },
+    {
+      "name": "assert-final",
+      "txid": "130b89be9b8e032c2c37a764dcb457ba25ae7055c0cd93b6e32d5276f84b851c",
+      "vsize": 321
+    },
+    {
+      "name": "refund",
+      "txid": "128e7224be22da89f208504fed674c1afdbd4fc1dded991d90d7768381d33042",
+      "vsize": 277
+    }
+  ],
+  "rejected": [
+    {
+      "name": "kickoff",
+      "reason": "non-final"
+    },
+    {
+      "name": "assert-commit-0",
+      "reason": "mempool-script-verify-flag-failed (Operation not valid with the current stack size)"
+    },
+    {
+      "name": "assert-final",
+      "reason": "missing-inputs"
+    },
+    {
+      "name": "substituted-setup-keys",
+      "reason": "registration differs"
+    },
+    {
+      "name": "missing-journal",
+      "reason": "invalid v2 attachment rejected before output"
+    },
+    {
+      "name": "wrong-journal-metadata",
+      "reason": "invalid v2 attachment rejected before output"
+    },
+    {
+      "name": "legacy-witness-format",
+      "reason": "invalid v2 attachment rejected before output"
+    },
+    {
+      "name": "slash",
+      "reason": "mempool-script-verify-flag-failed (Script evaluated without error but finished with a false/empty top stack element)"
+    },
+    {
+      "name": "refund",
+      "reason": "non-BIP68-final"
+    }
+  ],
+  "payouts": [
+    {
+      "name": "refund",
+      "address": "bcrt1prtk4hya0jnq9kj8q5nzadanr0540fuguvpmyrdqnjw6732dunz8sq7qur9",
+      "sats": 98431000,
+      "txid": "128e7224be22da89f208504fed674c1afdbd4fc1dded991d90d7768381d33042"
+    }
+  ],
+  "committeeExitedBeforeFunding": true,
+  "termEndWitnessesOnly": true,
+  "publicKeysCommittedBeforeFirstEpoch": true,
+  "nodeStopped": true,
+  "provenance": {
+    "inputArchiveSha256": "3dce3c3c1201b8fd84e37f7861f51ef7ba13d0cb3c0c8db7f2fd846a284974a3",
+    "proofArchiveSha256": "a3f5d5503269fe43517a30c52e36a4a8aa2746fd8fa9ffd3545adf1cdc3ec714",
+    "producerHostSha256": "bafae053c9a568c66c364c2ac37e25d18ca5bbc0350bc53bf3bc590b130c2456",
+    "bitvmCheckerSha256": "a62b3d8bd56bd91f64da9b47e3949e39c2992048f4405def962dde9682f41fc6",
+    "rawBitvmReportSha256": "19f69c55b562689d50c308e9c497a283dee8108091beeb9a79810dd8646557e2",
+    "assertionsSha256": "a4340072ec1686078547f5b4ea4a48421cf42857f52efc3533c9388bcb768195",
+    "providerImplementationCommit": "9b92ee6",
+    "coordinatorImplementationCommit": "2492e79",
+    "providerBinarySha256": "43aaa03493fa2b2384039ae412cc1859147ace1dcbb1c4c782fc762f58f2fe05"
+  },
+  "measurements": {
+    "chain": {
+      "wall": "13:27.80",
+      "peakRssKiB": 9605640
+    },
+    "hold170": {
+      "wall": "4:26.74",
+      "peakRssKiB": 4786872
+    },
+    "hold180": {
+      "wall": "4:24.08",
+      "peakRssKiB": 4788740
+    },
+    "hold190": {
+      "wall": "4:23.76",
+      "peakRssKiB": 4788956
+    },
+    "term": {
+      "wall": "4:13.16",
+      "peakRssKiB": 1575380
+    },
+    "groth16Host": {
+      "wall": "3:15.13",
+      "peakRssKiB": 1473920
+    },
+    "fullBitvm": {
+      "wall": "18:43.22",
+      "peakRssKiB": 4883608
+    },
+    "scope": "Host-process RSS; Groth16 host RSS excludes its Docker prover container."
+  }
+}

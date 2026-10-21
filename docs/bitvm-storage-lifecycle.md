@@ -10,7 +10,9 @@ The default Core 31.1 regression uses the phase-6 proof. The fresh mode now prov
 funded graph's own chain: public keys at height 101, funding at 102, a snapshot at 220, then native
 Groth16 and unsigned BitVM checks before one signing event at 222. Core mined six graph
 transactions and refunded the provider 98,431,000 sats. See
-`results/bitvm-storage-lifecycle-fresh.json`. A heavier conflicting-chain challenge remains.
+`results/bitvm-storage-lifecycle-fresh.json`. The journal-enabled v2 lifecycle also passes with a
+fresh proof and full VPS BitVM verification; see
+`results/bitvm-storage-journal-lifecycle-fresh.json`. A heavier conflicting-chain challenge remains.
 
 ## Process protocol
 
@@ -71,12 +73,43 @@ TypeScript tests pass.
 
 Add `--journal` to `lifecycle-regtest.ts`, `lifecycle-guards.ts` or `graph-regtest.ts` to select
 this layout. For the bounded graph regression select `--scenarios honest,wrong-journal,silence`.
-The existing fresh-chain proof below belongs to v1; a fresh proof for a funded v2 chain remains.
+The historical fresh-chain proof uses v1. The v2 fresh-chain result is recorded below.
 No cumulative-work certificate controls this collateral. Reusing the provider's journal key in a
 challenger's binding would not pin the earlier value: the provider can sign another value. A future
 cross-party construction needs authenticated values or an explicit funded equivocation game,
 with response deadlines that precede collateral withdrawal. Permissionless challenger admission
 and fork-contest payout rules remain unresolved.
+
+## Verified fresh journal-enabled lifecycle
+
+The v2 run registers its 382 public keys at height 101 and funds at 102. Its own height-220
+snapshot has tip `7ac61c95733f59043a46770d5675ad373e17187036fc5c36f092e0bc5fde8e49` and work 442.
+The VPS generates genuine header, three holdings, term and Groth16 proofs, then executes the full
+BitVM verifier. The term journal is
+`a695ab8ccdaf6f85c7ea4403727deee05a69322a27f354f210ee30330a6dc81f`.
+The existing term guest and verifying key are retained; v2 describes the storage graph layout.
+
+All 364 honest disprove scripts fail as expected. The wrong-public disprove succeeds at leaf 363
+with 955,010 script-plus-witness bytes and maximum stack 744. A corrupted intermediate succeeds
+at leaf 181 with 3,475,679 bytes and maximum stack 946. The fail-closed report gate passes on the
+VPS and again locally. Full BitVM execution takes 18:43.22 and peaks at 4,883,608 KiB host RSS.
+The transfer validates 29 public files against the pinned job provenance and archive checksum;
+stale-bundle and wrong-checksum extraction tests also reject under Python optimization.
+
+With `--journal --require-returned-bitvm`, the local coordinator verifies the actual Groth16
+pairing equation and exact snapshot, audits the returned full-verifier outcomes, and signs once
+at height 222. It does not rerun the heavy BitVM computation locally. Core mines six graph
+transactions, rejects five premature/invalid spends, and refunds 98,431,000 sats to the fixed
+provider address. Four malformed attachments are also rejected locally. The node and signer
+exit, and the completed VPS job has no remaining prover or verifier process or running container.
+
+Evidence: `results/bitvm-storage-journal-lifecycle-fresh.json`,
+`results/bitvm-storage-journal-verifier.json`,
+`results/bitvm-storage-journal-fresh-proof.json`, and
+`results/bitvm-storage-journal-fresh-groth16/`.
+The archive SHA256 is
+`a3f5d5503269fe43517a30c52e36a4a8aa2746fd8fa9ffd3545adf1cdc3ec714`.
+This still does not enforce a cumulative-work contest or admit an unknown challenger.
 
 ## Fresh proof return
 
@@ -149,7 +182,7 @@ payout address. Each test node shuts down after its run.
 | --- | --- |
 | Honest, phase-6 fixture | Public keys registered and committee exited at height 101; funding mined at 102, before epoch 170; witnesses supplied at 222, after the term deadline 220; all presigned txids retained; six graph transactions mined and the provider received 98,431,000 sats |
 | Silent provider | Provider exited without witnesses; client recovered 92,314,000 sats from control and 7,470,000 from unused slots; four graph transactions mined |
-| Honest, fresh proof | VPS generated the chain, three holdings, term and Groth16 proofs from this node's height-220 snapshot; all independent checks passed before signing at 222; six graph transactions mined, five Core rejections and one local substituted-key rejection; provider refund 98,431,000 sats |
+| Honest, fresh v1 proof | VPS generated the chain, three holdings, term and Groth16 proofs from this node's height-220 snapshot; all independent checks passed before signing at 222; six graph transactions mined, five Core rejections and one local substituted-key rejection; provider refund 98,431,000 sats |
 
 The honest run also rejected five premature, missing-input or invalid-script spends on Core and
 rejected a substituted-key artifact locally. The silence run rejected two premature spends on

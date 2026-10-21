@@ -676,9 +676,14 @@
     "zk/bitvm-check/src/bin/bsb-storage-live.rs": "a55b962ff37e29d870bf101865a2d6839bf91c85560fb796dd8276a001d3d625"
   },
   "remaining": [
-    "A fresh proof from a funded v2 lifecycle chain has not been generated. The existing successful fresh-chain lifecycle uses v1.",
     "No cumulative-work certificate is connected to fork-contest collateral.",
     "Permissionless challenger registration after setup, authenticated cross-party values, response deadlines and withdrawal ordering remain unresolved.",
     "Reusing the provider journal key does not bind an opponent to an earlier value: the provider controls that secret and could sign another value. Any equivocation remedy must retain funded collateral and an enforceable response window."
-  ]
+  ],
+  "freshLifecycle": {
+    "status": "verified",
+    "result": "results/bitvm-storage-journal-lifecycle-fresh.json",
+    "verifier": "results/bitvm-storage-journal-verifier.json",
+    "note": "Separate same-funded-chain run with full VPS BitVM execution; does not turn the earlier fixture regression into a fresh proof."
+  }
 }

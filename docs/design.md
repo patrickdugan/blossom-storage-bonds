@@ -1077,6 +1077,13 @@ final-spv guests are Citrea's. Storage integration status:
   event at 222. Core mined six graph transactions and refunded 98,431,000 sats. The scope is still
   synthetic storage and regtest test keys, with no heavier-chain challenge. See
   `results/bitvm-storage-lifecycle-fresh.json` and `docs/bitvm-storage-lifecycle.md`.
+  Optional setup v2 also commits the provider's term journal at slot 381 (382 slots total). A fresh
+  v2 lifecycle runs the real proofs and full 364-script BitVM verifier on the private VPS, verifies
+  Groth16 and the returned report locally, and then signs once at height 222. Core mines six graph
+  transactions, rejects five invalid/premature spends, and refunds 98,431,000 sats; four malformed
+  attachments are also rejected locally. See `results/bitvm-storage-journal-lifecycle-fresh.json`
+  and `results/bitvm-storage-journal-verifier.json`. This still supplies no heavier-chain collateral
+  contest or permissionless new challenger registration.
 - Public-input binding. An additional leaf now exists
   in `zk/bitvm-check/src/storage_binding.rs`: it pins the term prefix and wrapper constants,
   verifies Winternitz commitments to the public input and chain tip, and opens only for a binding

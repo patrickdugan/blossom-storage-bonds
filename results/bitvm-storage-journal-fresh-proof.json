@@ -1,0 +1,192 @@
+{
+  "note": "Fresh proof and full VPS BitVM verification from this funded v2 graph chain, with setup before funding, a journal commitment at slot 381, and one signing event after verification. No cumulative-work collateral contest or permissionless new challenger admission.",
+  "snapshot": {
+    "format": "bsb/fresh-proof-snapshot/v1",
+    "generated": "2026-10-21T19:16:26.207Z",
+    "network": "regtest",
+    "core": "/Satoshi:31.1.0/",
+    "scope": "fresh synthetic inputs from the existing graph's regtest chain; no proofs generated",
+    "image_ids": {
+      "hold": "2ed618aa3231ba01749ec59d9172e4381eab81dbf900d0567160626372b116db",
+      "term": "b484d0334620b87f4f2327e553784841fe3265cf2ec2126911d893def81a597a",
+      "header_chain": "5cb173ee191a3edca1f448066bf16eb1071c828d55141889a3365a93ff22917d"
+    },
+    "chain": {
+      "tip_height": 220,
+      "tip_hash": "7ac61c95733f59043a46770d5675ad373e17187036fc5c36f092e0bc5fde8e49",
+      "total_work": "442"
+    },
+    "term": {
+      "first": 170,
+      "step": 10,
+      "epochs": 3,
+      "depth": 6,
+      "q": 16,
+      "deal_count": 3,
+      "deals_digest": "dc1982a84c9196e4b22ab706cb33b754130c43c919b42a95f6eb676948d880cc"
+    },
+    "expected_preimage": "6273622f72302d7465726d7c76312ed618aa3231ba01749ec59d9172e4381eab81dbf900d0567160626372b116db5cb173ee191a3edca1f448066bf16eb1071c828d55141889a3365a93ff22917d0000001000000003dc1982a84c9196e4b22ab706cb33b754130c43c919b42a95f6eb676948d880cc000000aa0000000a0000000300000006000000dc498ede5fbce092f0365cfc367018173e37ad75560d77463a04593f73951cc67a00000000000000000000000000000000000000000000000000000000000001ba",
+    "expected_journal": "a695ab8ccdaf6f85c7ea4403727deee05a69322a27f354f210ee30330a6dc81f",
+    "sha256": {
+      "chain/headers.bin": "e3bbf73207f73799d5ddcc24f55b7dfa0bd3f94c4c0c526c7206151bbe31be55",
+      "chain/hashes.json": "5502a899ddd566a3d85003707394dff38881edd2b357081f0ec023e03ea91efd",
+      "vk.json": "2941dff0bd962ff8610773c9659c10d0dec561db1e2f6afecfbbe0d9cb457a7d",
+      "hold-170/witness.bin": "9ac4a94e663f9f301654cd5d82b806e654c5626744727bdd5cc5a6c5b2a709e0",
+      "hold-170/statement.json": "0eb05cd84b3eb981fa3e931845167fa781f88c5432c867a9a2321fdcb2ab6c60",
+      "hold-180/witness.bin": "784b1ff8b7c36f08c758d1a95cc3cb57f820eb14aa972f02dd574482a5744a03",
+      "hold-180/statement.json": "2c1c64f7ba105e1748df76e71a91981d0251fff1365a44c372154a4c9fd04ba9",
+      "hold-190/witness.bin": "d2bbccbc50ea5471424b6174728c48aa2f7e6354a49b4430d4c41e1db91e522e",
+      "hold-190/statement.json": "273b9d0477fc352aaedd3dcb4538e3267db4d7d4593db2b7f88fbb4ea90e9a01"
+    },
+    "lifecycle": {
+      "funding_txid": "af93548b35e5ebf5f2b6849e31a0b7b07b06b9bc9e8c84ca23d02131e3c220a9",
+      "setup_sha256": "c2a334bd70c814ed8760ff2d73b4cb27a89910b7fe53ec08a5d977fe3d79a964",
+      "presigned_graph_sha256": "f2e6e6a415fd6198657d18f4a10d46a61b23d38f06a8f9edd6bd0204309afeb6",
+      "public_keys_height": 101,
+      "funding_height": 102
+    }
+  },
+  "m2": {
+    "header_chain": {
+      "cmd": "prove-chain",
+      "from": 0,
+      "headers": 221,
+      "journal": "5cb173ee191a3edca1f448066bf16eb1071c828d55141889a3365a93ff22917ddc00000000000000000000000000000000000000000000000000000000000000000001ba498ede5fbce092f0365cfc367018173e37ad75560d77463a04593f73951cc67affff7f20000000009f0fd96a9d0fd96a9d0fd96a9e0fd96a9e0fd96a9e0fd96a9e0fd96a9e0fd96a9e0fd96a9f0fd96a9f0fd96a0600000031e2218d3e2cc07912d231e2b51ad635b6351f1a193887ef5e17a90439af52db22150a1ba0ea11e6c819b8bb53549bccd04170554fac8ece35c9a9aac9fa2b1d23eedc1eab67018da7420a2180716c58f3566997d88b2aa3654afb8385896e42e643b37f4487305cea166573495eb15a2f968ef1210fb2f5dac9e88c7a6ac915ed0d29b4d943ffd37158fa00ee0d7c63b6517a21d9b4bce0e5f8402d34d90cfb498ede5fbce092f0365cfc367018173e37ad75560d77463a04593f73951cc67add000000",
+      "paging_cycles": 75304,
+      "prove_s": 807.694317089,
+      "receipt_bytes": 223879,
+      "reserved_cycles": 220928,
+      "seal_bytes": 222668,
+      "segments": 2,
+      "tip_hash": "7ac61c95733f59043a46770d5675ad373e17187036fc5c36f092e0bc5fde8e49",
+      "tip_height": 220,
+      "total_cycles": 1572864,
+      "total_work": "00000000000000000000000000000000000000000000000000000000000001ba",
+      "user_cycles": 1276632
+    },
+    "holds": [
+      {
+        "height": 170,
+        "cmd": "prove-hold",
+        "image_id": "2ed618aa3231ba01749ec59d9172e4381eab81dbf900d0567160626372b116db",
+        "journal": "6efd227488b2dd9c3c2d024c2d4e0162fe94a2921cf91ee893a07b869e76a0f2000000100000000100000003dc1982a84c9196e4b22ab706cb33b754130c43c919b42a95f6eb676948d880cc",
+        "kind": "succinct",
+        "paging_cycles": 38179,
+        "prove_s": 266.684578771,
+        "receipt_bytes": 223327,
+        "reserved_cycles": 254589,
+        "seal_bytes": 222668,
+        "segments": 1,
+        "total_cycles": 524288,
+        "user_cycles": 231520,
+        "verify_s": 0.021905376,
+        "witness_bytes": 69908
+      },
+      {
+        "height": 180,
+        "cmd": "prove-hold",
+        "image_id": "2ed618aa3231ba01749ec59d9172e4381eab81dbf900d0567160626372b116db",
+        "journal": "275ff4dd341fd12f702b77712f68f1479ab4a3085bbd3a6e4b89d8025690c358000000100000000100000003dc1982a84c9196e4b22ab706cb33b754130c43c919b42a95f6eb676948d880cc",
+        "kind": "succinct",
+        "paging_cycles": 38179,
+        "prove_s": 264.028440126,
+        "receipt_bytes": 223327,
+        "reserved_cycles": 254667,
+        "seal_bytes": 222668,
+        "segments": 1,
+        "total_cycles": 524288,
+        "user_cycles": 231442,
+        "verify_s": 0.02237221,
+        "witness_bytes": 69908
+      },
+      {
+        "height": 190,
+        "cmd": "prove-hold",
+        "image_id": "2ed618aa3231ba01749ec59d9172e4381eab81dbf900d0567160626372b116db",
+        "journal": "3cd0e07fb1d6542d451e5d3925fef9218cfd20edfd0120dc02c807292ba6784b000000100000000100000003dc1982a84c9196e4b22ab706cb33b754130c43c919b42a95f6eb676948d880cc",
+        "kind": "succinct",
+        "paging_cycles": 38179,
+        "prove_s": 263.699727753,
+        "receipt_bytes": 223327,
+        "reserved_cycles": 254589,
+        "seal_bytes": 222668,
+        "segments": 1,
+        "total_cycles": 524288,
+        "user_cycles": 231520,
+        "verify_s": 0.021665589,
+        "witness_bytes": 69908
+      }
+    ],
+    "term": {
+      "cmd": "prove-term",
+      "depth": 6,
+      "epochs": 3,
+      "first": 170,
+      "header_chain_id": "5cb173ee191a3edca1f448066bf16eb1071c828d55141889a3365a93ff22917d",
+      "hold_id": "2ed618aa3231ba01749ec59d9172e4381eab81dbf900d0567160626372b116db",
+      "image_id": "b484d0334620b87f4f2327e553784841fe3265cf2ec2126911d893def81a597a",
+      "journal": "a695ab8ccdaf6f85c7ea4403727deee05a69322a27f354f210ee30330a6dc81f",
+      "paging_cycles": 31157,
+      "preimage": "6273622f72302d7465726d7c76312ed618aa3231ba01749ec59d9172e4381eab81dbf900d0567160626372b116db5cb173ee191a3edca1f448066bf16eb1071c828d55141889a3365a93ff22917d0000001000000003dc1982a84c9196e4b22ab706cb33b754130c43c919b42a95f6eb676948d880cc000000aa0000000a0000000300000006000000dc498ede5fbce092f0365cfc367018173e37ad75560d77463a04593f73951cc67a00000000000000000000000000000000000000000000000000000000000001ba",
+      "prove_s": 252.923826772,
+      "receipt_bytes": 223239,
+      "reserved_cycles": 27959,
+      "seal_bytes": 222668,
+      "segments": 1,
+      "step": 10,
+      "total_cycles": 131072,
+      "user_cycles": 71956
+    }
+  },
+  "m3": {
+    "groth16": {
+      "bn254_control_id": "c07a65145c3cb48b6101962ea607a4dd93c753bb26975cb47feb00d3666e4404",
+      "cmd": "groth16",
+      "constants_digest": "0b97516f5793ae9b58d2b1b29d11ed0b6127a0bb3798479791839a2b750986bd",
+      "control_root": "539032186827b06719244873b17b2d4c122e2d02cfb1994fe958b2523b844576",
+      "docker_peak_mem_mb": null,
+      "docker_s": 49.937420429,
+      "expected_output_hex": "5a4f7f0350817e71135e12a788e319670a4e5f7d07dab45081c3fa9894e5ce",
+      "identity_p254_s": 144.667025852,
+      "identity_seal_bytes": 222668,
+      "image": "ozancw/risc0-to-bitvm2-groth16-prover@sha256:840b833190a86c87eb71473cd72bcaa3e3b90cefa9bf4ae785ab2de61bc9d262",
+      "journal": "a695ab8ccdaf6f85c7ea4403727deee05a69322a27f354f210ee30330a6dc81f",
+      "output_matches": true,
+      "post_state": "a3acc27117418996340b84e5a90f3ef4c49d22c79e44aad822ec9c313e1eb8e2",
+      "pre_state": "b484d0334620b87f4f2327e553784841fe3265cf2ec2126911d893def81a597a",
+      "proof": {
+        "pi_a": [
+          "7184892528772348376284121940096104894126205296160845363106943948667818065675",
+          "13898646480779993407817982197324943331428487671579864598140225797879119457062",
+          "1"
+        ],
+        "pi_b": [
+          [
+            "1236083721776122166569838290493678174888700027155478702140453306078147120068",
+            "3443920805071835982589545573282026223809533676172670869801369722978667192893"
+          ],
+          [
+            "11959429476945406513059840078074049878898363487605128489319820336233037427386",
+            "1492532856842569400059788756402730165018029617526232287497985181905417101493"
+          ],
+          [
+            "1",
+            "0"
+          ]
+        ],
+        "pi_c": [
+          "10786627432294810801515929513248938249738423054712781907680807665219554278429",
+          "3728390369104395263501551137122704637005879853296235071188531451791529170800",
+          "1"
+        ],
+        "protocol": "groth16"
+      },
+      "public_output_dec": "159564898053732827180188766074262870992629568785009679552908879788307178958",
+      "public_output_hex": "5a4f7f0350817e71135e12a788e319670a4e5f7d07dab45081c3fa9894e5ce",
+      "wrong_journal_output_dec": "376580608143626181780698793939632429849755898745523225930669995578464702516"
+    }
+  },
+  "producer_fixture_sha256": "9747d54dadaea13df2555f95a9f196b4ca2fa0f84c7913aa8fc9b6115d06d2d2",
+  "proof_bundle_sha256": "a3f5d5503269fe43517a30c52e36a4a8aa2746fd8fa9ffd3545adf1cdc3ec714",
+  "lifecycle_result": "bitvm-storage-journal-lifecycle-fresh.json"
+}

@@ -83,5 +83,6 @@ The provider's one-time keys can now be registered before funding, with committe
 term-end assertion signing in separate processes. See [the lifecycle protocol](../../docs/bitvm-storage-lifecycle.md)
 for the fresh v1 proof, Core regressions and one-shot signer guards. Optional setup v2 adds a
 382nd commitment for the provider's term-journal digest; `--journal` selects it in the lifecycle
-and graph harnesses. Its current regression uses the phase-6 proof. It does not implement a
-funded fork contest; see `results/bitvm-storage-journal.json`.
+and graph harnesses. Both the phase-6 regression and a fresh proof from the v2 funded chain pass.
+The latter executes full BitVM on the VPS and audits the sealed result locally before signing; see
+`results/bitvm-storage-journal-lifecycle-fresh.json`. A funded fork contest remains unimplemented.

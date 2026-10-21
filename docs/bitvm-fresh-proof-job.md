@@ -8,7 +8,9 @@ Groth16 wrapper. No wallet or signing key belongs in the snapshot or the proving
 The standalone capture does not fund a graph. The same-chain mode in
 `bitvm-storage-lifecycle.md` now captures the funded graph's node and verifies the returned proof
 before term-end signing. That fresh run passed on Core 31.1; see
-`results/bitvm-storage-lifecycle-fresh.json`. Neither mode provides a heavier-chain challenge.
+`results/bitvm-storage-lifecycle-fresh.json`. The v2 journal-enabled lifecycle also passes using
+full VPS BitVM execution and a sealed result handoff; its evidence is
+`results/bitvm-storage-journal-lifecycle-fresh.json`. Neither version provides a heavier-chain challenge.
 
 ## Capture locally
 
@@ -81,6 +83,13 @@ the proven chain tip and work, the term preimage, and the wrapper's public outpu
 `fixture.json` in the schema the storage graph builder reads. Receipts remain in the output directory;
 `g16/` contains the proof, public input and pinned verifying key. A failed command leaves diagnostics
 and cannot produce a completed fixture. Output directories are never reused.
+
+The fresh v2 job reused the prepared machine and pinned binaries. Header proving took 13:27.80,
+the three holdings proofs 4:26.74 / 4:24.08 / 4:23.76, term aggregation 4:13.16, Groth16 3:15.13,
+and the full BitVM verifier 18:43.22. Header RSS peaked at 9,605,640 KiB; BitVM at 4,883,608 KiB.
+Groth16 host RSS excludes its Docker container. The v2 result records each measurement and the
+binary/input/archive hashes, followed by local proof verification, one signing event and the
+Core-mined refund. No proof generation or full BitVM execution ran locally.
 
 ## Verify the returned proof locally
 

@@ -6,19 +6,21 @@
   "requirements": [
     {
       "requirement": "Storage proof from the funded graph chain, setup before funding and one signing event at term end",
-      "status": "verified for v1",
+      "status": "verified for v1 and journal-enabled v2",
       "evidence": [
         "results/bitvm-storage-lifecycle-fresh.json",
-        "docs/bitvm-storage-lifecycle.md"
+        "docs/bitvm-storage-lifecycle.md",
+        "results/bitvm-storage-journal-lifecycle-fresh.json"
       ]
     },
     {
       "requirement": "Explicit provider journal commitment in the funded assertion",
-      "status": "v2 fixture regression verified; fresh v2 lifecycle currently running",
+      "status": "verified for the v2 fixture regression and fresh same-funded-chain lifecycle",
       "evidence": [
-        "results/bitvm-storage-journal.json"
-      ],
-      "liveJob": "/home/ubuntu/storage-prover/journal-fresh-2"
+        "results/bitvm-storage-journal.json",
+        "results/bitvm-storage-journal-lifecycle-fresh.json",
+        "results/bitvm-storage-journal-verifier.json"
+      ]
     },
     {
       "requirement": "Exact cumulative-work certificate with original-tip extension and seed divergence",
@@ -111,5 +113,6 @@
       "Fixed payout and response deadlines across every alternate spend."
     ],
     "implemented": false
-  }
+  },
+  "lastUpdatedUtc": "2026-10-21T20:18:21Z"
 }
