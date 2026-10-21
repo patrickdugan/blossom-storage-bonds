@@ -1,0 +1,56 @@
+{
+  "bitvm_rev": "7d1ca36",
+  "header": "Bitcoin Core regtest genesis",
+  "modes": [
+    {
+      "33_headers_hashing_only_bytes": 27706437,
+      "add_table": false,
+      "double_sha_script_bytes": 839589,
+      "full_xor_table": false,
+      "headers_under_block_limit_hashing_only": 4,
+      "interpreter_error": "None",
+      "max_stack_items": 516,
+      "native_header_hash_matches": true,
+      "sha32_script_bytes": 279769,
+      "sha80_script_bytes": 559820
+    },
+    {
+      "33_headers_hashing_only_bytes": 23855931,
+      "add_table": true,
+      "double_sha_script_bytes": 722907,
+      "full_xor_table": false,
+      "headers_under_block_limit_hashing_only": 5,
+      "interpreter_error": "None",
+      "max_stack_items": 676,
+      "native_header_hash_matches": true,
+      "sha32_script_bytes": 240940,
+      "sha80_script_bytes": 481967
+    },
+    {
+      "33_headers_hashing_only_bytes": 24725349,
+      "add_table": false,
+      "double_sha_script_bytes": 749253,
+      "full_xor_table": true,
+      "headers_under_block_limit_hashing_only": 5,
+      "interpreter_error": "None",
+      "max_stack_items": 636,
+      "native_header_hash_matches": true,
+      "sha32_script_bytes": 249721,
+      "sha80_script_bytes": 499532
+    },
+    {
+      "33_headers_hashing_only_bytes": 20874843,
+      "add_table": true,
+      "double_sha_script_bytes": 632571,
+      "full_xor_table": true,
+      "headers_under_block_limit_hashing_only": 6,
+      "interpreter_error": "None",
+      "max_stack_items": 796,
+      "native_header_hash_matches": true,
+      "sha32_script_bytes": 210892,
+      "sha80_script_bytes": 421679
+    }
+  ],
+  "raw_header_bytes": 80,
+  "scope": "Hashing feasibility only. Excludes authentication, linking, PoW/difficulty, timestamps, work arithmetic, fork exclusion, transaction overhead and other witnesses. Not a chain-work verifier."
+}

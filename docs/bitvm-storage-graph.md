@@ -106,3 +106,113 @@ The same-chain fresh proof is now connected to the pre-term setup and term-end s
 a valid proof of a private fork cannot stand in for the intended chain. Per-epoch deal updates,
 distributed committee setup, fee changes and the production Groth16 ceremony remain separate work.
 No signet or public-service pilot has run.
+
+## Cumulative-work fork defense: measured requirements
+
+The selected direction is an exact cumulative-work comparison, not the paper's superblock contest.
+The current graph has no leaf implementing that comparison. The experiments below constrain its
+design; they do not change the funded graph or establish a completed fork defense.
+
+### Comparison must allow an extension of the original claim
+
+`zk/bitvm-check/fork-work-regtest.ts` starts two isolated Core 31.1 nodes and transfers full blocks
+through RPC, without connecting peers. They share blocks through height 169, then disagree at the
+first storage seed, height 170. The provider's original branch reaches height 220, work 442, and
+extends to height 232, work 466. The other node produces three conflicting candidates:
+
+| Candidate | Work | Core's existing honest tip | Independent header verifier |
+| --- | --- | --- | --- |
+| Height 221 | 444 | Retained | Retained |
+| Height 232 | 466 | Retained | Retained |
+| Height 233 | 468 | Replaced | Replaced |
+
+`results/bitvm-cumulative-work-forks.json` contains the raw headers and the observed results. Both
+branches are validated from genesis; their computed work matches Core, and both nodes stop cleanly.
+Regtest work is free, so this tests the comparison mechanism, not Bitcoin's economic security.
+
+The first case refutes `valid(candidate) && conflicting(candidate, oldClaim) &&
+candidate.work > oldClaim.work` as a sufficient slash condition. An honest old claim can have a newer,
+stronger extension. Equal work also does not establish that an already selected branch must be
+replaced; the experiment records this node's incumbent preference, not a universal tie ordering.
+
+A future comparison certificate needs the exact graph/term identity, original claim and a responding
+branch extending that claim. Its positive relation should establish all of the following:
+
+1. Both compared branches have valid header-chain proofs under a pinned image and network genesis.
+   Each receipt's journal must also name that image. Derive work from validated targets with checked
+   arithmetic; do not accept a separate work number from a caller.
+2. An authenticated opening proves that the responding branch contains the original tip at its exact
+   height. Bind the original height/hash/work to the same term preimage and one-time commitments
+   already consumed by the graph. A response cannot silently switch to an unrelated stronger chain.
+3. The candidate has strictly more work than that responding branch. Ties cannot authorize slashing
+   solely through this relation. Height is not a substitute for work when difficulty changes.
+4. Authenticate a divergent block at a common height at or before at least one scheduled seed.
+   When both branches reach that seed, its exact-position openings can establish the difference.
+   A shorter but higher-work branch also needs a route: prove divergence at a lower common height,
+   rather than require an opening above its tip. A fork occurring only after all seed blocks does
+   not invalidate those seed bindings. A broader stale-tip forfeiture policy must be explicit.
+5. Public input commits every comparison value, proof image, network and graph identity. The Bitcoin
+   path must authenticate those same values, not merely accept an off-chain certificate file.
+
+This is a relation between supplied branches. It cannot certify that no unseen stronger branch
+exists. The transaction protocol must define when candidates and responses become fixed, how an
+honest observer can submit its stronger chain, what happens if either party is silent, and which
+confirmation/censorship assumptions its deadlines require. A provider response alone is not a proof
+that its branch is globally strongest. Repeated fresh challenges cannot extend the bond indefinitely;
+one-shot commitment keys cannot be reused for successive comparisons. None of these rules is yet
+enforced by the present graph's 6/12/6-block regression windows.
+
+### Direct header replay does not fit the tested implementation
+
+`zk/bitvm-check/examples/chain-hash-cost.rs` measures the pinned BitVM revision `7d1ca36` and executes
+all four SHA table configurations against the native regtest genesis double hash. Each matches.
+The measurements exclude linking, difficulty, timestamps, work arithmetic, authentication, fork
+openings and transaction overhead:
+
+| Add table | Full XOR table | Bytes per double hash | Bytes for 33 headers | Maximum stack items |
+| --- | --- | ---: | ---: | ---: |
+| No | No | 839,589 | 27,706,437 | 516 |
+| Yes | No | 722,907 | 23,855,931 | 676 |
+| No | Yes | 749,253 | 24,725,349 | 636 |
+| Yes | Yes | 632,571 | 20,874,843 | 796 |
+
+`results/bitvm-chain-hash-cost.json` records the executable measurements. Even the smallest tested
+33-header hashing program exceeds a Bitcoin block. This rules out that direct single-transaction
+implementation, not every possible SHA optimization or a future protocol spanning transactions.
+
+### Remaining enforcement problem
+
+A new RISC Zero guest could recursively verify two genuine header receipts, check the original-tip
+and epoch-seed MMR openings, and prove the exact inequality. That would produce a useful comparison
+certificate. It would still need a Bitcoin-enforced route to the collateral. The current BitVM graph
+optimistically verifies the provider's fixed-key assertion and lets anyone expose a false chunk.
+That is different from accepting a new challenger's positive certificate and making it binding.
+
+Before adding a slash leaf, specify and test how the candidate, responding branch, public input and
+execution trace become authenticated across the presigned transactions. An off-chain Groth16 check
+does not supply this binding. A second optimistic assertion with newly chosen challenger keys needs
+its own graph and a sound way to bind those keys to the collateral. Requiring the original client to
+hold all challenger commitment secrets would add a designated online role; revealing those secrets
+would allow forged intermediate assertions. Neither is an implementation of permissionless defense.
+
+The next protocol experiment should demonstrate that binding with a small exact comparison program
+before paying to generate another full Groth16 verifier tree. Its Core tests must reject substituted
+candidate/response data, unrelated response branches, invented work, equal-work slashes, stale
+comparison replay and redirected payouts, while preserving an honest provider's extension response
+and permitting an observer who did not participate in setup to challenge.
+
+For context, the [BitVM2 paper](https://bitvm.org/bitvm_bridge.pdf) uses a timed superblock contest;
+the pinned `bridge/src/connectors/connector_b.rs` leaf compares an individual candidate header hash
+with the operator's committed superblock hash. That path is not an exact cumulative-work verifier.
+[BitVM2's description](https://bitvm.org/bitvm2) distinguishes permissionless fraud challenges from
+the earlier fixed-verifier design. These are relevant design constraints, not missing code that can
+be enabled by renaming a connector. Core's [v31.1 mining RPC source](https://github.com/bitcoin/bitcoin/blob/v31.1/src/rpc/mining.cpp)
+also explains why `submitblock` may return `inconclusive` for a stored side branch; the harness checks
+header readback and eventual actual tip adoption rather than treating that status as an invalid block.
+
+Reproduce with the already installed dependencies:
+
+```text
+cargo run --offline --locked --manifest-path zk/bitvm-check/Cargo.toml --example chain-hash-cost
+node zk/bitvm-check/fork-work-regtest.ts --bitcoind <installed-bitcoind> --dir <new-data-dir> --out <new-report.json>
+```
