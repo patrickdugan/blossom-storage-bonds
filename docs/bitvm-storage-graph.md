@@ -530,6 +530,38 @@ late parent txids must still permit enforceable successor outputs, and all alter
 preserve fixed payouts and deadlines. A new trusted signer, unconstrained withdrawal, guessed
 marker script or reduced-security toy hash would not satisfy the selected objective.
 
+### Late parent data and presigned successors
+
+The user explicitly retained permissionless fork challenges: an observer absent from setup must
+be able to challenge without the original client signing a new transaction. This remains a
+requirement of the cumulative-work design.
+
+The bounded `examples/late-parent.rs` and `late-parent-regtest.ts` experiment tests one
+successor-authorization obstacle on Core 31.1 with standard relay policy and no peers. Fresh setup
+keys sign two parents and seven successor modes, then the presigner exits before funding is
+broadcast. Only afterward, the harness chooses random late data and changes parent output 1.
+The existing input-0 `SINGLE|ANYONECANPAY` signature remains valid, and Core mines the late-data
+parent. Redirecting its protected output 0 fails. This fixed-layout result does not demonstrate
+general input-index pinning or authenticate the late data as a work certificate.
+
+All seven original-parent child signatures pass Core admission: DEFAULT, ALL, NONE, SINGLE,
+and each of ALL, NONE and SINGLE with ANYONECANPAY. The DEFAULT child is also mined and its
+99,994,000-satoshi fixed payout checked. For the late parent, the untouched child has missing
+inputs; changing only its parent txid makes every signature mode fail script validation. The
+harness independently checks the actual signature flags and unchanged witnesses and outputs.
+NONE was tested with its output held constant; this does not claim that mode protects payouts.
+
+The result is three mined transactions and nine rejected mutations, recorded with source and
+public-vector hashes in `results/bitvm-late-parent-successor.json`. The node stops cleanly.
+ANYONECANPAY therefore does not rescue this naive graft of late transaction data onto presigned
+descendants. A different covenant or introspection construction would need its own successor and
+payout enforcement; this experiment is not an impossibility result for those constructions.
+
+```text
+cargo build --offline --locked --manifest-path zk/bitvm-check/Cargo.toml --example late-parent
+node zk/bitvm-check/late-parent-regtest.ts --bitcoind <core> --checker <late-parent> --dir <new-node-dir> --out <new-result.json>
+```
+
 ### Compact binding consensus checks on Core
 
 `bsb-fork-binding` and `fork-binding-regtest.ts` now exercise the compact arithmetic leaf as a real

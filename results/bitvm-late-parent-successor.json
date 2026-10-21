@@ -1,0 +1,234 @@
+{
+  "format": "bsb/late-parent-successor-regtest/v1",
+  "network": "regtest",
+  "core": "/Satoshi:31.1.0/",
+  "presignerExitedBeforeFunding": true,
+  "tagChosenAfterPresignerExit": true,
+  "parentSignatureReused": true,
+  "successorSignaturesUnchanged": true,
+  "modeCount": 7,
+  "modes": [
+    "default",
+    "all",
+    "none",
+    "single",
+    "all-acp",
+    "none-acp",
+    "single-acp"
+  ],
+  "modeResults": [
+    {
+      "mode": "default",
+      "signatureFlag": 0,
+      "fixedParentAccepted": true,
+      "rewiredParentRejected": true
+    },
+    {
+      "mode": "all",
+      "signatureFlag": 1,
+      "fixedParentAccepted": true,
+      "rewiredParentRejected": true
+    },
+    {
+      "mode": "none",
+      "signatureFlag": 2,
+      "fixedParentAccepted": true,
+      "rewiredParentRejected": true
+    },
+    {
+      "mode": "single",
+      "signatureFlag": 3,
+      "fixedParentAccepted": true,
+      "rewiredParentRejected": true
+    },
+    {
+      "mode": "all-acp",
+      "signatureFlag": 129,
+      "fixedParentAccepted": true,
+      "rewiredParentRejected": true
+    },
+    {
+      "mode": "none-acp",
+      "signatureFlag": 130,
+      "fixedParentAccepted": true,
+      "rewiredParentRejected": true
+    },
+    {
+      "mode": "single-acp",
+      "signatureFlag": 131,
+      "fixedParentAccepted": true,
+      "rewiredParentRejected": true
+    }
+  ],
+  "parentTxids": {
+    "presigned": "497912895d3dd2cfb5ab706fc51046dd7715f42d31d123312dea515ab0fb8787",
+    "late": "532063ec4fbebac52d73640b7cc2d394a40a6d7351434945c1e2517c5d95ccde"
+  },
+  "generated": "2026-10-21T21:11:55.987Z",
+  "admitted": [
+    {
+      "name": "fixed-parent-control",
+      "txid": "92a6235a858e9394104fec577cc98917c4239ab7d1cea40bd5c4baa0d2da16ce",
+      "wtxid": "b71f5519005c13a543ce7a6367c21843f16d7840ae53f7281197d51290fcd04b"
+    },
+    {
+      "name": "fixed-child-default",
+      "txid": "299bd11aa8460c9caa0014fad9991f704c7f8183f57e8c90624164284a593565",
+      "wtxid": "42ebc696d440f27aaeb4d837710eea07c60ecc39c9481ab16108fc87d7edd0da"
+    },
+    {
+      "name": "fixed-child-all",
+      "txid": "299bd11aa8460c9caa0014fad9991f704c7f8183f57e8c90624164284a593565",
+      "wtxid": "769fdbe7fc6815944a6bfa137e9b544980e75b74900ef7252a32445649831995"
+    },
+    {
+      "name": "fixed-child-none",
+      "txid": "299bd11aa8460c9caa0014fad9991f704c7f8183f57e8c90624164284a593565",
+      "wtxid": "b09c2a782c08f96ddb0c34a510e643773e695b26f3f9bed739f66865c1ae47d7"
+    },
+    {
+      "name": "fixed-child-single",
+      "txid": "299bd11aa8460c9caa0014fad9991f704c7f8183f57e8c90624164284a593565",
+      "wtxid": "19ad03640cb6bbf3e8b3268b1568f8a19c181ecf683064c54d0ea734e7ed918f"
+    },
+    {
+      "name": "fixed-child-all-acp",
+      "txid": "299bd11aa8460c9caa0014fad9991f704c7f8183f57e8c90624164284a593565",
+      "wtxid": "84bd7370f0539d35e0a4148bf0c09f51067d3b0931e8dbac5210cc5164112167"
+    },
+    {
+      "name": "fixed-child-none-acp",
+      "txid": "299bd11aa8460c9caa0014fad9991f704c7f8183f57e8c90624164284a593565",
+      "wtxid": "c04df686057a4963cff2887f621d79690934f1cc5d8fc16954eb4456ab399e02"
+    },
+    {
+      "name": "fixed-child-single-acp",
+      "txid": "299bd11aa8460c9caa0014fad9991f704c7f8183f57e8c90624164284a593565",
+      "wtxid": "1af16d68793d1559d921b3f7fa6d4ee47aae41267fbf50668d346e10ac0427d5"
+    },
+    {
+      "name": "fixed-child-default",
+      "txid": "299bd11aa8460c9caa0014fad9991f704c7f8183f57e8c90624164284a593565",
+      "wtxid": "42ebc696d440f27aaeb4d837710eea07c60ecc39c9481ab16108fc87d7edd0da"
+    },
+    {
+      "name": "late-data-parent-reuses-setup-signature",
+      "txid": "532063ec4fbebac52d73640b7cc2d394a40a6d7351434945c1e2517c5d95ccde",
+      "wtxid": "ecaf3850ba51b0976f3e2fd0500bd43f7aadb8c23686f57c0d73012f2279ca8b"
+    }
+  ],
+  "rejected": [
+    {
+      "name": "redirected-protected-parent-output",
+      "reason": "mempool-script-verify-flag-failed (Invalid Schnorr signature)"
+    },
+    {
+      "name": "unrewired-child-parent-missing",
+      "reason": "missing-inputs"
+    },
+    {
+      "name": "rewired-child-default",
+      "reason": "mempool-script-verify-flag-failed (Invalid Schnorr signature)"
+    },
+    {
+      "name": "rewired-child-all",
+      "reason": "mempool-script-verify-flag-failed (Invalid Schnorr signature)"
+    },
+    {
+      "name": "rewired-child-none",
+      "reason": "mempool-script-verify-flag-failed (Invalid Schnorr signature)"
+    },
+    {
+      "name": "rewired-child-single",
+      "reason": "mempool-script-verify-flag-failed (Invalid Schnorr signature)"
+    },
+    {
+      "name": "rewired-child-all-acp",
+      "reason": "mempool-script-verify-flag-failed (Invalid Schnorr signature)"
+    },
+    {
+      "name": "rewired-child-none-acp",
+      "reason": "mempool-script-verify-flag-failed (Invalid Schnorr signature)"
+    },
+    {
+      "name": "rewired-child-single-acp",
+      "reason": "mempool-script-verify-flag-failed (Invalid Schnorr signature)"
+    }
+  ],
+  "mined": [
+    {
+      "name": "fixed-parent-control",
+      "txid": "92a6235a858e9394104fec577cc98917c4239ab7d1cea40bd5c4baa0d2da16ce",
+      "wtxid": "b71f5519005c13a543ce7a6367c21843f16d7840ae53f7281197d51290fcd04b"
+    },
+    {
+      "name": "fixed-child-default",
+      "txid": "299bd11aa8460c9caa0014fad9991f704c7f8183f57e8c90624164284a593565",
+      "wtxid": "42ebc696d440f27aaeb4d837710eea07c60ecc39c9481ab16108fc87d7edd0da"
+    },
+    {
+      "name": "late-data-parent-reuses-setup-signature",
+      "txid": "532063ec4fbebac52d73640b7cc2d394a40a6d7351434945c1e2517c5d95ccde",
+      "wtxid": "ecaf3850ba51b0976f3e2fd0500bd43f7aadb8c23686f57c0d73012f2279ca8b"
+    }
+  ],
+  "payout": {
+    "txid": "299bd11aa8460c9caa0014fad9991f704c7f8183f57e8c90624164284a593565",
+    "address": "bcrt1pn060lqt69c7rsn4ayrrxjmldr39jmg2f7zsewuw9mr2s6rq903kslgc4cf",
+    "sats": 99994000
+  },
+  "scope": "Parent SINGLE|ANYONECANPAY admits late output data while fixing output 0, but all seven pre-existing Taproot successor signature modes reject the changed parent outpoint. No Binohash, candidate-proof validation, chain-work comparison, or full fork protocol.",
+  "nodeStopped": true,
+  "policy": {
+    "standardRelayPolicy": true,
+    "peers": 0
+  },
+  "provenance": {
+    "nativeSource": {
+      "path": "zk/bitvm-check/examples/late-parent.rs",
+      "sha256": "739417ed3be31940c85016a6af5bc3f3dcf5f9518674cd62b0eabfaa217602b3"
+    },
+    "harnessSource": {
+      "path": "zk/bitvm-check/late-parent-regtest.ts",
+      "sha256": "efab298e0a07e987348024bb1e8e27c0d98699c0c661f778197cecc33633b6b6"
+    },
+    "binarySha256": "c6ac5d0ddab7417c33d632b970681c1d238023a2cdb06185c326839d3f4a5610",
+    "vectorsArchive": "bitvm-late-parent-successor-vectors.tar.gz",
+    "vectorsArchiveSha256": "13099abd893792d66441de12eb4307e43a91e5e2aa99dea1c5f54618a8c3c188",
+    "vectors": {
+      "child-0-all-acp.json": "4f84aedf1cb6a8257d60caca0a730bd81ce3b11ea4a8a8617b0bf8e69d238b28",
+      "child-0-all.json": "126620d37c4688cc3af1a4380fad7265007146dbbfead292daf370d2b8b890cc",
+      "child-0-default.json": "4dd17e8ee87f21e244179c2dfacd47865c975e0d3bb384ff6a034f5fdd7e230c",
+      "child-0-none-acp.json": "56e410f02468678e9b8447c2ee8b4e80bdc99cfdf7e2e7e1c3d695d6ea9af863",
+      "child-0-none.json": "d64cdd9e81ddb9c25b309001c47f032c8b813dfab7703f60c18784b1fabaa3bd",
+      "child-0-single-acp.json": "a3cddaa47c9ca9da76f286eab5652b86e4ba7da4d60bd363ac25e72ff6e62211",
+      "child-0-single.json": "dd04413d4b7c986a1d13e66ac7cf46356e69b8ebe3e594a71c83fe2d5bfcf684",
+      "child-1-all-acp.json": "97a64480518a14169f62207699918c5699a9eecac944dc887d3ddaea2082dc9b",
+      "child-1-all.json": "571cf8e6b777c2652aabe38a84dc0dda63ca2f8b18ce0295851f8bd2cdc41f75",
+      "child-1-default.json": "172337bd928a0e007acfcf3fcb845bc4cecc3002a5970d515c813b3f9903b0f5",
+      "child-1-none-acp.json": "b11554a43a684914e4d19d58f4ef216146566496d24dcf8d5c6c8f71369b56c0",
+      "child-1-none.json": "921472b43b9759763101b3c41d97e62775e683e1cdcb2ac7ccea6cf5c65dfb40",
+      "child-1-single-acp.json": "c8c40b53731bd521784b38905c477a1978bbd7413314167690e4cc788bbdde6f",
+      "child-1-single.json": "513150da2b760534d82a9485a054b6b0ef88e5e5c20e24c842060ae07fa1de56",
+      "funding.json": "3f32d56e65bf634b75b2c0a8749c9a4e5a9f6c38ddd3f165e9bc21159592172d",
+      "late-parent.json": "844f9d5db087f7422d50814b167002bc57e71ebd0b5d6b59d40c6b98b6e255eb",
+      "metadata.json": "0d3e56455a5d1e28a0988b428f12c379858b01c6c0c0eb8b3ecb2e32d57014ec",
+      "parent-0.json": "1df3e03ca7eaff2e4055a14721f1754b3f906c26512fe32d7b75a59612281167",
+      "parent-1.json": "d52649ba4af8304d35ca250c5a1ac1334d40df1deff5ed355dcdb97edb72cec4",
+      "redirected-late-parent.json": "68a89e5cddf64b47c54092ef9262839b4edd43187b6fb6ce6dcadbad285a751a",
+      "rewired-all-acp.json": "2b6c89a731907684f343f6720b30b6513543154fc520fd53c2498d27828719c0",
+      "rewired-all.json": "07328eb7a81df92964b181dd286fb2dfd77f706e1dc93fdf473b100dac5512f4",
+      "rewired-default.json": "54fc11ee3e230ccd653f830f3a8c33b99c56777b9d4608a091374b5ab224a606",
+      "rewired-none-acp.json": "e8182a519f38f388511659e092f142a76dfd472b850a1495161419f2887d0462",
+      "rewired-none.json": "da04953360fc82fb9fded9230a8c5afb84b868db80debc7ce29c1dc61eeb77cf",
+      "rewired-single-acp.json": "4ee3e8451d4cec6aa189a178cc486fa6f9592ca923f673fc0afb280c2f0f4412",
+      "rewired-single.json": "4ed07552cd2ff2b71038d8d341e90ef3ebbdcd661e6a356f4e86c4317efa68d2"
+    }
+  },
+  "interpretation": {
+    "parent": "The existing input-0 SINGLE|ANYONECANPAY signature protects output 0 and admits a changed output 1 in this fixed layout; it does not establish general index pinning.",
+    "successor": "Changing only the input parent txid invalidated each of the seven existing Taproot signature modes, including every ANYONECANPAY mode. Their outputs and signature witnesses were held constant.",
+    "controls": "All seven original-parent child modes were admitted independently by Core; the DEFAULT child was mined and its fixed recipient and amount checked. This does not claim NONE modes bind payouts.",
+    "limitation": "Tests a naive late-data-parent graft onto a presigned successor graph. It does not rule out a different covenant or introspection design and does not authenticate the late data as a valid fork certificate."
+  }
+}

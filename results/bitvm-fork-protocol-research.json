@@ -112,7 +112,17 @@
       "Successor authorization with late parent transaction identifiers.",
       "Fixed payout and response deadlines across every alternate spend."
     ],
-    "implemented": false
+    "implemented": false,
+    "boundaryExperiment": {
+      "evidence": "results/bitvm-late-parent-successor.json",
+      "finding": "A late-output parent can reuse SINGLE|ANYONECANPAY, but every presigned Taproot child signature mode rejects its changed outpoint.",
+      "scope": "Rules out the tested naive graft; a different successor/payout construction remains open."
+    }
   },
-  "lastUpdatedUtc": "2026-10-21T20:18:21Z"
+  "lastUpdatedUtc": "2026-10-21T21:12:15.969Z",
+  "userDecision": {
+    "requirement": "Preserve permissionless fork challenges",
+    "status": "explicitly confirmed",
+    "consequence": "Do not substitute original-client challenge keys or another trusted online signer."
+  }
 }
