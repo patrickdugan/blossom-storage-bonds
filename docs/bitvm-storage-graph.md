@@ -395,8 +395,19 @@ Native pairings accept the compact proof and reject a storage-proof replay, v1-f
 wrong guest image and wrong graph identity. The Bitcoin binding tests use this actual proof's public
 input and wrapper constants. The complete compact binding remains 1,241,447 bytes with maximum stack
 853; all twenty library tests pass, including field substitutions and a noncanonical scalar alias.
-This compact proof has not been run through the full 364-script BitVM verifier; the full verifier
-result above belongs to v1. The existing verifying key still comes from the pinned testing setup.
+The compact proof now also passes the full 364-script BitVM verifier
+(`results/bitvm-compact-cumulative-work-verifier.json`). All honest disprove scripts fail, and the
+separate honest assertion validator finds no error. The wrong-public-input disprove executes at
+leaf 363 (955,010 script-plus-witness bytes, maximum stack 744); the corrupted-intermediate disprove
+executes at leaf 181 (3,475,684 bytes, maximum stack 946). Both remain within the measured resource
+budgets. The VPS run took 18:42.63 and peaked at 4,884,512 KiB RSS.
+
+This run compiled the fail-closed outcome gate before verification, passed all twenty native library
+tests on the VPS, and audited the completed report again locally. The returned assertions name this
+compact certificate's exact public scalar and contain fourteen field values and 363 intermediate
+hashes. Result and assertion-file hashes match the producer's checksum record. These are full BitVM
+interpreter results; the distinct Core component checks below exercise actual Taproot spends.
+The existing verifying key still comes from the pinned testing setup.
 
 The proof's graph identifier is synthetic, its branches have no corresponding holdings proof in
 this experiment, and the binding is not registered in a funded graph. No challenger-role assumption

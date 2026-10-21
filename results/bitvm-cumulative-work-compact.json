@@ -31,7 +31,7 @@
     "risc0_receipt_verified": true,
     "v1_receipt_rejected_by_compact_wrapper": true,
     "compact_receipt_rejected_by_v1_verifier": true,
-    "compact_full_bitvm_verifier_executed": false,
+    "compact_full_bitvm_verifier_executed": true,
     "public_scalar_independently_recomputed": true,
     "pairing_guards": {
       "format": "bsb/fork-public-pairing-guards/v2",
@@ -82,7 +82,10 @@
     "bitcoin_binding_library_tests": 20,
     "bitcoin_binding_core_cases": 13,
     "bitcoin_binding_core_mined": 11,
-    "bitcoin_binding_core_rejected": 2
+    "bitcoin_binding_core_rejected": 2,
+    "compact_full_bitvm_verifier_passed": true,
+    "compact_bitvm_honest_scripts_checked": 364,
+    "compact_bitvm_negative_disproves_executed": 2
   },
   "groth16": {
     "image": "ozancw/risc0-to-bitvm2-groth16-prover@sha256:840b833190a86c87eb71473cd72bcaa3e3b90cefa9bf4ae785ab2de61bc9d262",
@@ -131,5 +134,44 @@
     "actual_compact_public_input_used": true,
     "scope": "BitVM arithmetic interpreter only; no Core fork-defense transaction or funded graph registration."
   },
-  "core_binding_report": "results/bitvm-compact-fork-binding-regtest.json"
+  "core_binding_report": "results/bitvm-compact-fork-binding-regtest.json",
+  "full_bitvm": {
+    "report": "results/bitvm-compact-cumulative-work-verifier.json",
+    "wall": "18:42.63",
+    "peak_rss_kib": 4884512,
+    "honest_all_364_disproves_fail": true,
+    "wrong_public_input": {
+      "exec_s": 0.086803798,
+      "executes": true,
+      "found": true,
+      "locking_script_bytes": 947271,
+      "max_stack_items": 744,
+      "script_plus_witness_bytes": 955010,
+      "tap_index": 363,
+      "under_4mb_less_16k": true,
+      "validate_s": 192.296986368,
+      "witness_script_bytes": 7739
+    },
+    "corrupted_intermediate": {
+      "exec_s": 0.185422251,
+      "executes": true,
+      "found": true,
+      "locking_script_bytes": 3472345,
+      "max_stack_items": 946,
+      "script_plus_witness_bytes": 3475684,
+      "tap_index": 181,
+      "under_4mb_less_16k": true,
+      "validate_s": 99.694966584,
+      "witness_script_bytes": 3339
+    },
+    "provenance": {
+      "source_archive_sha256": "8aaa8fb2d9c87fb591ec2ae85255a9003ecb2d36c212b69cc12b9c67a19eee17",
+      "source_commit": "dec0e01",
+      "verifier_binary_sha256": "a62b3d8bd56bd91f64da9b47e3949e39c2992048f4405def962dde9682f41fc6",
+      "raw_result_sha256": "1f12825065be591382dece536f834ea4736c5003c986c4b6fd7fea4273b5cbc1",
+      "assertions_sha256": "7634dfbcfe6b00a1465a9a1b9e5d943b1f41a3e601ee6daf798ae5f08b6c876c",
+      "groth16_proof_sha256": "32eca71b9b4f619da079f4efb16b3ad66ec4b6efcdb70a4e2c51d12ef92e7334",
+      "vk_sha256": "2941dff0bd962ff8610773c9659c10d0dec561db1e2f6afecfbbe0d9cb457a7d"
+    }
+  }
 }
