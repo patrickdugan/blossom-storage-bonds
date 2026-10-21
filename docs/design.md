@@ -110,6 +110,15 @@ cost, and it is worth paying only for what phases 0–2 cannot do: one bond pool
     wrong keys, and the largest assert transaction and every disprove are past the standard size, so
     a dispute needs a miner (§4.6).
 
+13. **The provider's presignatures must come last.** From phase 2 to phase 6 the provider sent its
+    signatures on every Challenge_i with the funding, before it held the client's signatures on
+    Respond_i. A client could stop there and challenge. The provider can answer only with Respond_i,
+    which needs the client's signature, so after Δ the client takes the bond. This was found in a
+    review of the phase 7 code; no run ever tried it. Phase 7 reverses the order (§6): the client
+    seals with its Respond_i signatures once the bond is deep, and only then does the provider send
+    its own. A client that stops early can now only lock the provider's capital until `t_end`. Offers
+    cap the term (`max_term_blocks`), and a provider can limit who may store with it.
+
 ## 1. Layer 1: pay per proof
 
 Upload. The client encrypts the blob once per provider, `AES-256-CTR(K_p)` with
@@ -1185,12 +1194,33 @@ Possession proofs do not make the provider serve the file. What helps:
 A provider that answers every challenge and refuses every download keeps its bond. That is the honest
 limit of this design.
 
-## 6. Nostr and Blossom surface (draft, event kinds to be assigned)
+## 6. Nostr and Blossom surface (event kinds are unregistered placeholders)
 
 - **Provider offer** (replaceable, signed by P): price per GiB-epoch, epoch length, q, bond multiple,
-  Δ, Blossom server URL, Lightning offer or NWC hint, failure-domain claim.
+  Δ, Blossom server URL, Lightning offer or NWC hint, failure-domain claim. Built in phase 7
+  (`layer1/deals.ts`) as kind 34248, addressable with `d = bsb-offer:<network>`. It carries the
+  Blossom URL, the price per chunk-epoch, the bond key, the largest bond the provider will post, Δ, the
+  shortest term, the payee (Lightning node and URI, or on-chain pay key), the public-proof schedule and
+  a failure-domain claim. Clients find providers by it rather than by asking their servers.
 - **Deal** (signed by both): blob ids, per-replica roots R_p and lengths, term, k, the cut-and-choose
-  commitment root, the bond's funding outpoint, and the taproot merkle root of `Bond_0`.
+  commitment root, the bond's funding outpoint, and the taproot merkle root of `Bond_0`. Built in phase 7
+  as four events of kind 4248, each tagged with its stage:
+  - `propose` (C): the replica, root and n, M and k, the root of all M commitments, `t_end`, the bond
+    size and C's bond key.
+  - `accept` (P): the deal file P built from its own cut-and-choose records, and Bond_0's funding
+    outpoint, script and merkle root.
+  - `seal` (C): sent once the bond is at the network's depth and C has checked it on chain; it carries
+    C's presignatures on every Respond_i.
+  - `live` (P): P has checked those, and only now sends its presignatures on every Challenge_i, which
+    C checks (finding 13).
+
+  Each event names the one before it in an `e` tag, so together they are the deal signed by both. A
+  provider honours a proposal only from the key whose BUD-11 token uploaded the blob, only for the
+  commitments its cut and choose ran on, and only for a term within its offer. A `reject` stage says
+  why not. A funded bond is refunded at `t_end` whether or not the client ever seals; off regtest the
+  provider refunds on its own and publishes `settled` once the refund is deep. The cut and choose
+  itself stays on the provider's Blossom server, and its records are kept on disk, so a restarted
+  provider still honours a deal in flight. Every event carries a `network` tag.
 - **Epoch challenge and answer**: NIP-17/NIP-44 DMs carrying the nonce, then the chunks and paths.
   Answers can be large (q × (4096 + 32·log n) bytes), so the provider can serve them from a Blossom
   sidecar endpoint and send only a hash over Nostr.
@@ -1219,6 +1249,7 @@ Blossom servers already authorize uploads with kind 24242 events, and users list
 | 4 | The whole stack in one run: bonds, public proofs, Lightning payment per verified epoch, and watchtower attestations that trigger on-chain sentinel challenges (§4.4) | Done on regtest: both cheaters forfeit, the honest provider is paid and refunded |
 | 5 | On-chain pay per proof: signed invoices, pay-to-contract outputs committing to payment hashes, batching, receipts (txid + Merkle inclusion proof) checked from a header chain with no node; a watchtower that attests both "stored" and "paid" from public data (§4.5) | Done on regtest with a header-replay stand-in for the ZeroSync-style STARK; a regtest `chain_segment` is next |
 | 6 | BitVM2 feasibility spike: the holdings statement in RISC Zero, seeds bound to risc0-to-bitvm2's regtest header-chain proof, one term proof, the Groth16 wrap, BitVM's verifier and chunked disprove; the bond as a BitVM2 graph (§4.6) | Done as a spike, regtest and test keys only: every milestone ran, and BitVM's bridge mined a disprove of a wrong assertion of this proof. The graph of §4.6(a) is not built |
+| 7 | Signet readiness for the phase 4–5 stack: a network flag (RPC, address and invoice prefixes, confirmation depth, blocks waited for rather than mined, estimated fees), fresh keys per party and run with fixed values refused off regtest, offers and deals as Nostr events (§6), a relay pool and public Blossom URLs, per-deal bond size, restart and reorg handling, remote providers and watchtower; the runbook `docs/signet-pilot.md` | Done on regtest: every test passes, the harness output and the bond transactions are byte-identical to phases 1 and 4, and the whole stack ends as in phase 4. Not run on signet: that needs a go-ahead (runbook §8) |
 
 ## What is and is not tested
 
@@ -1244,7 +1275,12 @@ What neither covers yet:
   through a relay because esplora would not take the assert transactions. The Groth16 key is
   Citrea's, which records one phase-2 contribution (§4.6 d), and the header chain proves work, not
   canonicality.
-- NIP-17 gift wrapping, offers and deals as Nostr events, and any relay other than the bundled minimal
-  one. The epoch challenge and answer are NIP-44 v2 events (§2.5).
+- NIP-17 gift wrapping, and any relay other than the bundled minimal one. The epoch challenge and
+  answer are NIP-44 v2 events (§2.5). Offers and deals are Nostr events since phase 7 (§6). The relay
+  pool has been tested against several local relays, one of them dropped and restarted, but not against
+  a public relay.
+- Signet. Phase 7 made the stack ready for it (`docs/signet-pilot.md`): the network flag, fresh keys,
+  waits, depths and estimated fees are unit-tested against a stubbed node, and the signet header and
+  address parameters against Core's genesis and BIP350. None of it has run on signet.
 
-The fixed keys and MuSig2 nonce seeds in `regtest/`, and the Winternitz secrets in `zk/bitvm-check`, are test values. Never use them for real funds.
+The fixed keys and MuSig2 nonce seeds in `regtest/`, and the Winternitz secrets in `zk/bitvm-check`, are test values. Never use them for real funds. Off regtest every party makes fresh keys per run and refuses the fixed ones (`layer1/net.ts`, `regtest/src/common.rs` `check_seed`); the MuSig2 harness and the Winternitz check refuse or never touch any network but regtest.

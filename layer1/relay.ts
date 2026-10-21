@@ -1,8 +1,14 @@
 // A minimal Nostr relay (NIP-01: EVENT, REQ, CLOSE; OK, EVENT, EOSE, CLOSED, NOTICE) on node:http with a
 // hand-written RFC 6455 framer, plus a small client on Node's global WebSocket. Enough to publish receipts
 // and query them back on localhost; it keeps events in memory and does no rate limiting or auth (NIP-42).
+// It keeps only the newest replaceable (kinds 0, 3, 10000-19999) and addressable (30000-39999, per d tag)
+// event, as NIP-01 asks, so a provider's offer behaves as it would on a public relay.
+//
+// RelayPool is what the parties use: any number of relay URLs as one (publish to all, subscribe on all,
+// events de-duplicated by id, dropped connections reopened). The bundled relay is one URL among them; a
+// pilot names public ones with --relays.
 
-import { createHash } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { createServer, type Server } from "node:http";
 import type { Duplex } from "node:stream";
 import { verifyEvent, type NostrEvent } from "./nostr.ts";
@@ -32,6 +38,14 @@ export function matches(f: Filter, e: NostrEvent): boolean {
 }
 
 const isEphemeral = (kind: number) => kind >= 20000 && kind < 30000;
+const isReplaceable = (kind: number) => kind === 0 || kind === 3 || (kind >= 10000 && kind < 20000);
+const isAddressable = (kind: number) => kind >= 30000 && kind < 40000;
+const dTag = (e: NostrEvent) => e.tags.find((t) => t[0] === "d")?.[1] ?? "";
+/** The slot a replaceable or addressable event occupies, or undefined for a regular one. */
+export const replaceKey = (e: NostrEvent): string | undefined =>
+  isReplaceable(e.kind) ? `${e.kind}:${e.pubkey}` : isAddressable(e.kind) ? `${e.kind}:${e.pubkey}:${dTag(e)}` : undefined;
+/** NIP-01: the newer created_at wins, and on a tie the lower id. */
+export const newer = (a: NostrEvent, b: NostrEvent) => a.created_at > b.created_at || (a.created_at === b.created_at && a.id < b.id);
 const MAX_FRAME = 1 << 20;
 
 // ───────────────────────────── RFC 6455, server side ─────────────────────────────
@@ -131,6 +145,12 @@ export async function startRelay(port = 0, host = "127.0.0.1"): Promise<Relay> {
       const id = typeof ev?.id === "string" ? ev.id : "";
       if (!verifyEvent(ev)) return conn.text(JSON.stringify(["OK", id, false, "invalid: bad id or signature"]));
       if (seen.has(ev.id)) return conn.text(JSON.stringify(["OK", ev.id, true, "duplicate: already have this event"]));
+      const slot = replaceKey(ev);
+      if (slot) {
+        const i = events.findIndex((x) => replaceKey(x) === slot);
+        if (i >= 0 && !newer(ev, events[i])) return conn.text(JSON.stringify(["OK", ev.id, true, "duplicate: have a newer version"]));
+        if (i >= 0) events.splice(i, 1);
+      }
       if (!isEphemeral(ev.kind)) { seen.add(ev.id); events.push(ev); }
       conn.text(JSON.stringify(["OK", ev.id, true, ""]));
       for (const [c, m] of subs) for (const [sid, fs] of m) if (fs.some((f) => matches(f, ev))) c.text(JSON.stringify(["EVENT", sid, ev]));
@@ -165,8 +185,16 @@ export async function startRelay(port = 0, host = "127.0.0.1"): Promise<Relay> {
 
 // ───────────────────────────── client ─────────────────────────────
 
+/** What a party needs from Nostr: one relay (RelayClient) or several (RelayPool). */
+export interface Relays {
+  publish(e: NostrEvent, timeoutMs?: number): Promise<{ accepted: boolean; message: string }>;
+  subscribe(filters: Filter[], onEvent: (e: NostrEvent) => void): { close(): void };
+  query(...filters: Filter[]): Promise<NostrEvent[]>;
+  close(): void;
+}
+
 /** One connection to one relay. publish() resolves on the relay's OK; query() collects until EOSE. */
-export class RelayClient {
+export class RelayClient implements Relays {
   private ws!: WebSocket;
   private waiters = new Map<string, (m: unknown[]) => void>();
   private found = new Map<string, NostrEvent[]>();
@@ -178,22 +206,32 @@ export class RelayClient {
     const c = new RelayClient(url);
     c.ws = new WebSocket(url);
     await new Promise<void>((ok, bad) => {
-      const t = setTimeout(() => bad(new Error(`relay ${url}: connect timeout`)), timeoutMs);
+      const t = setTimeout(() => { try { c.ws.close(); } catch { /* not open */ } bad(new Error(`relay ${url}: connect timeout`)); }, timeoutMs);
       c.ws.addEventListener("open", () => { clearTimeout(t); ok(); }, { once: true });
       c.ws.addEventListener("error", () => { clearTimeout(t); bad(new Error(`relay ${url}: connect failed`)); }, { once: true });
     });
     c.ws.addEventListener("message", (m) => c.onMessage(String(m.data)));
+    c.ws.addEventListener("close", () => { c.open = false; for (const f of c.closed) f(); });
     return c;
   }
 
-  private live = new Map<string, (e: NostrEvent) => void>();
+  private open = true;
+  private closed: (() => void)[] = [];
+  /** Called once the connection is gone, whoever closed it. */
+  onClose(f: () => void) { this.closed.push(f); }
+  get isOpen() { return this.open; }
 
-  /** A live subscription: `onEvent` gets every stored match and then every new one, until close(). */
-  subscribe(filters: Filter[], onEvent: (e: NostrEvent) => void): { close(): void } {
+  private live = new Map<string, (e: NostrEvent) => void>();
+  private ended = new Map<string, (reason: string) => void>();
+
+  /** A live subscription: `onEvent` gets every stored match and then every new one, until close().
+   *  `onClosed` hears if the relay ends it (NIP-01 CLOSED: a limit, auth, an error). */
+  subscribe(filters: Filter[], onEvent: (e: NostrEvent) => void, onClosed?: (reason: string) => void): { close(): void } {
     const sid = `s${++this.n}`;
     this.live.set(sid, onEvent);
+    if (onClosed) this.ended.set(sid, onClosed);
     this.ws.send(JSON.stringify(["REQ", sid, ...filters]));
-    return { close: () => { this.live.delete(sid); this.ws.send(JSON.stringify(["CLOSE", sid])); } };
+    return { close: () => { this.live.delete(sid); this.ended.delete(sid); this.ws.send(JSON.stringify(["CLOSE", sid])); } };
   }
 
   private onMessage(raw: string) {
@@ -203,6 +241,11 @@ export class RelayClient {
     if (m[0] === "OK") this.waiters.get(`ok:${m[1]}`)?.(m);
     else if (m[0] === "EVENT" && verifyEvent(m[2]) && this.live.has(String(m[1]))) this.live.get(String(m[1]))!(m[2]);
     else if (m[0] === "EVENT" && verifyEvent(m[2])) this.found.get(String(m[1]))?.push(m[2]);
+    else if (m[0] === "CLOSED" && this.live.has(String(m[1]))) {
+      const sid = String(m[1]), f = this.ended.get(sid);
+      this.live.delete(sid); this.ended.delete(sid);
+      f?.(String(m[2] ?? ""));
+    }
     else if (m[0] === "EOSE" || m[0] === "CLOSED") this.waiters.get(`sub:${m[1]}`)?.(m);
   }
 
@@ -223,7 +266,7 @@ export class RelayClient {
   async query(...filters: Filter[]): Promise<NostrEvent[]> {
     const sid = `q${++this.n}`;
     this.found.set(sid, []);
-    const p = this.wait(`sub:${sid}`, 5000);
+    const p = this.wait(`sub:${sid}`, this.url.startsWith("ws://127.0.0.1") ? 5000 : 15000);
     this.ws.send(JSON.stringify(["REQ", sid, ...filters]));
     await p;
     this.ws.send(JSON.stringify(["CLOSE", sid]));
@@ -233,4 +276,117 @@ export class RelayClient {
   }
 
   close() { this.ws.close(); }
+}
+
+// ───────────────────────────── several relays ─────────────────────────────
+
+type PoolSub = { filters: Filter[]; onEvent: (e: NostrEvent) => void; seen: Set<string>; handles: Map<string, { close(): void }> };
+
+/** Several relays as one. publish() sends to every connected relay and counts as accepted if any accepts
+ *  (each relay's answer is in `relays`); subscribe() and query() cover all of them and drop duplicate
+ *  ids. A relay that drops is reopened with backoff (1 s doubling to 60 s), and its live subscriptions are
+ *  sent again; duplicates that brings are dropped too. A subscription the relay closes (CLOSED) is sent
+ *  again after 30 s. A relay that times out on a publish, or (if not on localhost) fails a probe once a
+ *  minute, is closed and reopened, since a half-open socket would otherwise keep a dead subscription.
+ *  Nothing here is specific to the bundled relay. */
+export class RelayPool implements Relays {
+  readonly urls: string[];
+  private readonly conns = new Map<string, RelayClient | undefined>();
+  private readonly subs = new Set<PoolSub>();
+  private readonly log: (ev: Record<string, unknown>) => void;
+  private stopped = false;
+  private probe?: ReturnType<typeof setInterval>;
+
+  private constructor(urls: string[], log: (ev: Record<string, unknown>) => void) { this.urls = urls; this.log = log; }
+
+  /** Opens every URL; at least one must answer. */
+  static async connect(urls: string[], log: (ev: Record<string, unknown>) => void = () => {}): Promise<RelayPool> {
+    const list = [...new Set(urls.map((u) => u.trim()).filter(Boolean))];
+    if (list.length === 0) throw new Error("no relay URLs");
+    const p = new RelayPool(list, log);
+    await Promise.all(list.map((u) => p.open(u).catch((e) => { log({ event: "relay-down", url: u, error: (e as Error).message }); p.reopen(u, 1000); })));
+    if (![...p.conns.values()].some(Boolean)) { p.close(); throw new Error(`no relay reachable: ${list.join(", ")}`); }
+    p.probe = setInterval(() => {
+      for (const [url, c] of p.conns) {
+        if (!c?.isOpen || url.startsWith("ws://127.0.0.1")) continue;
+        c.query({ ids: [randomBytes(32).toString("hex")] }).catch(() => { p.log({ event: "relay-probe-failed", url }); c.close(); });
+      }
+    }, 60_000);
+    p.probe.unref?.();
+    return p;
+  }
+
+  /** Subscribe `s` on one relay; if that relay ends the subscription, send it again after 30 s. */
+  private sub(url: string, c: RelayClient, s: PoolSub) {
+    s.handles.set(url, c.subscribe(s.filters, (e) => this.deliver(s, e), (reason) => {
+      s.handles.delete(url);
+      this.log({ event: "relay-sub-closed", url, reason });
+      const t = setTimeout(() => { if (!this.stopped && this.subs.has(s) && this.conns.get(url) === c && c.isOpen) this.sub(url, c, s); }, 30_000);
+      t.unref?.();
+    }));
+  }
+
+  /** The bundled relay's URL, or a comma-separated --relays list. */
+  static parse(list: string): string[] { return list.split(",").map((s) => s.trim()).filter(Boolean); }
+
+  get url(): string { return this.urls.join(","); }
+  connected(): string[] { return [...this.conns].filter(([, c]) => c?.isOpen).map(([u]) => u); }
+
+  private async open(url: string) {
+    const c = await RelayClient.connect(url, url.startsWith("ws://127.0.0.1") ? 5000 : 15000);
+    if (this.stopped) { c.close(); return; }
+    this.conns.set(url, c);
+    c.onClose(() => {
+      this.conns.set(url, undefined);
+      for (const s of this.subs) s.handles.delete(url);
+      if (!this.stopped) { this.log({ event: "relay-closed", url }); this.reopen(url, 1000); }
+    });
+    for (const s of this.subs) this.sub(url, c, s);
+  }
+
+  private reopen(url: string, delay: number) {
+    const t = setTimeout(() => {
+      if (this.stopped || this.conns.get(url)) return;
+      this.open(url).catch(() => this.reopen(url, Math.min(delay * 2, 60_000)));
+    }, delay);
+    t.unref?.();
+  }
+
+  private deliver(s: PoolSub, e: NostrEvent) {
+    if (s.seen.has(e.id)) return;
+    s.seen.add(e.id);
+    s.onEvent(e);
+  }
+
+  async publish(e: NostrEvent, timeoutMs = 5000): Promise<{ accepted: boolean; message: string; relays: { url: string; accepted: boolean; message: string }[] }> {
+    const live = [...this.conns].filter((x): x is [string, RelayClient] => !!x[1]?.isOpen);
+    const relays = await Promise.all(live.map(([url, c]) => c.publish(e, timeoutMs).then((r) => ({ url, ...r }), (err) => {
+      // No OK in time: treat the connection as dead and reopen it.
+      if (/timeout/.test((err as Error).message)) { this.log({ event: "relay-publish-timeout", url }); c.close(); }
+      return { url, accepted: false, message: (err as Error).message };
+    })));
+    const ok = relays.find((r) => r.accepted);
+    return { accepted: !!ok, message: ok ? ok.message : relays.map((r) => `${r.url}: ${r.message}`).join("; ") || "no relay connected", relays };
+  }
+
+  subscribe(filters: Filter[], onEvent: (e: NostrEvent) => void): { close(): void } {
+    const s: PoolSub = { filters, onEvent, seen: new Set(), handles: new Map() };
+    this.subs.add(s);
+    for (const [url, c] of this.conns) if (c?.isOpen) this.sub(url, c, s);
+    return { close: () => { this.subs.delete(s); for (const h of s.handles.values()) { try { h.close(); } catch { /* gone */ } } s.handles.clear(); } };
+  }
+
+  async query(...filters: Filter[]): Promise<NostrEvent[]> {
+    const live = [...this.conns.values()].filter((c): c is RelayClient => !!c?.isOpen);
+    const all = await Promise.all(live.map((c) => c.query(...filters).catch(() => [] as NostrEvent[])));
+    const out = new Map<string, NostrEvent>();
+    for (const evs of all) for (const e of evs) out.set(e.id, e);
+    return [...out.values()];
+  }
+
+  close() {
+    this.stopped = true;
+    if (this.probe) clearInterval(this.probe);
+    for (const c of this.conns.values()) c?.close();
+  }
 }

@@ -14,7 +14,7 @@ import type { Key } from "../model/schnorr.ts";
 import { buildTree, chunk, encryptReplica, makeSentinel, replicaKey, sentinelSecret, verifyEpoch } from "../model/storage_bonds.ts";
 import { authHeader, blossomAuth, now, signEvent, tagValue, verifyEvent, type NostrEvent } from "./nostr.ts";
 import { preimageMatches, type Payer } from "./lightning.ts";
-import type { RelayClient } from "./relay.ts";
+import type { Relays } from "./relay.ts";
 import type { Descriptor, PdpAnswer } from "./blossom.ts";
 
 /** Placeholder kind for a per-epoch receipt. Unregistered: not in the NIPs kinds table as of 2026-10-20. */
@@ -82,7 +82,7 @@ export interface ClientOptions {
   key: Key;
   secret: Buffer;                 // 32 bytes; the client's only long-term storage secret
   payer: Payer;
-  relay?: RelayClient;
+  relay?: Relays;
   /** Deterministic nonces for reproducible demos: nonce = SHA-256(seed ‖ sha256 ‖ epoch). Omit in use. */
   nonceSeed?: string;
   /** How the nonce reaches the provider and the answer comes back. Default: GET /pdp over HTTP.

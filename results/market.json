@@ -1,7 +1,8 @@
 {
-  "generated": "2026-10-20T00:48:50.149Z",
+  "generated": "2026-10-21T05:29:38.882Z",
   "note": "Every party is a separate process with its own keys and wallet. Payments are a one-way Bitcoin payment channel per provider, not Lightning. Nonces are seeded.",
   "params": {
+    "pay": "channel",
     "epochs": 10,
     "q": 8,
     "misbehaviourFrom": 4,
@@ -15,30 +16,30 @@
     "blobBytes": 1048576
   },
   "regtest": {
-    "heightBefore": 386,
-    "heightAfter": 2001
+    "heightBefore": 0,
+    "heightAfter": 1615
   },
   "summary": [
     {
       "role": "honest",
-      "pid": 4468,
+      "pid": 37308,
       "failedEpochs": 0,
       "paidSats": 5120,
       "paidOnChainSats": 5120,
       "channel": {
-        "funding": "6e0fa3528fca722bee860f15fa94d6a6f0a8df98c2d94415ed9f64a37cb55289",
-        "close": "204e74c11cb6d8b20b3091bf7808b15e3ab8efda5a472af3643d5795a14badd1"
+        "funding": "7007abf03c43728c6ec8c9d7e0605ba099af55b967db60f2b1347760fec7ee6d",
+        "close": "c7874e1c6d0efa96b0753043bbb0248e0e76ec49e88f03238d529a83f2c84f84"
       },
       "bond": {
-        "funding": "d270f29ebee6da43471a63a24808bbf8dba92d89e05e5e0accca58658e4211ff",
-        "settlement": "dd6f80405430bfd7ea2e8050b4467244d22a2a1016234f9faa97f2d11681962c",
+        "funding": "ebad0fc23473eba1f8ba82d7b84c790266104880f2d13a2c746ed21797c5036f",
+        "settlement": "b0be44812b3085653463ea09486e8094dcbb8484d0a9578d0369501ba62dc833",
         "to": "provider",
         "confirmations": 4
       },
       "enforcement": [
         {
           "i": 0,
-          "challenge_txid": "2716610dad6ea263a9f53d5f1b9968066b1c35dbb3e15a8f04bb46ccf7bcd1a7",
+          "challenge_txid": "29bfc8b38da42f1c3ea1ed14477ed28c2031366dc42c3f062a1cabf0401a4317",
           "answered_after_blocks": 2,
           "forfeit_txid": null
         }
@@ -46,63 +47,63 @@
       "pForfeitIfAllChallenged": 0,
       "providerAgentLog": [
         {
-          "t": 1792457232973,
+          "t": 1792560474541,
           "provider": "honest",
           "event": "bond-respond",
           "sha": "347450468be2",
           "i": 0,
           "r": "810384cfdf66cf6c48b4d6b570edb40d",
           "status": "responded",
-          "txid": "7621cdb5f768e53e0519927afad42610bda646a07cef363d47df9f07572c7dae",
+          "txid": "fd96d728082e6ca07b4df89e772ae0a9ba0c3aa4594e5e5bcbba4e2c265d0916",
           "vsize": 639
         }
       ]
     },
     {
       "role": "deletes 10%",
-      "pid": 16880,
+      "pid": 37204,
       "failedEpochs": 2,
       "paidSats": 4096,
       "paidOnChainSats": 4096,
       "channel": {
-        "funding": "d8ed07ff058784139b5ff7f03a54ecaad91d3c6602f8eca7b5a87faf92513a14",
-        "close": "7239b1ea80d37d2f60a1cdf95ec133ea5c5768f4ed889fa2ce4d95b26b724fd6"
+        "funding": "6dcb787163aab104ae2b5a829d0d16c691037351858ec29c042b37a425e4a3ac",
+        "close": "d2eca57004515b01cb692ac3e6804695931c69248899e517d9a28503ea53866c"
       },
       "bond": {
-        "funding": "07c7261c0515cf510c3a8c08b929edfc559c5f4c538ffa477d77eda1befd97f5",
-        "settlement": "d9d2753d53b4aa48728cacb06011fe000ece03fa1ff07e94a5952ee54e7345f4",
+        "funding": "4da18cbef1b8755a101f70a3243187f7a86125f20d3bbb22adca16810600d296",
+        "settlement": "fc83bb1e54e1317fe9093b060c335b7cd82b9f62c0ad393a617386b28eeaa3c2",
         "to": "client",
         "confirmations": 1348
       },
       "enforcement": [
         {
           "i": 0,
-          "challenge_txid": "5fd1faa5a10a0cae1e96533fd2b530bdf4cf97dd05091f8640af6da759a7aae6",
+          "challenge_txid": "f261f22c86115d573433a90de7df4132768cd03f42efaeb0724bb391dc481e3d",
           "answered_after_blocks": 2,
           "forfeit_txid": null
         },
         {
           "i": 1,
-          "challenge_txid": "bf98430fde0a3225bbe94dcce91cefe81d70247ebde1560408b58588e36bcfb4",
+          "challenge_txid": "7d72eeca25446fa161eebcd40b31d39aa029458db661bced42823c5108b193f0",
           "answered_after_blocks": null,
-          "forfeit_txid": "d9d2753d53b4aa48728cacb06011fe000ece03fa1ff07e94a5952ee54e7345f4"
+          "forfeit_txid": "fc83bb1e54e1317fe9093b060c335b7cd82b9f62c0ad393a617386b28eeaa3c2"
         }
       ],
       "pForfeitIfAllChallenged": 0.9988209815422261,
       "providerAgentLog": [
         {
-          "t": 1792457233304,
+          "t": 1792560474936,
           "provider": "deletes10",
           "event": "bond-respond",
           "sha": "671ab1228037",
           "i": 0,
           "r": "6fc94129501a4fcd9888090ea5cbbf9e",
           "status": "responded",
-          "txid": "4a1b86e4ad6c532acf681f80f85713cbe06dbbf6d9201194c58b2f449f155dd7",
+          "txid": "d9d6e127a9ba972d205efae948522fd6870370795a3f5b8eefba661ab947c99a",
           "vsize": 639
         },
         {
-          "t": 1792457233672,
+          "t": 1792560475367,
           "provider": "deletes10",
           "event": "bond-respond",
           "sha": "671ab1228037",
@@ -112,7 +113,7 @@
           "status": "rejected"
         },
         {
-          "t": 1792457260701,
+          "t": 1792560507037,
           "provider": "deletes10",
           "event": "bond-respond",
           "sha": "671ab1228037",
@@ -125,42 +126,42 @@
     },
     {
       "role": "deletes 50%",
-      "pid": 32956,
+      "pid": 32968,
       "failedEpochs": 7,
       "paidSats": 1536,
       "paidOnChainSats": 1536,
       "channel": {
-        "funding": "74bdd38d94df9d8fff9d0034509e2a95165b1156d4706a40d7fb97acf9633e24",
-        "close": "828a85460f7ca4baea32de46f5196b411740174c24a87b1621937b9ae9835f7b"
+        "funding": "1ef2faa8400fcdc8e4760b7f19fec14139c5528abd1445220139f2292dd90213",
+        "close": "35e6fb37abbbc072ced92fdf54bb8c10404a9cab39f1c6487bb444e729b27cf3"
       },
       "bond": {
-        "funding": "58be0ec69dd9e508c37f4ab2fbcf2fa6a24f56f8499670450f39342f883c1182",
-        "settlement": "32706c1d2f54f7342086d8e8b8d5675b82b2ff5e956220baeb0ecfd9ccfabb7b",
+        "funding": "0a868a0753ad65935b46dad04119e5c0b58f0b2296b6c20e426f4119b7579ace",
+        "settlement": "8fd313369951ad8e395070d20aca1c547bbca9a576d31b6d285475214843877c",
         "to": "client",
         "confirmations": 1203
       },
       "enforcement": [
         {
           "i": 0,
-          "challenge_txid": "5ec5e5df8b1c58fc7c087f01294c6223e19e4be3a5815eb0e62658292ceca9c3",
+          "challenge_txid": "3c9f43970064e60c9a42c07a05b93afd604b50cfa60d1c8d7582eb8d83aa90b8",
           "answered_after_blocks": null,
-          "forfeit_txid": "32706c1d2f54f7342086d8e8b8d5675b82b2ff5e956220baeb0ecfd9ccfabb7b"
+          "forfeit_txid": "8fd313369951ad8e395070d20aca1c547bbca9a576d31b6d285475214843877c"
         }
       ],
       "pForfeitIfAllChallenged": 1,
       "providerAgentLog": [
         {
-          "t": 1792457260830,
+          "t": 1792560507087,
           "provider": "deletes50",
           "event": "bond-respond",
           "sha": "ac64d8568938",
           "i": 0,
-          "error": "transaction failed: mempool-script-verify-flag-failed (Script failed an OP_EQUALVERIFY operation)",
+          "error": "transaction failed: bad-txns-inputs-missingorspent; mempool-script-verify-flag-failed (Script failed an OP_EQUALVERIFY operation)",
           "r": "58d2de13c0ffd1a33ae58f46982bf95e",
           "status": "rejected"
         },
         {
-          "t": 1792457287820,
+          "t": 1792560536835,
           "provider": "deletes50",
           "event": "bond-respond",
           "sha": "ac64d8568938",
@@ -173,32 +174,32 @@
     },
     {
       "role": "outsources",
-      "pid": 16028,
+      "pid": 10156,
       "failedEpochs": 7,
       "paidSats": 1536,
       "paidOnChainSats": 1536,
       "channel": {
-        "funding": "934dac62ef33ffbe91339784c97f002b839890487c1d02dbee800b539ce5414c",
-        "close": "24ce48b52310a092be84a4960ea9c68a9552ffa714cc29d284bc5909c9065de3"
+        "funding": "f6700edb45634a4a5a41742dc9dbaf018d4f0bd35291877784b75fc0208f232b",
+        "close": "6df25673e43817778ed21bb008234e5c9d8cb5beb7663797b12df83723212e64"
       },
       "bond": {
-        "funding": "efb7a093017f644275f5c39d515ae1183b2ffdda23ea026c96caeab595171d3c",
-        "settlement": "c712d179a9d810f1599eb38f065fba675deeb16d11ac6e522aaf192566729aaa",
+        "funding": "4b023ae173fbffc1cc142a0ff1e8ea77c557f8397fe239552a8583c79937db0a",
+        "settlement": "c0f8093376e9532f70e8cca5a8b05a7b9267b704ba101bb0b09f6320bc29643f",
         "to": "client",
         "confirmations": 1058
       },
       "enforcement": [
         {
           "i": 0,
-          "challenge_txid": "093f46a9e6bab6ae6db748912b6c7210ad5fc24d9664f3f8b27c7ea3e3398ace",
+          "challenge_txid": "732716c61f5ff51fcdbeceb0137ba59b4ce340dc4ab4594c97feb8514aa2c305",
           "answered_after_blocks": null,
-          "forfeit_txid": "c712d179a9d810f1599eb38f065fba675deeb16d11ac6e522aaf192566729aaa"
+          "forfeit_txid": "c0f8093376e9532f70e8cca5a8b05a7b9267b704ba101bb0b09f6320bc29643f"
         }
       ],
       "pForfeitIfAllChallenged": 1,
       "providerAgentLog": [
         {
-          "t": 1792457288021,
+          "t": 1792560537098,
           "provider": "outsources",
           "event": "bond-respond",
           "sha": "9b2fc6f3d897",
@@ -208,7 +209,7 @@
           "status": "rejected"
         },
         {
-          "t": 1792457316249,
+          "t": 1792560564301,
           "provider": "outsources",
           "event": "bond-respond",
           "sha": "9b2fc6f3d897",

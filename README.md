@@ -43,6 +43,8 @@ The full design, findings and plan are in [docs/design.md](docs/design.md).
 | `results/layer1.json` | Last layer-1 demo run: every epoch's outcome per provider, receipts, balances |
 | `results/market.json` | Last market run: per provider, its process, epochs, payments read back from the chain, every challenge, and its own agent's log |
 | `results/market-ln.json` | The same, for the last run paid over Lightning (`--pay ln`) |
+| `layer1/net.ts`, `deals.ts`, `relay-probe.ts`, `signet.test.ts` | Phase 7: the network profile (regtest or signet: RPC, prefixes, confirmation depth, waiting for blocks, fees, fresh party keys), offers and deals as Nostr events, a probe for public relays, and their tests. `relay.ts` gained a relay pool |
+| `docs/signet-pilot.md` | Phase 7: the runbook for a signet pilot |
 
 ## Run
 
@@ -385,6 +387,30 @@ applied, esplora started as BitVM's `regtest/start.sh` does but on port 8095, an
 `zk/bitvm-check/bridge-txs.ts` reads the transactions back, and `zk/risc0/collect.ts` gathers
 everything into `results/bitvm2-spike.json`.
 
+### Ready for signet (phase 7)
+
+Every entry point and `bsb-bond` take a network. It is `regtest` by default, unchanged from phases 1
+to 6, or it can be `signet`. Mainnet is refused.
+
+```bash
+export BSB_NETWORK=signet BSB_CONFS=6 BSB_RPC_COOKIE=~/.bitcoin/signet/.cookie   # or --network signet --confs 6
+node layer1/provider.ts --name p1 --dir ~/run1/p1 --relays wss://a,wss://b --admin-token $T --public-url https://p1.example --pay ln --zk ...
+node layer1/full-stack.ts --providers <pubkeys> --watchtower <pubkey> --relays wss://a,wss://b --epoch-blocks 36 --term 800 --bond-sats 100000
+node layer1/relay-probe.ts --relays wss://a,wss://b      # posts probe events: check a relay before using it
+```
+
+Off regtest:
+- nothing mines: blocks are waited for;
+- outputs count at `--confs` (default 3);
+- fees are estimated (`BSB_FEE_RATE` pins one);
+- every party makes fresh keys in its `--dir`, and fixed test keys are refused;
+- each wallet is funded by hand before setup goes on;
+- providers refund their own bonds at the term's end.
+
+Offers and deals go over Nostr (`layer1/deals.ts`, design §6) on every network. The runbook,
+[docs/signet-pilot.md](docs/signet-pilot.md), has the machines, coins, timings and steps, and lists what
+the pilot tests that regtest cannot. Nothing has run on signet yet.
+
 ## Status
 
 - Phase 0 (model): done, 16 tests.
@@ -421,8 +447,15 @@ everything into `results/bitvm2-spike.json`.
   mechanism to trust yet: the Groth16 key records a single phase-2 contribution, upstream's
   composition code let a forged chain through, and the dispute transactions are non-standard
   (design §4.6).
-- Next: a regtest build of Raito's `chain_segment` so receipts carry a real header-chain STARK
+- Phase 7 (signet readiness): done on regtest, not yet run on signet. It adds a network flag, fresh keys
+  per party and run, offers and deals as Nostr events, a relay pool, public Blossom URLs, per-deal
+  bond sizes, restart and reorg handling, and remote providers and watchtower. Regtest stays
+  byte-identical. It also closes a hole that dates from phase 2. The provider used to send its
+  challenge presignatures before it held the client's response presignatures, which let a client
+  that never sealed take the bond. The provider's now come last (design finding 13). The runbook is
+  [docs/signet-pilot.md](docs/signet-pilot.md).
+- Next: the signet pilot (runbook §8, each step on a go-ahead), a regtest build of Raito's `chain_segment` so receipts carry a real header-chain STARK
   (design §4.5 lists what it needs), a zk setup proof replacing cut and choose (2), and verifying the storage proof on Bitcoin itself (BitVM2 or OP_CAT, §4.2).
 
 The keys and MuSig2 nonce seeds in `regtest/` are fixed test values. Never use this code with real
-funds.
+funds. Off regtest every party makes its own fresh keys for each run, and the fixed values are refused.

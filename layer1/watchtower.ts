@@ -1,9 +1,13 @@
 // A watchtower for public epoch proofs (phase 3b): a third party with its own view of the chain (its own
 // bitcoind, or with --headers none at all) and Nostr key that holds no stake in any deal.
 //
-//   node layer1/watchtower.ts --relay <ws url> --providers <pubkey,...> --epoch-blocks 10 --from <height>
-//                             [--deadline 6] [--min-q 8] [--rpc <url>] [--dir <dir>]
-//                             [--headers <mirror url> --network regtest --min-work <hex> --receipt-deadline <blocks>]
+//   node layer1/watchtower.ts --relays <ws url,...> --providers <pubkey,...> --epoch-blocks 10 --from <height>
+//                             [--network regtest|signet] [--confs N] [--deadline 6] [--min-q 8] [--rpc <url>] [--dir <dir>]
+//                             [--headers <mirror url> --min-work <hex> --receipt-deadline <blocks>]
+//
+// Its Nostr key is the fixed label "bsb/watchtower" on regtest; on any other network it is made fresh on
+// first start and kept in <dir>/party.seed (net.ts partySeed). A receipt counts once its transaction has
+// the network's confirmation depth.
 //
 // For every proof event (kind 4245) from a listed provider it rebuilds the statement itself: the seed
 // from its own node's block hash at the claimed boundary, never the event's copy, and q and the deal
@@ -27,10 +31,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { keyFromSeed } from "../model/schnorr.ts";
 import { rpc } from "./bondtool.ts";
+import { partySeed, useNetwork } from "./net.ts";
 import { HeaderChain, paramsFor, syncFrom } from "./headerchain.ts";
 import { KIND_PAYMENT_RECEIPT, decodeOnchainInvoice, verifyReceipt, type PaymentReceipt } from "./onchain.ts";
 import { now, signEvent, type NostrEvent } from "./nostr.ts";
-import { RelayClient } from "./relay.ts";
+import { RelayPool } from "./relay.ts";
 import { defaultZk, statementFor, verifyProof } from "./zk.ts";
 import { KIND_ATTESTATION, KIND_EPOCH_PROOF } from "./zk-provider.ts";
 
@@ -40,14 +45,15 @@ const arg = (name: string, dflt?: string) => {
   if (dflt === undefined) throw new Error(`--${name} is required`);
   return dflt;
 };
-const RELAY = arg("relay"), PROVIDERS = arg("providers").split(",");
+const NET = useNetwork();
+const RELAYS = RelayPool.parse(arg("relays", arg("relay", ""))), PROVIDERS = arg("providers").split(",");
 const EPOCH = Number(arg("epoch-blocks", "10")), FROM = Number(arg("from")), DEADLINE = Number(arg("deadline", "6"));
 const MIN_Q = Number(arg("min-q", "8"));
-const RPC = arg("rpc", process.env.BSB_RPC ?? "http://127.0.0.1:18543");
+const RPC = process.env.BSB_RPC!;
 const DIR = arg("dir", join(tmpdir(), "bsb-watchtower"));
 mkdirSync(DIR, { recursive: true });
 const HEADERS = arg("headers", "");
-const NETWORK = arg("network", "regtest");
+const NETWORK = NET.name;
 const MIN_WORK = BigInt("0x" + arg("min-work", "0"));
 const RECEIPT_DEADLINE = Number(arg("receipt-deadline", String(DEADLINE + EPOCH)));
 const chain = HEADERS ? new HeaderChain(paramsFor(NETWORK)) : undefined;
@@ -61,22 +67,24 @@ async function height(): Promise<number> {
 /** The block hash at `h`: the seed of that boundary's challenges. */
 async function blockHash(h: number): Promise<string> {
   if (!chain) return rpc("getblockhash", [h], RPC);
-  for (let i = 0; i < 240 && (await height()) < h; i++) await sleep(250);
+  for (let i = 0; i < 240 && (await height()) < h; i++) await sleep(NET.canMine ? 250 : NET.pollMs);
   const x = chain.hashAt(h);
   if ((await height()) < h || !x) throw new Error(`header chain has not reached ${h}`);
   return x;
 }
 
-const key = keyFromSeed("nostr|bsb/watchtower");
+const key = keyFromSeed(`nostr|${partySeed(NET, DIR, "bsb/watchtower")}`);
 const log = (ev: Record<string, unknown>) => process.stdout.write(JSON.stringify({ t: Date.now(), watchtower: true, ...ev }) + "\n");
-const rc = await RelayClient.connect(RELAY);
+const rc = await RelayPool.connect(RELAYS, log);
 const seen = new Set<string>();             // `${provider}|${height}` that have a proof event
 const attested = new Set<string>();
 const validEpochs = new Set<string>();      // `${provider}|${height}` attested valid on the stored side
 let queue = Promise.resolve();
 
 async function attest(provider: string, height: number, result: string, extra: Record<string, unknown> = {}, side: "stored" | "paid" = "stored") {
-  const k = `${provider}|${height}|${side}`;
+  // Anyone can post a receipt, so an invalid one is attested per receipt and does not take the epoch's
+  // "paid" slot: a junk receipt published first cannot stop a valid one from counting.
+  const k = side === "paid" && result === "invalid" && extra.receiptEvent ? `${provider}|${height}|paid|${extra.receiptEvent}` : `${provider}|${height}|${side}`;
   if (attested.has(k)) return;
   attested.add(k);
   const ref = extra.proofEvent ?? extra.receiptEvent;
@@ -129,9 +137,12 @@ async function checkReceipt(e: NostrEvent) {
       if (PROVIDERS.includes(i.payee) && m) named.set(i.payee, [...(named.get(i.payee) ?? []), Number(m[1])]);
     }
   } catch { /* verifyReceipt reports it */ }
-  for (let i = 0; i < 120 && (await height()) < Number(r.block?.height); i++) await sleep(250);
+  // Anyone can post a receipt, so one claiming a block far beyond the tip is dropped rather than waited for.
+  const claimed = Number(r.block?.height);
+  if (!Number.isSafeInteger(claimed) || claimed > (await height()) + 6 + NET.confs) { log({ event: "receipt-dropped", id: e.id, why: `claims block ${r.block?.height}` }); return; }
+  for (let i = 0; i < (NET.canMine ? 120 : 4320) && (await height()) < claimed + NET.confs - 1; i++) await sleep(NET.canMine ? 250 : NET.pollMs);
   const t = process.hrtime.bigint();
-  const v = verifyReceipt(r, chain!, { network: NETWORK, minConf: 1 });
+  const v = verifyReceipt(r, chain!, { network: NETWORK, minConf: NET.confs });
   const verify_ms = Number(process.hrtime.bigint() - t) / 1e6;
   if (!v.ok || (await height()) < 0) {
     const why = v.ok ? "header chain below the work floor" : v.why;
@@ -157,7 +168,9 @@ if (chain) {
       await sleep(300);
     }
   })();
-  rc.subscribe([{ kinds: [KIND_PAYMENT_RECEIPT] }], (e) => { queue = queue.then(() => checkReceipt(e)); });
+  // Receipts wait for depth in a queue of their own, so they never hold up proof checks.
+  let receipts = Promise.resolve();
+  rc.subscribe([{ kinds: [KIND_PAYMENT_RECEIPT] }], (e) => { receipts = receipts.then(() => checkReceipt(e)).catch((err) => log({ event: "error", error: (err as Error).message })); });
 }
 
 // Missing proofs: a boundary that passed `deadline` blocks ago with no event from a provider. And, with
@@ -181,4 +194,4 @@ if (chain) {
 })();
 
 process.on("SIGTERM", () => { rc.close(); process.exit(0); });
-log({ ready: true, nostr: key.x, providers: PROVIDERS.length, from: FROM, epoch: EPOCH, deadline: DEADLINE, node: chain ? "none (header mirror)" : RPC });
+log({ ready: true, network: NETWORK, relays: rc.connected(), nostr: key.x, providers: PROVIDERS.length, from: FROM, epoch: EPOCH, deadline: DEADLINE, node: chain ? "none (header mirror)" : RPC });

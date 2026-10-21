@@ -2,6 +2,7 @@
 //
 //   scripts/regtest-node.sh <datadir> <bitcoind>      (another shell; RPC on 127.0.0.1:18543)
 //   node layer1/market.ts [--pay channel|ln] [--epochs 10] [--q 8] [--from 4] [--m 64] [--k 4] [--windows 16] [--out <file>]
+//                         [--network regtest|signet] [--confs N] [--relays <ws url,...>] [--bond-sats N] [--term 1500]
 //
 // This process is the client, with its own Nostr key, bond and channel key, and fee wallet. Four provider
 // processes (layer1/provider.ts) run beside it, each with its own keys and wallet. A Nostr relay carries
@@ -27,6 +28,11 @@
 //      provider's own node, and happen right after the last epoch; then every lnd stops (see below).
 //
 // The default payment is the one-way Bitcoin channel (layer1/channel.ts); --pay ln uses Lightning.
+//
+// Offers and deals go over Nostr (layer1/deals.ts). Off regtest (net.ts) nothing mines: every wait is for
+// real blocks, keys and nonces are fresh, each party's wallet must be funded by hand before setup goes on,
+// and bonds are --bond-sats (default 100,000). Enforcement then takes up to Δ = 144 blocks per sentinel,
+// about a day on signet; layer1/full-stack.ts is the run a signet pilot uses (docs/signet-pilot.md).
 
 import { spawn, type ChildProcess } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
@@ -38,14 +44,18 @@ import { fileURLToPath } from "node:url";
 import { keyFromSeed } from "../model/schnorr.ts";
 import { sentinelSurvival } from "../model/storage_bonds.ts";
 import { BondTool, rpc } from "./bondtool.ts";
+import { findOffers, proposeDeal, type ProviderOffer } from "./deals.ts";
+import { advance, confirm, partySeed, storageSecret, untilHeight, useNetwork, waitHeight } from "./net.ts";
 import { ChannelPayer } from "./channel.ts";
 import type { Payer } from "./lightning.ts";
 import { LndNode, LndPayer, lndExe } from "./lnd.ts";
 import { StorageClient, KIND_EPOCH_RECEIPT, checkReceipt, type BondSentinel, type EpochResult, type Offer, type Replica } from "./client.ts";
 import { nostrTransport } from "./nostr-pdp.ts";
-import { RelayClient, startRelay } from "./relay.ts";
+import { RelayPool, startRelay, type Relay } from "./relay.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
+const NET = useNetwork();
+const SLOW = !NET.canMine;
 const arg = (name: string, dflt: string) => { const i = process.argv.indexOf(`--${name}`); return i > 0 ? process.argv[i + 1] : dflt; };
 const EPOCHS = Number(arg("epochs", "10")), Q = Number(arg("q", "8")), FROM = Number(arg("from", "4"));
 const M = Number(arg("m", "64")), K = Number(arg("k", "4")), W = Number(arg("windows", "16"));
@@ -57,6 +67,7 @@ const OUT = arg("out", join(here, "..", "results", LN ? "market-ln.json" : "mark
 const PRICE = 2000;            // msat per chunk-epoch: 512 sats per epoch for a 1 MiB blob
 const CAPACITY = 50_000;       // sats per channel
 const DELTA = 144;
+const BOND_SATS = Number(arg("bond-sats", SLOW ? "100000" : "100000000")), TERM = Number(arg("term", "1500"));
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 function demoBlob(bytes = 1 << 20): Buffer {
@@ -81,15 +92,15 @@ const ROLES: Role[] = [
   { name: "outsources", slug: "outsources", kept: 0, misbehave: (rep, honest) => ({ kind: "outsource", sha: rep.sha256, from: { url: honest.offer.url, sha256: honest.sha256 } }) },
 ];
 
-interface Proc { child: ChildProcess; url: string; admin: string; bond_x: string; fee_address: string; pid: number; ln?: string; log: any[] }
+interface Proc { child: ChildProcess; url: string; admin: string; nostr: string; bond_x: string; fee_address: string; pid: number; ln?: string; log: any[] }
 
 async function startProviderProcess(role: Role, relayUrl: string, dir: string, token: string): Promise<Proc> {
-  const child = spawn(process.execPath, [join(here, "provider.ts"), "--name", role.slug, "--seed", `bsb/provider/${role.slug}`,
-    "--dir", join(dir, role.slug), "--relay", relayUrl, "--admin-token", token, "--price", String(PRICE), "--pay", PAY, ...(LN ? ["--lnd", LND] : [])],
+  const child = spawn(process.execPath, [join(here, "provider.ts"), "--name", role.slug, ...(SLOW ? ["--no-auto-refund", "--bond-max-sats", String(BOND_SATS)] : ["--seed", `bsb/provider/${role.slug}`]),
+    "--dir", join(dir, role.slug), "--relays", relayUrl, "--admin-token", token, "--price", String(PRICE), "--pay", PAY, ...(LN ? ["--lnd", LND] : [])],
     { stdio: ["ignore", "pipe", "inherit"] });
   const log: any[] = [];
   return new Promise((ok, bad) => {
-    const t = setTimeout(() => bad(new Error(`${role.slug} did not start`)), LN ? 120_000 : 20_000);
+    const t = setTimeout(() => bad(new Error(`${role.slug} did not start`)), SLOW ? 600_000 : LN ? 120_000 : 20_000);
     createInterface({ input: child.stdout! }).on("line", (line) => {
       let ev: any; try { ev = JSON.parse(line); } catch { return; }
       log.push(ev);
@@ -111,85 +122,87 @@ const post = async (url: string, body: unknown) => {
   if (r.status !== 200) throw new Error(`${url}: ${r.status} ${r.headers.get("x-reason") ?? ""}`);
   return r.json() as Promise<any>;
 };
-const mine = (n: number, addr: string) => rpc("generatetoaddress", [n, addr]);
+/** Regtest mines; elsewhere this waits for the blocks. */
+const mine = (n: number, addr: string) => advance(NET, n, addr, SLOW ? (h, want) => console.log(`  waiting for block ${want}; at ${h}`) : undefined);
 const tx = (txid: string) => rpc("getrawtransaction", [txid, true]);
 
 let height0: number;
 try { height0 = (await rpc("getblockchaininfo")).blocks; } catch (e) {
-  console.error(`No regtest node (${(e as Error).message}). Start one with scripts/regtest-node.sh <datadir> <bitcoind>.`);
+  console.error(`No ${NET.name} node (${(e as Error).message}). ${SLOW ? "See docs/signet-pilot.md." : "Start one with scripts/regtest-node.sh <datadir> <bitcoind>."}`);
   process.exit(1);
 }
 
 const dir = mkdtempSync(join(tmpdir(), "bsb-market-"));
 const token = randomBytes(16).toString("hex");
-const relay = await startRelay();
+const RELAY_URLS = RelayPool.parse(arg("relays", ""));
+const relay: Relay | undefined = RELAY_URLS.length ? undefined : await startRelay();
+const relayList = (RELAY_URLS.length ? RELAY_URLS : [relay!.url]).join(",");
 const procs: Proc[] = [];
 let clientLn: LndNode | undefined;
 let finished = false;
 try {
   // ── parties ──
-  const SEED = "bsb/client/market";
+  const SEED = partySeed(NET, join(dir, "client"), "bsb/client/market");
   const tool = new BondTool(SEED);
   const me = await tool.run("info");
   if (LN) {
     // Core reports initial block download until it sees a recent block, and lnd waits for that.
-    await mine(1, me.fee_address);
+    if (!SLOW) await mine(1, me.fee_address);
     const started = await Promise.all([
-      LndNode.start({ bin: LND, dir: join(dir, "client-lnd"), alias: "bsb-client" }),
-      ...ROLES.map((role) => startProviderProcess(role, relay.url, dir, token)),
+      LndNode.start({ bin: LND, dir: join(dir, "client-lnd"), alias: "bsb-client", network: NET.name, chanConfs: NET.confs }),
+      ...ROLES.map((role) => startProviderProcess(role, relayList, dir, token)),
     ]);
     clientLn = started[0] as LndNode;
     procs.push(...(started.slice(1) as Proc[]));
   } else {
-    for (const role of ROLES) procs.push(await startProviderProcess(role, relay.url, dir, token));
+    for (const role of ROLES) procs.push(await startProviderProcess(role, relayList, dir, token));
   }
   const nostrKey = keyFromSeed(`nostr|${SEED}`);
-  console.log(`regtest height ${height0}; relay ${relay.url}`);
+  console.log(`${NET.name} height ${height0}; relays ${relayList}`);
   console.log(`client (this process, pid ${process.pid}): bond key ${me.x.slice(0, 16)}…  wallet ${me.fee_address.slice(0, 20)}…`);
   if (clientLn) console.log(`client lnd (pid ${clientLn.child.pid}): node ${clientLn.pubkey.slice(0, 16)}…`);
   for (const [i, p] of procs.entries()) console.log(`provider ${ROLES[i].name.padEnd(12)} pid ${String(p.pid).padEnd(6)} ${p.url}  bond key ${p.bond_x.slice(0, 16)}…  wallet ${p.fee_address.slice(0, 20)}…${p.ln ? `  lnd ${p.ln.slice(0, 16)}…` : ""}`);
 
-  // Every party gets its own coins: two coinbases each, matured by 100 more blocks.
-  for (const p of procs) await mine(2, p.fee_address);
-  await mine(3, me.fee_address);
-  // With Lightning, the client's node gets its own coins: one coinbase per channel it will fund.
-  if (clientLn) await mine(ROLES.length, await clientLn.newAddress());
-  await mine(100, me.fee_address);
+  // Every party gets its own coins: two coinbases each, matured by 100 more blocks. Off regtest each
+  // wallet is funded by hand first (docs/signet-pilot.md).
+  if (!SLOW) {
+    for (const p of procs) await mine(2, p.fee_address);
+    await mine(3, me.fee_address);
+    // With Lightning, the client's node gets its own coins: one coinbase per channel it will fund.
+    if (clientLn) await mine(ROLES.length, await clientLn.newAddress());
+    await mine(100, me.fee_address);
+  }
   if (clientLn) await clientLn.waitSynced(await rpc("getblockcount"));
 
-  const rc = await RelayClient.connect(relay.url);
+  const rc = await RelayPool.connect(relayList.split(","));
+  const offers = await findOffers(rc, NET.name, procs.map((p) => p.nostr), SLOW ? 300_000 : 30_000);
   const chanPayer = clientLn ? undefined : new ChannelPayer(me.x, tool);
   const lnPayer = clientLn && new LndPayer(clientLn);
   const payer: Payer = lnPayer ?? chanPayer!;
   /** sats paid to a provider so far, by either backend. */
   const paidSats = (payee: string) => (lnPayer ? lnPayer.paidMsatTo(payee) / 1000 : chanPayer!.paidTo(payee));
+  // Seeded nonces make the regtest demo reproducible; anywhere else they are random.
   const client = new StorageClient({
-    key: nostrKey, secret: createHash("sha256").update("market client storage secret").digest(),
-    payer, relay: rc, nonceSeed: "market", transport: nostrTransport(rc, nostrKey),
+    key: nostrKey, secret: storageSecret(NET, SEED, "market client storage secret"),
+    payer, relay: rc, ...(SLOW ? {} : { nonceSeed: "market" }), transport: nostrTransport(rc, nostrKey),
   });
   const blob = demoBlob();
 
   // ── storage, bonds, channels ──
-  console.log(`\nsetup: 1 MiB blob, M = ${M} sentinels of ${W} windows, k = ${K}; 1 BTC bonds; ${CAPACITY}-sat ${LN ? "Lightning" : "payment"} channels`);
+  console.log(`\nsetup: 1 MiB blob, M = ${M} sentinels of ${W} windows, k = ${K}; ${BOND_SATS / 1e8} BTC bonds; ${CAPACITY}-sat ${LN ? "Lightning" : "payment"} channels`);
   const reps: Replica[] = [], kept: BondSentinel[][] = [], deals: string[] = [], chans: string[] = [], fundTx: string[] = [], chanTx: string[] = [];
-  const tEnd = (await rpc("getblockcount")) + 1500;
+  const tEnd = (await rpc("getblockcount")) + TERM;
   for (const [i, p] of procs.entries()) {
-    const info = (await (await fetch(`${p.url}/`)).json()) as { pubkey: string; bond_x: string; channel_payee: string; ln_uri?: string };
-    const offer: Offer = { url: p.url, pubkey: info.pubkey, lightningNodeId: info.channel_payee, priceMsatPerChunkEpoch: PRICE };
+    const o: ProviderOffer = offers.get(p.nostr)!;
+    if (o.terms.price_msat_per_chunk_epoch !== PRICE) throw new Error(`${ROLES[i].slug}: offers another price`);
+    const offer: Offer = o.offer;
+    const info = { bond_x: o.terms.bond.x, channel_payee: o.terms.pay.payee, ln_uri: o.terms.pay.ln_uri };
     const rep = await client.store(blob, offer, Q, "application/octet-stream", M, W);
     const ks = await client.bond(rep, K);
-    const f = await post(`${p.url}/bond/${rep.sha256}/fund`, { client_x: me.x, t_end: tEnd });
-    // The provider wrote the deal from its own records; it must match ours exactly.
-    const want = ks.map((s) => ({ s: s.s, h: s.h, hs: s.hs }));
-    if (JSON.stringify(f.deal.sentinels) !== JSON.stringify(want) || f.deal.client_x !== me.x || f.deal.provider_x !== info.bond_x || f.deal.t_end !== tEnd) {
-      throw new Error(`${ROLES[i].slug}: the provider's deal differs from ours`);
-    }
+    // The deal over Nostr: the provider builds it from its own records, funds the bond and presigns;
+    // proposeDeal checks it matches ours, waits for the bond's depth, checks it on chain and seals.
     const dealPath = join(dir, `client-deal-${ROLES[i].slug}.json`);
-    writeFileSync(dealPath, JSON.stringify(f.deal, null, 2));
-    writeFileSync(dealPath.replace(".json", ".p.json"), JSON.stringify({ fund_txid: f.fund_txid, sig_p_challenge: f.sig_p_challenge }));
-    await mine(1, me.fee_address);
-    const c = await tool.run("bond-presign", dealPath);   // checks the bond on chain and every provider signature
-    await post(`${p.url}/bond/${rep.sha256}/presigs`, { sig_c_respond: c.sig_c_respond });
+    const d = await proposeDeal({ relays: rc, key: nostrKey, net: NET, offer: o, rep, kept: ks, tEnd, bondSats: BOND_SATS, clientX: me.x, tool, dealPath, minerAddr: me.fee_address, timeoutMs: SLOW ? 1_800_000 : 120_000 });
     let chanTxid: string;
     if (clientLn) {
       // A private Lightning channel from the client's node to this provider's node, which then checks
@@ -203,19 +216,20 @@ try {
         try { point = await clientLn.openChannel(info.channel_payee, CAPACITY); }
         catch (e) { if (tries > 40 || !/sync/i.test((e as Error).message)) throw e; await sleep(250); }
       }
-      await mine(1, me.fee_address);
-      await clientLn.waitActive(point);
+      if (SLOW) await confirm(NET, point.split(":")[0], me.fee_address);
+      else await mine(1, me.fee_address);
+      await clientLn.waitActive(point, SLOW ? 3_600_000 : 60_000);
       await post(`${p.url}/channel/open`, { channel_point: point, client_pubkey: clientLn.pubkey });
       chans.push(point); chanTxid = point.split(":")[0];
     } else {
       const chanPath = join(dir, `client-chan-${ROLES[i].slug}.json`);
       const ch = await chanPayer!.open(chanPath, { provider_x: info.bond_x, client_x: me.x, capacity_sats: CAPACITY, t_refund: tEnd + 1000 });
-      await mine(1, me.fee_address);
+      await confirm(NET, ch.funding_txid!, me.fee_address);
       await post(`${p.url}/channel/open`, ch);
       chans.push(chanPath); chanTxid = ch.funding_txid!;
     }
-    reps.push(rep); kept.push(ks); deals.push(dealPath); fundTx.push(f.fund_txid); chanTx.push(chanTxid);
-    console.log(`  ${ROLES[i].name.padEnd(12)} replica ${rep.sha256.slice(0, 12)}…  kept [${ks.map((s) => s.j).join(", ")}]  bond ${f.fund_txid.slice(0, 12)}… (${c.checked.provider_signatures} signatures checked)  ${LN ? "ln " : ""}channel ${chanTxid.slice(0, 12)}…`);
+    reps.push(rep); kept.push(ks); deals.push(dealPath); fundTx.push(d.fund_txid); chanTx.push(chanTxid);
+    console.log(`  ${ROLES[i].name.padEnd(12)} replica ${rep.sha256.slice(0, 12)}…  kept [${ks.map((s) => s.j).join(", ")}]  bond ${d.fund_txid.slice(0, 12)}… (${d.checked.provider_signatures} signatures checked)  ${LN ? "ln " : ""}channel ${chanTxid.slice(0, 12)}…`);
   }
 
   // ── epochs: NIP-44 challenges, channel payments ──
@@ -258,12 +272,22 @@ try {
     for (let j = 0; j < n && !forfeit; j++) {
       const c = await tool.run("bond-challenge", deals[i], String(j), kept[i][j].r);
       await mine(1, me.fee_address);
-      let answeredAt = -1;
+      let answeredAt = -1, dropped: number | undefined;
       for (let b = 1; b < DELTA; b++) {
-        await sleep(150);
+        await sleep(SLOW ? 1000 : 150);
         const st = await tool.run("bond-status", deals[i]);
         if ((st.states[j].respond ?? 0) >= 1) { answeredAt = b; break; }
-        await mine(1, me.fee_address);
+        if (!SLOW) { await mine(1, me.fee_address); continue; }
+        // Off regtest: wait for blocks, and count them from the challenge's own confirmations. A challenge
+        // a reorg dropped is sent again; if that keeps failing, its input is gone and there is nothing to
+        // enforce.
+        if (st.states[j].challenge === null) {
+          const again = await tool.run("bond-challenge", deals[i], String(j), kept[i][j].r).then(() => true, () => false);
+          if (!again && (dropped = (dropped ?? 0) + 1) >= 3) { console.log(`  ${role.name.padEnd(12)} challenge ${j} cannot be sent again; stopping`); break; }
+        }
+        if ((st.states[j].challenge ?? 0) >= DELTA) break;
+        b = Math.max(1, st.states[j].challenge ?? 1);
+        await waitHeight(NET, st.height + 1);
       }
       if (answeredAt < 0) {
         try { forfeit = (await tool.run("bond-forfeit", deals[i], String(j))).txid; }
@@ -287,8 +311,7 @@ try {
     if (!LN) await mine(1, me.fee_address);
     let refund: string | null = null;
     if (!enforcement[i].forfeit) {
-      const h = await rpc("getblockcount");
-      if (h < tEnd) await mine(tEnd - h, me.fee_address);
+      await untilHeight(NET, tEnd, me.fee_address);
       refund = (await admin(p, token, "/admin/refund", { sha: reps[i].sha256 })).txid;
       await mine(1, me.fee_address);
     }
@@ -342,11 +365,11 @@ try {
       ? "Every party is a separate process with its own keys and wallet, and its own lnd. Payments are BOLT 11 invoices paid over a private Lightning channel from the client's node to each provider's node. Nonces are seeded."
       : "Every party is a separate process with its own keys and wallet. Payments are a one-way Bitcoin payment channel per provider, not Lightning. Nonces are seeded.",
     params: { pay: PAY, epochs: EPOCHS, q: Q, misbehaviourFrom: FROM, m: M, k: K, windows: W, bondBtc: 1, delta: DELTA, priceMsatPerChunkEpoch: PRICE, channelSats: CAPACITY, blobBytes: blob.length },
-    regtest: { heightBefore: height0, heightAfter: height1 },
+    [NET.name]: { heightBefore: height0, heightAfter: height1 },
     summary,
     receipts: { onRelay: receipts.length, paidWithPreimage: checked.filter((c) => c.ok && c.paid).length },
   }, null, 2) + "\n");
-  console.log(`regtest height ${height0} → ${height1}; wrote ${OUT}`);
+  console.log(`${NET.name} height ${height0} → ${height1}; wrote ${OUT}`);
   finished = true;
 } finally {
   // Ask each provider to stop (and stop its lnd) before killing it: on Windows kill() skips its handlers.
@@ -355,8 +378,8 @@ try {
   for (let i = 0; i < 40 && procs.some((p) => p.child.exitCode === null); i++) await sleep(250);
   for (const p of procs) p.child.kill("SIGTERM");
   await sleep(300);
-  await relay.close();
+  await relay?.close();
   // A failed run keeps its directory: every lnd log and provider file is in it.
-  if (finished) rmSync(dir, { recursive: true, force: true });
+  if (finished && !SLOW) rmSync(dir, { recursive: true, force: true });
   else console.error(`run failed; kept ${dir}`);
 }

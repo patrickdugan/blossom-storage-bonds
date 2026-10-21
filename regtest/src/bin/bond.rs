@@ -8,9 +8,14 @@
 //!
 //!   info                                   this party's x-only key and fee address
 //!   bond-fund      <deal>          provider  fund Bond_0, presign every Challenge_i  → <deal>.p.json
-//!   bond-presign   <deal>          client    check the bond on chain and the provider's signatures,
-//!                                            presign every Respond_i                 → <deal>.c.json
+//!   bond-presign   <deal>          client    check the bond on chain (and any provider signatures
+//!                                            already in <deal>.p.json), presign every Respond_i → <deal>.c.json
 //!   bond-accept    <deal>          provider  check the client's Respond_i signatures
+//!   bond-check     <deal>          client    check the provider's Challenge_i signatures
+//!
+//! Order matters: the provider hands over its Challenge_i signatures only after it holds and has
+//! checked the client's Respond_i signatures (layer1/deals.ts). Otherwise a client could take the first,
+//! never send the second, and challenge a bond the provider has no way to answer.
 //!   bond-challenge <deal> <i> <r>  client    cosign Challenge_i, revealing r_i
 //!   bond-respond   <deal> <i>      provider  if Challenge_i is on chain, read r_i from it, ask the
 //!                                            provider's own server for the windows, submit Respond_i
@@ -22,11 +27,21 @@
 //!   chan-sign      <chan> <paid>   client    sign the state that pays the provider <paid> sats in total
 //!   chan-verify    <chan> <paid> <sig>  provider  check such a signature
 //!   chan-close     <chan> <paid> <sig>  provider  countersign the latest state and broadcast it
+//!   fee-split      <n> <sats>      either    split the largest fee UTXO into n outputs of <sats>, so
+//!                                            spends in one block interval do not wait on each other
 //!
 //! The channel is a Spilman-style one-way channel. One output pays to a 2-of-2 leaf, and the client can
 //! refund it alone after `t_refund`. Each payment is a new client-signed state paying the provider more.
 //! The provider keeps the latest and closes before `t_refund`. Results print as one JSON line; an error
-//! prints {"error": ...} and exits 1. Test keys only: never point this at a real network.
+//! prints {"error": ...} and exits 1.
+//!
+//! Networks (common.rs NetCfg): BSB_NETWORK is regtest (the default) or signet; mainnet is refused. On
+//! regtest everything is as in phases 1 to 6: fixed fees, one confirmation, the fixed RPC test
+//! credentials, and any label as BSB_SEED. On signet BSB_SEED must be 32 fresh random bytes in hex, RPC
+//! needs BSB_RPC_COOKIE or BSB_RPC_USER/BSB_RPC_PASS (default URL 127.0.0.1:38332), the node needs
+//! txindex, a bond or channel is relied on only after BSB_CONFS confirmations (default 3), and fees come
+//! from estimatesmartfee (or BSB_FEE_RATE). A deal or channel file may name its own bond_sats or
+//! close_fee_sats; without them they are 1 BTC and 1,000 sats as before. Test coins only, never funds.
 
 #[path = "../common.rs"]
 mod common;
@@ -37,8 +52,7 @@ use bitcoin::script::Builder;
 use bitcoin::secp256k1::{All, Secp256k1};
 use bitcoin::taproot::LeafVersion;
 use bitcoin::transaction::Version;
-use bitcoin::{Address, Amount, Network, OutPoint, ScriptBuf, Sequence, Transaction, TxOut, Txid, XOnlyPublicKey};
-use common::rpc::Rpc;
+use bitcoin::{Address, Amount, Network, OutPoint, ScriptBuf, Sequence, Transaction, TxOut, Txid, Witness, XOnlyPublicKey};
 use common::*;
 use serde_json::{json, Value};
 
@@ -62,6 +76,7 @@ fn hex(b: &[u8]) -> String {
 fn xonly(v: &Value) -> XOnlyPublicKey {
     XOnlyPublicKey::from_slice(&unhex(v.as_str().unwrap_or_else(|| die("missing key")))).unwrap_or_else(|e| die(e))
 }
+/// The script is the same on every network; only an address string carries one.
 fn spk_of(secp: &Secp256k1<All>, x: &XOnlyPublicKey) -> ScriptBuf {
     Address::p2tr(secp, *x, None, Network::Regtest).script_pubkey()
 }
@@ -81,12 +96,15 @@ struct Deal {
     p: XOnlyPublicKey,
     c: XOnlyPublicKey,
     t_end: u32,
+    bond: Amount,
     sh: Vec<([u8; 32], Vec<[u8; 32]>)>,
 }
 
 fn load_deal(path: &str) -> Deal {
     let v = read_json(path);
     let sens = v["sentinels"].as_array().unwrap_or_else(|| die("deal: sentinels"));
+    let bond = v.get("bond_sats").map_or(BOND, |b| Amount::from_sat(b.as_u64().unwrap_or_else(|| die("deal: bond_sats"))));
+    if bond.to_sat() < 10_000 { die("deal: bond_sats below 10,000"); }
     Deal {
         path: path.to_string(),
         url: v["provider_url"].as_str().unwrap_or_else(|| die("deal: provider_url")).to_string(),
@@ -94,6 +112,7 @@ fn load_deal(path: &str) -> Deal {
         p: xonly(&v["provider_x"]),
         c: xonly(&v["client_x"]),
         t_end: v["t_end"].as_u64().unwrap_or_else(|| die("deal: t_end")) as u32,
+        bond,
         sh: sens
             .iter()
             .map(|s| {
@@ -118,7 +137,7 @@ struct Bond {
 
 /// The deal's chain plus whatever presignatures exist so far (<deal>.p.json, <deal>.c.json).
 fn load_bond(secp: &Secp256k1<All>, d: &Deal) -> Bond {
-    let ch = build_chain(secp, nums(), &d.p, &d.c, &d.sh, d.t_end);
+    let ch = build_chain(secp, nums(), &d.p, &d.c, &d.sh, d.t_end).with_bond(d.bond);
     let p = read_json(&d.path.replace(".json", ".p.json"));
     let fund_op = OutPoint { txid: p["fund_txid"].as_str().unwrap_or_else(|| die("no fund_txid")).parse().unwrap(), vout: 0 };
     let (challenge, respond) = chain_txs(&ch, fund_op);
@@ -129,16 +148,34 @@ fn load_bond(secp: &Secp256k1<All>, d: &Deal) -> Bond {
 }
 
 fn bond_prev(b: &Bond, i: usize) -> TxOut {
-    TxOut { value: BOND, script_pubkey: b.ch.bonds[i].spk.clone() }
+    TxOut { value: b.ch.bond, script_pubkey: b.ch.bonds[i].spk.clone() }
 }
 fn challenged_prev(b: &Bond, i: usize) -> TxOut {
-    TxOut { value: BOND, script_pubkey: b.ch.challenged[i].spk.clone() }
+    TxOut { value: b.ch.bond, script_pubkey: b.ch.challenged[i].spk.clone() }
 }
 
-/// The provider's agent asks its own Blossom server for r ‖ window, one item per window.
+/// A forfeit or refund: the whole state to `to` less the fee, signed through `leaf`. The witness is a
+/// 64-byte signature, the leaf and its control block, so the vsize is known before signing.
+fn settle(node: &Node, me: &Party, mut tx: Transaction, prev: &TxOut, leaf: &ScriptBuf, ctrl: Vec<u8>) -> Transaction {
+    let vsize = with_witness(tx.clone(), vec![vec![0; 64], leaf.to_bytes(), ctrl.clone()]).vsize();
+    let fee = node.close_fee(vsize);
+    if prev.value < fee + Amount::from_sat(DUST) { die(format!("fee {fee} leaves nothing of {}", prev.value)); }
+    tx.output[0].value = prev.value - fee;
+    let sig = script_sig(&node.secp, &tx, prev, leaf, me);
+    with_witness(tx, vec![sig, leaf.to_bytes(), ctrl])
+}
+
+/// Off regtest, an output the other side created is relied on only this deep.
+fn deep_enough(node: &Node, utxo: &Value, what: &str) {
+    let c = utxo["confirmations"].as_u64().unwrap_or(0);
+    if c < node.net.confs as u64 { die(format!("{what} has {c} confirmation(s); waiting for {}", node.net.confs)); }
+}
+
+/// The provider's agent asks its own Blossom server for r ‖ window, one item per window. Its own copy of
+/// the deal names the server's loopback address, not the public one (provider.ts).
 fn ask_provider(d: &Deal, r: &[u8], m: usize) -> Result<Vec<Vec<u8>>, String> {
     let url = format!("{}/sentinel/{}?r={}&m={m}", d.url, d.sha, hex(r));
-    match ureq::get(&url).call() {
+    match ureq::AgentBuilder::new().timeout(std::time::Duration::from_secs(60)).build().get(&url).call() {
         Ok(resp) => {
             let v: Value = resp.into_json().map_err(|e| e.to_string())?;
             let items = v["items"].as_array().ok_or("no items")?;
@@ -157,6 +194,8 @@ struct Chan {
     c: XOnlyPublicKey,
     capacity: Amount,
     t_refund: u32,
+    /// Both sides sign states with this fee, so it is fixed in the channel file (default CHAN_FEE).
+    close_fee: Amount,
     st: State,
     coop: ScriptBuf,
 }
@@ -170,7 +209,8 @@ fn load_chan(secp: &Secp256k1<All>, path: &str) -> (Chan, Value) {
     let refund = Builder::new().push_int(t_refund as i64).push_opcode(OP_CLTV).push_opcode(OP_DROP).push_x_only_key(&c).push_opcode(OP_CHECKSIG).into_script();
     let st = state(secp, nums(), &[&coop, &refund]);
     let capacity = Amount::from_sat(v["capacity_sats"].as_u64().unwrap_or_else(|| die("channel: capacity_sats")));
-    (Chan { path: path.to_string(), p, c, capacity, t_refund, st, coop }, v)
+    let close_fee = v.get("close_fee_sats").map_or(CHAN_FEE, |f| Amount::from_sat(f.as_u64().unwrap_or_else(|| die("channel: close_fee_sats"))));
+    (Chan { path: path.to_string(), p, c, capacity, t_refund, close_fee, st, coop }, v)
 }
 
 fn funding(v: &Value) -> OutPoint {
@@ -182,7 +222,7 @@ fn funding(v: &Value) -> OutPoint {
 
 /// The state paying the provider `paid` sats in total; the client's change carries the fee.
 fn chan_state(secp: &Secp256k1<All>, ch: &Chan, op: OutPoint, paid: u64) -> Transaction {
-    if paid < DUST || paid + CHAN_FEE.to_sat() + DUST > ch.capacity.to_sat() {
+    if paid < DUST || paid + ch.close_fee.to_sat() + DUST > ch.capacity.to_sat() {
         die(format!("paid {paid} sats is outside {DUST}..capacity minus fee and dust"));
     }
     Transaction {
@@ -191,7 +231,7 @@ fn chan_state(secp: &Secp256k1<All>, ch: &Chan, op: OutPoint, paid: u64) -> Tran
         input: vec![txin(op, Sequence::ENABLE_RBF_NO_LOCKTIME)],
         output: vec![
             TxOut { value: Amount::from_sat(paid), script_pubkey: spk_of(secp, &ch.p) },
-            TxOut { value: ch.capacity - Amount::from_sat(paid) - CHAN_FEE, script_pubkey: spk_of(secp, &ch.c) },
+            TxOut { value: ch.capacity - Amount::from_sat(paid) - ch.close_fee, script_pubkey: spk_of(secp, &ch.c) },
         ],
     }
 }
@@ -203,32 +243,47 @@ fn index(s: &str) -> usize {
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     let arg = |i: usize| -> String { args.get(i).cloned().unwrap_or_else(|| die(format!("missing argument {i}"))) };
+    let env = |k: &str| std::env::var(k).ok().filter(|v| !v.is_empty());
+    let net = NetCfg::from_env(env).unwrap_or_else(|e| die(e));
     let seed = std::env::var("BSB_SEED").unwrap_or_else(|_| die("BSB_SEED is not set"));
-    let url = std::env::var("BSB_RPC").unwrap_or_else(|_| "http://127.0.0.1:18543".into());
+    check_seed(&net, &seed).unwrap_or_else(|e| die(e));
+    let rpc = rpc_from_env(&net, env).unwrap_or_else(|e| die(e));
     let secp = Secp256k1::new();
     let me = party(&secp, &seed);
     let fee = party(&secp, &format!("bsb/fee|{seed}"));
-    let fee_addr = Address::p2tr(&secp, fee.x, None, Network::Regtest);
-    let node = Node { rpc: Rpc::new(&url, "bsb", "bsb-regtest-only"), secp, fee, fee_addr };
+    let fee_addr = Address::p2tr(&secp, fee.x, None, net.network);
+    let node = Node { rpc, secp, fee, fee_addr, net };
     let secp = &node.secp;
     let chain = node.rpc.call("getblockchaininfo", json!([])).unwrap_or_else(|e| die(format!("bitcoind: {e}")));
-    if chain["chain"] != "regtest" {
-        die("refusing to run anywhere but regtest");
+    if chain["chain"] != node.net.core_chain() {
+        die(format!("BSB_NETWORK is {} but the node is on {}; refusing", node.net.core_chain(), chain["chain"]));
+    }
+    if node.net.network != Network::Regtest {
+        // bond-respond and bond-status look transactions up by txid.
+        let idx = node.rpc.call("getindexinfo", json!(["txindex"])).unwrap_or(Value::Null);
+        if idx["txindex"].is_null() { die("the node needs txindex=1"); }
     }
     let out = match args.get(1).map(String::as_str) {
-        Some("info") => json!({ "x": me.x.to_string(), "fee_address": node.fee_addr.to_string() }),
+        Some("info") => json!({
+            "x": me.x.to_string(), "fee_address": node.fee_addr.to_string(), "network": node.net.core_chain(),
+            "confs": node.net.confs, "fee_rate": node.fee_rate(),
+        }),
 
         Some("bond-fund") => {
             let d = load_deal(&arg(2));
             if d.p != me.x { die("this key is not the deal's provider"); }
-            let ch = build_chain(secp, nums(), &d.p, &d.c, &d.sh, d.t_end);
-            let fund = node.fund(&ch.bonds[0].spk);
+            let ch = build_chain(secp, nums(), &d.p, &d.c, &d.sh, d.t_end).with_bond(d.bond);
+            let fund = node.fund_value(&ch.bonds[0].spk, d.bond);
             node.send(&fund).unwrap_or_else(|e| die(format!("fund: {e}")));
             let (challenge, _) = chain_txs(&ch, OutPoint { txid: fund.compute_txid(), vout: 0 });
             let sigs: Vec<String> = (0..challenge.len())
-                .map(|i| hex(&script_sig(secp, &challenge[i], &TxOut { value: BOND, script_pubkey: ch.bonds[i].spk.clone() }, &ch.challenge_leaves[i], &me)))
+                .map(|i| hex(&script_sig(secp, &challenge[i], &TxOut { value: d.bond, script_pubkey: ch.bonds[i].spk.clone() }, &ch.challenge_leaves[i], &me)))
                 .collect();
-            let v = json!({ "fund_txid": fund.compute_txid().to_string(), "fund_vsize": fund.vsize(), "bond_sats": BOND.to_sat(), "sig_p_challenge": sigs });
+            let merkle = ch.bonds[0].spend.merkle_root().map(|m| m.to_string());
+            let v = json!({
+                "fund_txid": fund.compute_txid().to_string(), "fund_vout": 0, "fund_vsize": fund.vsize(), "bond_sats": d.bond.to_sat(),
+                "bond0_spk": hex(ch.bonds[0].spk.as_bytes()), "bond0_merkle_root": merkle, "sig_p_challenge": sigs,
+            });
             write_json(&d.path.replace(".json", ".p.json"), &v);
             v
         }
@@ -241,18 +296,32 @@ fn main() {
             let utxo = node.rpc.call("gettxout", json!([b.fund_op.txid.to_string(), b.fund_op.vout, false])).unwrap_or(Value::Null);
             if utxo.is_null() { die("bond output is not confirmed and unspent"); }
             if utxo["scriptPubKey"]["hex"].as_str() != Some(hex(b.ch.bonds[0].spk.as_bytes()).as_str()) { die("bond output pays the wrong script"); }
-            if sats(&utxo["value"]) != BOND.to_sat() { die("bond output has the wrong value"); }
-            for i in 0..b.challenge.len() {
-                if b.sig_p.len() <= i || !verify_script_sig(secp, &b.challenge[i], &bond_prev(&b, i), &b.ch.challenge_leaves[i], &d.p, &b.sig_p[i]) {
+            if sats(&utxo["value"]) != d.bond.to_sat() { die("bond output has the wrong value"); }
+            deep_enough(&node, &utxo, "the bond output");
+            // The provider's signatures come after this step (see the header); any already here are checked.
+            for i in 0..b.sig_p.len().min(b.challenge.len()) {
+                if !verify_script_sig(secp, &b.challenge[i], &bond_prev(&b, i), &b.ch.challenge_leaves[i], &d.p, &b.sig_p[i]) {
                     die(format!("provider's signature on Challenge_{i} does not verify"));
                 }
             }
             let sigs: Vec<String> = (0..b.respond.len())
                 .map(|i| hex(&script_sig(secp, &b.respond[i], &challenged_prev(&b, i), &b.ch.respond_leaves[i], &me)))
                 .collect();
-            let v = json!({ "sig_c_respond": sigs, "checked": { "bond_confirmations": utxo["confirmations"], "provider_signatures": b.challenge.len() } });
+            let v = json!({ "sig_c_respond": sigs, "checked": { "bond_confirmations": utxo["confirmations"], "provider_signatures": b.sig_p.len().min(b.challenge.len()) } });
             write_json(&d.path.replace(".json", ".c.json"), &v);
             v
+        }
+
+        Some("bond-check") => {
+            let d = load_deal(&arg(2));
+            if d.c != me.x { die("this key is not the deal's client"); }
+            let b = load_bond(secp, &d);
+            for i in 0..b.challenge.len() {
+                if b.sig_p.len() <= i || !verify_script_sig(secp, &b.challenge[i], &bond_prev(&b, i), &b.ch.challenge_leaves[i], &d.p, &b.sig_p[i]) {
+                    die(format!("provider's signature on Challenge_{i} does not verify"));
+                }
+            }
+            json!({ "ok": true, "provider_signatures": b.challenge.len() })
         }
 
         Some("bond-accept") => {
@@ -275,6 +344,7 @@ fn main() {
             let r = unhex(&arg(4));
             let b = load_bond(secp, &d);
             if i >= b.challenge.len() { die("no such sentinel"); }
+            if b.sig_p.len() <= i { die("no provider signature on this Challenge_i yet"); }
             let sig_c = script_sig(secp, &b.challenge[i], &bond_prev(&b, i), &b.ch.challenge_leaves[i], &me);
             let tx = with_witness(b.challenge[i].clone(), vec![r, b.sig_p[i].clone(), sig_c, b.ch.challenge_leaves[i].to_bytes(), control(&b.ch.bonds[i], &b.ch.challenge_leaves[i])]);
             node.submit_package(&tx).unwrap_or_else(|e| die(format!("challenge: {e}")));
@@ -287,8 +357,10 @@ fn main() {
             let i = index(&arg(3));
             let b = load_bond(secp, &d);
             if i >= b.challenge.len() { die("no such sentinel"); }
-            if confirmations(&node, &b.respond[i].compute_txid()).is_some() {
-                json!({ "status": "already" })
+            if let Some(c) = confirmations(&node, &b.respond[i].compute_txid()) {
+                // Off regtest the provider waits for depth before it stops watching this sentinel: a
+                // reorg can drop the answer, and asking again then sends it again.
+                json!({ "status": "already", "confirmations": c })
             } else {
                 match confirmations(&node, &b.challenge[i].compute_txid()) {
                     None | Some(0) => json!({ "status": "idle" }),
@@ -319,16 +391,16 @@ fn main() {
             if d.c != me.x { die("this key is not the deal's client"); }
             let i = index(&arg(3));
             let b = load_bond(secp, &d);
-            let mut tx = Transaction {
+            if i >= b.challenge.len() { die("no such sentinel"); }
+            let tx = Transaction {
                 version: Version(2),
                 lock_time: LockTime::ZERO,
                 input: vec![txin(OutPoint { txid: b.challenge[i].compute_txid(), vout: 0 }, Sequence::from_height(DELTA))],
-                output: vec![TxOut { value: BOND - CLOSE_FEE, script_pubkey: spk_of(secp, &me.x) }],
+                output: vec![TxOut { value: Amount::ZERO, script_pubkey: spk_of(secp, &me.x) }],
             };
-            let sig = script_sig(secp, &tx, &challenged_prev(&b, i), &b.ch.forfeit, &me);
-            tx = with_witness(tx, vec![sig, b.ch.forfeit.to_bytes(), control(&b.ch.challenged[i], &b.ch.forfeit)]);
+            let tx = settle(&node, &me, tx, &challenged_prev(&b, i), &b.ch.forfeit, control(&b.ch.challenged[i], &b.ch.forfeit));
             node.send(&tx).unwrap_or_else(|e| die(format!("forfeit: {e}")));
-            json!({ "txid": tx.compute_txid().to_string(), "vsize": tx.vsize() })
+            json!({ "txid": tx.compute_txid().to_string(), "vsize": tx.vsize(), "fee_sats": (d.bond - tx.output[0].value).to_sat() })
         }
 
         Some("bond-refund") => {
@@ -336,17 +408,17 @@ fn main() {
             if d.p != me.x { die("this key is not the deal's provider"); }
             let i = index(&arg(3));
             let b = load_bond(secp, &d);
+            if i > b.challenge.len() { die("no such state"); }
             let op = if i == 0 { b.fund_op } else { OutPoint { txid: b.respond[i - 1].compute_txid(), vout: 0 } };
-            let mut tx = Transaction {
+            let tx = Transaction {
                 version: Version(2),
                 lock_time: LockTime::from_height(d.t_end).unwrap(),
                 input: vec![txin(op, Sequence::ENABLE_LOCKTIME_NO_RBF)],
-                output: vec![TxOut { value: BOND - CLOSE_FEE, script_pubkey: spk_of(secp, &me.x) }],
+                output: vec![TxOut { value: Amount::ZERO, script_pubkey: spk_of(secp, &me.x) }],
             };
-            let sig = script_sig(secp, &tx, &bond_prev(&b, i), &b.ch.refund, &me);
-            tx = with_witness(tx, vec![sig, b.ch.refund.to_bytes(), control(&b.ch.bonds[i], &b.ch.refund)]);
+            let tx = settle(&node, &me, tx, &bond_prev(&b, i), &b.ch.refund, control(&b.ch.bonds[i], &b.ch.refund));
             node.send(&tx).unwrap_or_else(|e| die(format!("refund: {e}")));
-            json!({ "txid": tx.compute_txid().to_string(), "vsize": tx.vsize() })
+            json!({ "txid": tx.compute_txid().to_string(), "vsize": tx.vsize(), "fee_sats": (d.bond - tx.output[0].value).to_sat() })
         }
 
         Some("bond-status") => {
@@ -369,7 +441,7 @@ fn main() {
             let (ch, mut v) = load_chan(secp, &path);
             if ch.c != me.x { die("this key is not the channel's client"); }
             let (op, prev) = node.fee_utxo();
-            let fee = Amount::from_sat(FEERATE * 154);
+            let fee = Amount::from_sat(node.fee_rate() * 154);
             let mut tx = Transaction {
                 version: Version(2),
                 lock_time: LockTime::ZERO,
@@ -383,7 +455,7 @@ fn main() {
             node.send(&tx).unwrap_or_else(|e| die(format!("channel open: {e}")));
             v["funding_txid"] = json!(tx.compute_txid().to_string());
             v["funding_vout"] = json!(0);
-            v["address"] = json!(Address::from_script(&ch.st.spk, Network::Regtest).unwrap().to_string());
+            v["address"] = json!(Address::from_script(&ch.st.spk, node.net.network).unwrap().to_string());
             write_json(&ch.path, &v);
             v
         }
@@ -396,6 +468,7 @@ fn main() {
             if utxo.is_null() { die("channel funding is not confirmed and unspent"); }
             if utxo["scriptPubKey"]["hex"].as_str() != Some(hex(ch.st.spk.as_bytes()).as_str()) { die("channel funding pays the wrong script"); }
             if sats(&utxo["value"]) != ch.capacity.to_sat() { die("channel funding has the wrong value"); }
+            deep_enough(&node, &utxo, "the channel funding");
             if node.rpc.height() + 144 > ch.t_refund { die("channel refund is too close"); }
             json!({ "ok": true, "confirmations": utxo["confirmations"], "capacity_sats": ch.capacity.to_sat(), "t_refund": ch.t_refund })
         }
@@ -424,8 +497,31 @@ fn main() {
                 let ctrl = ch.st.spend.control_block(&(ch.coop.clone(), LeafVersion::TapScript)).unwrap().serialize();
                 let tx = with_witness(tx, vec![sig_p, sig_c, ch.coop.to_bytes(), ctrl]);
                 node.send(&tx).unwrap_or_else(|e| die(format!("close: {e}")));
-                json!({ "txid": tx.compute_txid().to_string(), "vsize": tx.vsize(), "paid": paid, "change": (ch.capacity - Amount::from_sat(paid) - CHAN_FEE).to_sat() })
+                json!({ "txid": tx.compute_txid().to_string(), "vsize": tx.vsize(), "paid": paid, "change": (ch.capacity - Amount::from_sat(paid) - ch.close_fee).to_sat() })
             }
+        }
+
+        Some("fee-split") => {
+            let n: usize = arg(2).parse().unwrap_or_else(|_| die("n"));
+            let each = Amount::from_sat(arg(3).parse().unwrap_or_else(|_| die("sats")));
+            // A coin pays one CPFP child (about 340 vB for a challenge) and gets its change back.
+            if !(2..=50).contains(&n) || each.to_sat() < 2_000 { die("fee-split wants 2..50 outputs of at least 2,000 sats"); }
+            let (op, prev) = node.fee_utxo();
+            let mut tx = Transaction {
+                version: Version(2),
+                lock_time: LockTime::ZERO,
+                input: vec![txin(op, Sequence::ENABLE_RBF_NO_LOCKTIME)],
+                output: (0..=n).map(|_| TxOut { value: each, script_pubkey: node.fee_addr.script_pubkey() }).collect(),
+            };
+            let mut probe = tx.clone();
+            probe.input[0].witness = Witness::from_slice(&[vec![0u8; 64]]);
+            let fee = Amount::from_sat(node.fee_rate() * probe.vsize() as u64);
+            let used = each * n as u64 + fee;
+            if prev.value < used + Amount::from_sat(DUST) { die(format!("the largest fee UTXO ({}) cannot cover {n} x {each} plus fee", prev.value)); }
+            tx.output[n].value = prev.value - used;   // the last output is the change
+            node.sign_fee_input(&mut tx, 0, &[prev]);
+            node.send(&tx).unwrap_or_else(|e| die(format!("fee-split: {e}")));
+            json!({ "txid": tx.compute_txid().to_string(), "vsize": tx.vsize(), "outputs": n + 1, "fee_sats": fee.to_sat() })
         }
 
         _ => die("usage: see the header of regtest/src/bin/bond.rs"),

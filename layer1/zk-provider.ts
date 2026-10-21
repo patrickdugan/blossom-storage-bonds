@@ -9,6 +9,7 @@
 
 import { createHash } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Key } from "../model/schnorr.ts";
 import type { HeldDeal } from "../model/zk_pdp.ts";
@@ -16,7 +17,7 @@ import { fail, json, readBody, type Provider } from "./blossom.ts";
 import { rpc } from "./bondtool.ts";
 import type { Payee } from "./lightning.ts";
 import { now, signEvent } from "./nostr.ts";
-import type { RelayClient } from "./relay.ts";
+import type { Relays } from "./relay.ts";
 import { challengesFor, defaultZk, proveEpoch, type DealEntry } from "./zk.ts";
 
 /** Placeholder kinds, not registered in the NIPs. */
@@ -32,12 +33,23 @@ export interface ZkOptions {
   rpcUrl: string;
   workDir: string;
   log: (ev: Record<string, unknown>) => void;
+  /** Prove a boundary only once its block has this many confirmations (net.ts confs; 1 on regtest), so
+   *  a short reorg does not leave a proof for a seed that is no longer on the chain. */
+  confs?: number;
+  /** How often to look at the chain tip (400 ms by default; seconds on signet). */
+  pollMs?: number;
 }
 
-export function startZkEpochs(p: Provider, relay: RelayClient, key: Key, payee: Payee, o: ZkOptions) {
-  const deals: string[] = [];                       // blob sha256s registered as deals, in order
-  const invoiced = new Set<string>();
-  let last = -1;
+export function startZkEpochs(p: Provider, relay: Relays, key: Key, payee: Payee, o: ZkOptions) {
+  // Blob sha256s registered as deals, in order, the last boundary proved, and the invoices issued: kept
+  // in workDir so a restarted provider goes on proving, and neither proves nor bills an epoch twice.
+  const state = join(o.workDir, "deals.json");
+  const saved = existsSync(state) ? JSON.parse(readFileSync(state, "utf8")) : {};
+  const deals: string[] = Array.isArray(saved) ? saved : saved.deals ?? [];
+  const save = () => { mkdirSync(o.workDir, { recursive: true }); writeFileSync(state, JSON.stringify({ deals, last, invoiced: [...invoiced] })); };
+  const confs = o.confs ?? 1;
+  const invoiced = new Set<string>(Array.isArray(saved) ? [] : saved.invoiced ?? []);
+  let last: number = Array.isArray(saved) ? -1 : saved.last ?? -1;
   let stopping = false;
 
   async function epoch(height: number) {
@@ -68,10 +80,10 @@ export function startZkEpochs(p: Provider, relay: RelayClient, key: Key, payee: 
     while (!stopping) {
       try {
         const h: number = await rpc("getblockcount", [], o.rpcUrl);
-        const boundary = Math.floor(h / o.epochBlocks) * o.epochBlocks;
-        if (boundary >= o.fromHeight && boundary > last) { last = boundary; await epoch(boundary); }
+        const boundary = Math.floor((h - (confs - 1)) / o.epochBlocks) * o.epochBlocks;
+        if (boundary >= o.fromHeight && boundary > last) { last = boundary; save(); await epoch(boundary); }
       } catch (e) { o.log({ event: "zk-error", error: (e as Error).message }); }
-      await new Promise((r) => setTimeout(r, 400));
+      await new Promise((r) => setTimeout(r, o.pollMs ?? 400));
     }
   })();
 
@@ -84,7 +96,7 @@ export function startZkEpochs(p: Provider, relay: RelayClient, key: Key, payee: 
       const sha = String(body.sha256 ?? "");
       const t = p.zkTree(sha);
       if (!t) { fail(res, 404, "no such blob"); return true; }
-      if (!deals.includes(sha)) deals.push(sha);
+      if (!deals.includes(sha)) { deals.push(sha); save(); }
       json(res, 200, { ok: true, zk_root: t.root.toString("hex"), n: t.n, deals: deals.length });
       return true;
     }
@@ -94,6 +106,7 @@ export function startZkEpochs(p: Provider, relay: RelayClient, key: Key, payee: 
       const k = `${m[1]}|${client}`;
       if (!/^[0-9a-f]{64}$/.test(client) || invoiced.has(k)) { fail(res, 409, "one invoice per client per epoch"); return true; }
       invoiced.add(k);
+      save();
       json(res, 200, await payee.createInvoice(o.priceMsat, `bsb zk epoch ${m[1]}`));
       return true;
     }

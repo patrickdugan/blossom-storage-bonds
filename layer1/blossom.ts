@@ -23,7 +23,8 @@ import {
   CHUNK, SALT, WINDOWS_PER_CHUNK, epochIndices, leafHash, merkleProof, sentinelIndex, treeFromLeaves, windowOf, type Tree,
 } from "../model/storage_bonds.ts";
 import { be32, sha256 } from "../model/schnorr.ts";
-import { zkTree as zkTreeOf } from "./zk.ts";
+import { zkTree as zkTreeOf, zkTreeFromLeaves } from "./zk.ts";
+import { commitmentsRoot } from "./deals.ts";
 import type { Tree as ZkTree } from "../model/zk_pdp.ts";
 import { checkBlossomAuth, newKey } from "./nostr.ts";
 import { StubNetwork, type Payee } from "./lightning.ts";
@@ -38,6 +39,9 @@ export interface ProviderConfig {
   priceMsatPerChunkEpoch: number;
   port?: number;
   host?: string;
+  /** The URL clients reach this server at (a public address or a reverse proxy). It goes into blob
+   *  descriptors, proof URLs and offers. Default: http://<host>:<port>. */
+  publicUrl?: string;
   maxUploadBytes?: number;
   uploaders?: string[];          // pubkeys allowed to upload; omitted means anyone with a valid token
   /** Extra routes tried before the built-in ones (the provider process adds bond and channel endpoints).
@@ -62,6 +66,8 @@ export interface PdpAnswer {
 
 export interface Provider {
   readonly url: string;
+  /** The same server on its loopback address: what the provider's own agent calls. */
+  readonly localUrl: string;
   readonly pubkey: string;
   readonly config: ProviderConfig;
   /** Overwrite these chunks with zeros on disk. The provider keeps its leaves, so it still sends paths. */
@@ -74,6 +80,10 @@ export interface Provider {
   pdpAnswer(sha: string, nonce: string, q: number, epoch: number): Promise<PdpAnswer | { error: string }>;
   /** The commitments left unopened by the last completed cut and choose for a blob, if any. */
   bondTerms(sha: string): { s: string; h: string; hs?: string[] }[] | undefined;
+  /** That cut and choose: the root of all M commitments (deals.ts commitmentsRoot), M and k. */
+  bondCommitment(sha: string): { root: string; m: number; k: number } | undefined;
+  /** The Nostr key whose BUD-11 token uploaded the blob. */
+  uploader(sha: string): string | undefined;
   /** Read chunk i as this provider would send it (zeros if deleted, someone else's bytes if
    *  outsourced): what goes into its witness. */
   readChunk(sha: string, i: number): Promise<Buffer>;
@@ -141,6 +151,7 @@ export async function startProvider(cfg: ProviderConfig): Promise<Provider> {
   const metaPath = (sha: string) => join(cfg.dir, `${sha}.json`);
   const blobPath = (sha: string) => join(cfg.dir, `${sha}.blob`);
   const leavesPath = (sha: string) => join(cfg.dir, `${sha}.leaves`);
+  const zkLeavesPath = (sha: string) => join(cfg.dir, `${sha}.zkleaves`);
   const meta = (sha: string): Omit<Descriptor, "url"> | null =>
     existsSync(metaPath(sha)) ? JSON.parse(readFileSync(metaPath(sha), "utf8")) : null;
   const descriptor = (m: Omit<Descriptor, "url">): Descriptor => ({ url: `${base}/${m.sha256}${extFor(m.type)}`, ...m });
@@ -192,11 +203,11 @@ export async function startProvider(cfg: ProviderConfig): Promise<Provider> {
     if (sha !== want) return fail(res, 409, "X-SHA-256 does not match the body");
     const have = meta(sha);
     if (have) return json(res, 200, descriptor(have));
-    json(res, 201, store(body, String(req.headers["content-type"] ?? "application/octet-stream").split(";")[0]));
+    json(res, 201, store(body, String(req.headers["content-type"] ?? "application/octet-stream").split(";")[0], auth.event.pubkey));
   }
 
   /** Write a blob and its two trees; returns its descriptor. */
-  function store(body: Buffer, type: string): Descriptor {
+  function store(body: Buffer, type: string, uploader?: string): Descriptor {
     const sha = createHash("sha256").update(body).digest("hex");
     const have = meta(sha);
     if (have) return descriptor(have);
@@ -206,9 +217,11 @@ export async function startProvider(cfg: ProviderConfig): Promise<Provider> {
     const m = {
       sha256: sha, size: body.length, type,
       uploaded: Math.floor(Date.now() / 1000), bsb: { root: t.root.toString("hex"), n: t.n, chunk: CHUNK, zk_root: z.root.toString("hex") },
+      ...(uploader ? { uploader } : {}),
     };
     writeFileSync(blobPath(sha) + ".tmp", body); renameSync(blobPath(sha) + ".tmp", blobPath(sha));
     writeFileSync(leavesPath(sha), Buffer.concat(leaves));
+    writeFileSync(zkLeavesPath(sha), Buffer.concat(z.levels[0]));
     writeFileSync(metaPath(sha), JSON.stringify(m));
     trees.set(sha, t);
     zkTrees.set(sha, z);
@@ -294,6 +307,13 @@ export async function startProvider(cfg: ProviderConfig): Promise<Provider> {
   type Commitment = { s: string; h: string; hs?: string[] };
   const pending = new Map<string, { commitments: Commitment[]; open: number[]; k: number }>();
   const terms = new Map<string, Commitment[]>();
+  const commits = new Map<string, { root: string; m: number; k: number }>();
+  const loadBond = (sha: string) => {
+    const f = join(cfg.dir, `${sha}.bond.json`);
+    if (terms.has(sha) || !/^[0-9a-f]{64}$/.test(sha) || !existsSync(f)) return;
+    const v = JSON.parse(readFileSync(f, "utf8"));
+    terms.set(sha, v.kept); commits.set(sha, v.commit);
+  };
   const stashed = new Map<string, string>();
 
   async function onCommit(req: IncomingMessage, res: ServerResponse, sha: string) {
@@ -345,6 +365,9 @@ export async function startProvider(cfg: ProviderConfig): Promise<Provider> {
     const opened = new Set(p.open);
     const kept = p.commitments.map((_, j) => j).filter((j) => !opened.has(j));
     terms.set(sha, kept.map((j) => p.commitments[j]));
+    commits.set(sha, { root: commitmentsRoot(p.commitments), m: p.commitments.length, k: p.k });
+    // Kept on disk, so a provider restarted between cut and choose and the deal can still honour it.
+    writeFileSync(join(cfg.dir, `${sha}.bond.json`), JSON.stringify({ kept: terms.get(sha), commit: commits.get(sha) }));
     json(res, 200, { ok: true, kept });
   }
 
@@ -383,10 +406,11 @@ export async function startProvider(cfg: ProviderConfig): Promise<Provider> {
   await new Promise<void>((r) => server.listen(cfg.port ?? 0, host, r));
   const addr = server.address();
   if (!addr || typeof addr === "string") throw new Error("server did not bind");
-  base = `http://${host}:${addr.port}`;
+  base = cfg.publicUrl ? cfg.publicUrl.replace(/\/$/, "") : `http://${host}:${addr.port}`;
 
   return {
     url: base,
+    localUrl: `http://${host === "0.0.0.0" || host === "::" ? "127.0.0.1" : host}:${addr.port}`,
     pubkey: cfg.key.x,
     config: cfg,
     deleteChunks(sha, indices) {
@@ -406,9 +430,20 @@ export async function startProvider(cfg: ProviderConfig): Promise<Provider> {
       outsourced.set(sha, from);
     },
     pdpAnswer,
-    bondTerms: (sha) => terms.get(sha),
+    bondTerms: (sha) => { loadBond(sha); return terms.get(sha); },
+    bondCommitment: (sha) => { loadBond(sha); return commits.get(sha); },
+    uploader: (sha) => (meta(sha) as { uploader?: string } | null)?.uploader,
     readChunk: async (sha, i) => { const m = meta(sha); return m ? readChunk(sha, m.size, i) : Buffer.alloc(0); },
-    zkTree: (sha) => zkTrees.get(sha),
+    zkTree: (sha) => {
+      // After a restart, from the leaves recorded at upload (a deleter keeps them, as with the SHA tree).
+      if (!zkTrees.has(sha) && existsSync(zkLeavesPath(sha))) {
+        const raw = readFileSync(zkLeavesPath(sha));
+        const leaves: Buffer[] = [];
+        for (let o = 0; o < raw.length; o += 32) leaves.push(raw.subarray(o, o + 32));
+        zkTrees.set(sha, zkTreeFromLeaves(leaves));
+      }
+      return zkTrees.get(sha);
+    },
     putBlob: (body, type) => store(body, type),
     stash(body) {
       const id = randomBytes(16).toString("hex");

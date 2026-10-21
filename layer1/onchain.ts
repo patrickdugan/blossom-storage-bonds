@@ -188,7 +188,7 @@ function toWords(bytes: Buffer): number[] {
   if (bits > 0) out.push((acc << (5 - bits)) & 31);
   return out;
 }
-export const HRP: Record<string, string> = { mainnet: "bc", regtest: "bcrt" };
+export const HRP: Record<string, string> = { mainnet: "bc", regtest: "bcrt", signet: "tb" };
 /** A witness v1 (taproot) address, BIP350 bech32m. */
 export function taprootAddress(outputKey: string, network: string): string {
   const hrp = HRP[network];
@@ -320,12 +320,13 @@ export interface BatchPayment { txid: string; hex: string; vsize: number; feeSat
 export class OnchainPayer implements Payer {
   readonly nodeId: string;
   readonly network: string;
-  readonly feeRate: number;
+  /** sat/vB, or a function asked before each payment (net.ts feeRate off regtest). */
+  readonly feeRate: number | (() => Promise<number>);
   private readonly rpc: Rpc;
   private readonly paid = new Set<string>();
   private readonly paidTo = new Map<string, number>();
   /** `rpc` talks to the payer's wallet (…/wallet/<name>); `feeRate` is in sat/vB. */
-  constructor(rpc: Rpc, network: string, feeRate = 5, nodeId = "onchain-wallet") {
+  constructor(rpc: Rpc, network: string, feeRate: number | (() => Promise<number>) = 5, nodeId = "onchain-wallet") {
     this.rpc = rpc; this.network = network; this.feeRate = feeRate; this.nodeId = nodeId;
   }
   decode(pr: string): OnchainInvoice { return decodeOnchainInvoice(pr); }
@@ -360,8 +361,9 @@ export class OnchainPayer implements Payer {
       return { ...g, hashes, script: p2trScript(q).toString("hex"), address: taprootAddress(q, this.network), sats: g.invs.reduce((s, i) => s + i.amountMsat / 1000, 0) };
     });
     for (const p of plan) if (p.sats < 330) throw new Error(`output of ${p.sats} sats is below the taproot dust limit`);
+    const rate = typeof this.feeRate === "number" ? this.feeRate : await this.feeRate();
     const f = await this.rpc("walletcreatefundedpsbt", [[], plan.map((p) => ({ [p.address]: btc(p.sats) })), 0,
-      { fee_rate: this.feeRate, change_type: "bech32m", replaceable: true }]);
+      { fee_rate: rate, change_type: "bech32m", replaceable: true }]);
     const signed = await this.rpc("walletprocesspsbt", [f.psbt, true, "DEFAULT", true, true]);
     if (!signed.complete || !signed.hex) throw new Error("wallet could not sign the payment");
     const tx = parseTx(Buffer.from(signed.hex, "hex"));

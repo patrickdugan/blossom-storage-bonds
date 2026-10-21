@@ -12,7 +12,7 @@ import { createHash } from "node:crypto";
 import type { Key } from "../model/schnorr.ts";
 import { conversationKey, decrypt, encrypt } from "./nip44.ts";
 import { now, signEvent, tagValue, type NostrEvent } from "./nostr.ts";
-import type { RelayClient } from "./relay.ts";
+import type { Relays } from "./relay.ts";
 import type { PdpAnswer } from "./blossom.ts";
 import type { Replica } from "./client.ts";
 
@@ -21,7 +21,7 @@ export const KIND_PDP_ANSWER = 21243;
 
 /** Client side: a transport for StorageClient that sends the nonce over the relay and waits for the
  *  answer addressed back to it. */
-export function nostrTransport(relay: RelayClient, me: Key, timeoutMs = 10_000) {
+export function nostrTransport(relay: Relays, me: Key, timeoutMs = 10_000) {
   return async (rep: Replica, epoch: number, nonce: string): Promise<PdpAnswer> => {
     const ck = conversationKey(me.d, rep.offer.pubkey);
     const ev = signEvent(me, {
@@ -59,7 +59,7 @@ export const MAX_INLINE = 60_000;
 /** Provider side: answer every challenge addressed to `me` with `answer(sha, nonce, q, epoch)`. An answer
  *  over MAX_INLINE bytes is handed to `stash`, and the encrypted reply carries its URL and SHA-256. */
 export function servePdpOverNostr(
-  relay: RelayClient, me: Key,
+  relay: Relays, me: Key,
   answer: (sha: string, nonce: string, q: number, epoch: number) => Promise<PdpAnswer | { error: string }>,
   log: (ev: Record<string, unknown>) => void = () => {},
   stash?: (body: string) => string,

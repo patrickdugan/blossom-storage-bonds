@@ -77,6 +77,9 @@ export function zkTree(data: Buffer): Tree {
   return treeOf(ZK_HASH, leaves);
 }
 
+/** The same tree from its leaves, as recorded at upload. */
+export const zkTreeFromLeaves = (leaves: Buffer[]): Tree => treeOf(ZK_HASH, leaves);
+
 export interface DealEntry { root: string; n: number }
 export interface Statement { hash: Backend; mode: number; seed: string; q: number; deals: DealEntry[]; output: string[] }
 

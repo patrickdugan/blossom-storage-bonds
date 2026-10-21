@@ -26,7 +26,7 @@ import { createHash } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 
 export interface ChainParams {
-  readonly name: "regtest" | "mainnet";
+  readonly name: "regtest" | "signet" | "mainnet";
   /** Display-order hex of block 0. */
   readonly genesis: string;
   readonly powLimit: bigint;
@@ -51,8 +51,21 @@ export const MAINNET: ChainParams = {
   noRetarget: false,
   bip34: 227931, bip66: 363725, bip65: 388381,
 };
+/** The default signet (Core chainparams: genesis 1598918400, nonce 52613770, bits 0x1e0377ae; BIP34, 65
+ *  and 66 from height 1; mainnet's retargeting). A header chain cannot check signet's block signature,
+ *  which lives in the coinbase, and signet work is cheap: on signet this is the mechanism again, with
+ *  real block times and real reorgs, not security. A custom signet (another challenge) has another
+ *  genesis only if its maintainers changed it; the default one shares this genesis. */
+export const SIGNET: ChainParams = {
+  name: "signet",
+  genesis: "00000008819873e925422c1ff0f99f7cc9bbb232af63a077a480a3633bee1ef6",
+  powLimit: BigInt("0x00000377ae000000000000000000000000000000000000000000000000000000"),
+  noRetarget: false,
+  bip34: 1, bip66: 1, bip65: 1,
+};
 export const paramsFor = (name: string): ChainParams => {
   if (name === "regtest") return REGTEST;
+  if (name === "signet") return SIGNET;
   if (name === "mainnet") return MAINNET;
   throw new Error(`no chain params for ${name}`);
 };

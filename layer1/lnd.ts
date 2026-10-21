@@ -6,7 +6,10 @@
 // returns is checked against the payment hash.
 //
 // LND polls bitcoind over RPC (bitcoind.rpcpolling), so the node from scripts/regtest-node.sh needs no
-// ZMQ. Tested with lnd v0.21.4-beta (lnd-windows-amd64); point BSB_LND at the lnd binary.
+// ZMQ. Tested with lnd v0.21.4-beta (lnd-windows-amd64); point BSB_LND at the lnd binary. On signet
+// (LndConfig.network, from net.ts) it runs with --bitcoin.signet, takes bitcoind's login from the same
+// environment as everything else (net.ts rpcAuth), polls every 5 s, and can listen on a public address
+// so that peers on other machines reach it. Its wallet is a fresh random one per node, as on regtest.
 //
 // Load on bitcoind: lnd opens a new TCP connection for every RPC, and fetches every block (a new wallet
 // also rescans the chain, since every regtest block looks recent). Each connection then sits in
@@ -19,6 +22,7 @@ import { request } from "node:https";
 import { createServer } from "node:net";
 import { join } from "node:path";
 import { decodeBolt11, type Bolt11 } from "./bolt11.ts";
+import { defaultRpcUrl, rpcAuth, type NetName } from "./net.ts";
 import { preimageMatches, type Invoice, type Payee, type Payer } from "./lightning.ts";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -47,8 +51,16 @@ export interface LndConfig {
   bin?: string;
   dir: string;
   alias: string;
-  /** bitcoind RPC; defaults to scripts/regtest-node.sh's test credentials. */
+  /** bitcoind RPC; defaults to BSB_RPC and the login net.ts rpcAuth() finds (on regtest,
+   *  scripts/regtest-node.sh's test credentials). */
   bitcoind?: { host: string; user: string; pass: string };
+  network?: NetName;
+  /** host:port for peer connections, e.g. 0.0.0.0:9735 on a pilot machine; default a free localhost port. */
+  listen?: string;
+  /** The address other machines dial (lnd --externalip), when it differs from listen. */
+  externalHost?: string;
+  /** Channel confirmations lnd asks for (--bitcoin.defaultchanconfs); default 1. */
+  chanConfs?: number;
   blockPollMs?: number;
   txPollMs?: number;
 }
@@ -73,24 +85,30 @@ export class LndNode {
   /** Start lnd with a fresh wallet (noseedbackup: a test wallet, unlocked at start) and wait for its API. */
   static async start(cfg: LndConfig): Promise<LndNode> {
     mkdirSync(cfg.dir, { recursive: true });
-    const [p2p, rpcPort, rest] = [await freePort(), await freePort(), await freePort()];
-    const btc = cfg.bitcoind ?? { host: "127.0.0.1:18543", user: "bsb", pass: "bsb-regtest-only" };
+    const net = cfg.network ?? "regtest";
+    const [p2p, rpcPort, rest] = [cfg.listen ? Number(cfg.listen.split(":").pop()) : await freePort(), await freePort(), await freePort()];
+    const btc = cfg.bitcoind ?? (() => {
+      const [user, ...pass] = rpcAuth().split(":");
+      return { host: new URL(process.env.BSB_RPC ?? defaultRpcUrl(net)).host, user, pass: pass.join(":") };
+    })();
+    const slow = net !== "regtest";
     const args = [
-      `--lnddir=${cfg.dir}`, `--alias=${cfg.alias}`, "--bitcoin.regtest", "--bitcoin.node=bitcoind",
+      `--lnddir=${cfg.dir}`, `--alias=${cfg.alias}`, `--bitcoin.${net}`, "--bitcoin.node=bitcoind",
       `--bitcoind.rpchost=${btc.host}`, `--bitcoind.rpcuser=${btc.user}`, `--bitcoind.rpcpass=${btc.pass}`,
-      "--bitcoind.rpcpolling", `--bitcoind.blockpollinginterval=${cfg.blockPollMs ?? 500}ms`, `--bitcoind.txpollinginterval=${cfg.txPollMs ?? 2000}ms`,
-      "--noseedbackup", "--nobootstrap", "--bitcoin.defaultchanconfs=1", "--trickledelay=50",
-      `--listen=127.0.0.1:${p2p}`, `--rpclisten=127.0.0.1:${rpcPort}`, `--restlisten=127.0.0.1:${rest}`,
-      "--tlsextraip=127.0.0.1", "--debuglevel=info",
+      "--bitcoind.rpcpolling", `--bitcoind.blockpollinginterval=${cfg.blockPollMs ?? (slow ? 5000 : 500)}ms`, `--bitcoind.txpollinginterval=${cfg.txPollMs ?? (slow ? 10000 : 2000)}ms`,
+      "--noseedbackup", "--nobootstrap", `--bitcoin.defaultchanconfs=${cfg.chanConfs ?? 1}`, "--trickledelay=50",
+      `--listen=${cfg.listen ?? `127.0.0.1:${p2p}`}`, `--rpclisten=127.0.0.1:${rpcPort}`, `--restlisten=127.0.0.1:${rest}`,
+      "--tlsextraip=127.0.0.1", "--debuglevel=info", ...(cfg.externalHost ? [`--externalip=${cfg.externalHost}`] : []),
     ];
     const out = openSync(join(cfg.dir, "lnd.out"), "a");
     const child = spawn(cfg.bin ?? lndExe(), args, { stdio: ["ignore", out, out] });
     closeSync(out);
     const node = new LndNode(cfg.dir, child, rest, p2p);
+    node.host = cfg.externalHost ?? (cfg.listen && !cfg.listen.startsWith("0.0.0.0") ? cfg.listen : `127.0.0.1:${p2p}`);
     let exited: number | string | null = null;
     child.on("exit", (c) => { exited = c ?? -1; });
     child.on("error", (e) => { exited = `${e.message} (set BSB_LND or --lnd to the lnd binary)`; });
-    const mac = join(cfg.dir, "data", "chain", "bitcoin", "regtest", "admin.macaroon");
+    const mac = join(cfg.dir, "data", "chain", "bitcoin", net, "admin.macaroon");
     const t0 = Date.now();
     for (;;) {
       if (exited !== null) throw new Error(`lnd exited ${exited}; see ${join(cfg.dir, "lnd.out")}`);
@@ -105,7 +123,9 @@ export class LndNode {
     return node;
   }
 
-  get uri(): string { return `${this.pubkey}@127.0.0.1:${this.p2pPort}`; }
+  /** host:port peers dial. */
+  host = "";
+  get uri(): string { return `${this.pubkey}@${this.host}`; }
 
   /** One REST call. For a streaming endpoint, `until` sees each message and ends the call when true. */
   rest(method: string, path: string, body?: unknown, until?: (msg: any) => boolean, timeoutMs = 60_000): Promise<any> {
@@ -145,6 +165,7 @@ export class LndNode {
 
   /** Wait until lnd has processed the chain up to `height` and reports itself synced. */
   async waitSynced(height: number, timeoutMs = 60_000): Promise<void> {
+    if (process.env.BSB_NETWORK === "signet") timeoutMs = Math.max(timeoutMs, 3_600_000);
     const t0 = Date.now();
     for (;;) {
       const i = await this.rest("GET", "/v1/getinfo");
@@ -212,11 +233,15 @@ export class LndNode {
 export class LndPayee implements Payee {
   readonly nodeId: string;
   readonly node: LndNode;
-  constructor(node: LndNode) { this.node = node; this.nodeId = node.pubkey; }
+  /** Put route hints for private channels into invoices (lnd "private"), so a payer whose route
+   *  reaches this node only through a private channel can find it. Off on regtest, where the client's
+   *  channel is direct. */
+  readonly routeHints: boolean;
+  constructor(node: LndNode, routeHints = false) { this.node = node; this.nodeId = node.pubkey; this.routeHints = routeHints; }
 
   async createInvoice(amountMsat: number, memo: string, ttlSec = 600): Promise<Invoice> {
     if (!Number.isSafeInteger(amountMsat) || amountMsat <= 0) throw new Error("amount must be a positive integer msat");
-    const r = await this.node.rest("POST", "/v1/invoices", { value_msat: String(amountMsat), memo, expiry: String(ttlSec) });
+    const r = await this.node.rest("POST", "/v1/invoices", { value_msat: String(amountMsat), memo, expiry: String(ttlSec), ...(this.routeHints ? { private: true } : {}) });
     const inv = decodeBolt11(r.payment_request);
     // Check lnd's invoice says what was asked, before handing it to a client.
     if (inv.paymentHash !== b64hex(r.r_hash) || inv.payee !== this.nodeId || inv.amountMsat !== amountMsat) throw new Error("lnd returned an invoice that differs from the request");

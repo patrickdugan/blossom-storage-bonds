@@ -1,13 +1,18 @@
 {
-  "generated": "2026-10-20T11:12:21.699Z",
-  "note": "One regtest run: every party a separate process with its own keys, wallet and lnd. Public STARK epoch proofs seeded by block hashes; each verified epoch paid by BOLT 11 over Lightning; a missing or invalid watchtower attestation triggers on-chain sentinel challenges; every txid here was read back from bitcoind.",
+  "generated": "2026-10-21T05:51:27.952Z",
+  "note": "One regtest run: every party a separate process with its own keys, wallet and lnd. Offers and deals as Nostr events. Public STARK epoch proofs seeded by block hashes; each verified epoch paid by BOLT 11 over Lightning; a missing or invalid watchtower attestation triggers on-chain sentinel challenges; every txid here was read back from bitcoind.",
   "params": {
+    "network": "regtest",
+    "confs": 1,
+    "relays": "bundled",
+    "remoteProviders": false,
     "epochs": 3,
     "misbehaviourFromEpoch": 2,
     "q": 16,
     "epochBlocks": 10,
     "deadline": 6,
     "firstBoundary": 170,
+    "term": 1500,
     "deals": [
       256,
       128,
@@ -21,7 +26,9 @@
     },
     "delta": 144,
     "priceSatsPerEpoch": 512,
-    "channelSats": 50000
+    "pay": "ln",
+    "channelSats": 50000,
+    "lnOpen": "direct"
   },
   "regtest": {
     "heightBefore": 0,
@@ -30,54 +37,62 @@
   "summary": [
     {
       "role": "honest",
-      "pid": 41088,
+      "pid": 32164,
+      "nostr": "9b9eecc0eab20a5c9663dd8e196e855044dcd5393dd94c6ca0821de5722fe249",
+      "offer": "5e23ca959a2400e9da9b09ee910e0c5a1a119ac3982ce5ba4fa6a0a9cb59a725",
+      "deal_events": {
+        "propose": "9c2d7a6bdf528d6fa78986248704fda12ebac80eab854b73fe54bc2243d54565",
+        "accept": "272ea908deae752e152c8fd2b4bce083dd43743fc9526760e0c9937f0e602656",
+        "seal": "c0e510321d2d0192a4a8ca8eb5fe76a1b38e830f090ac47cef08250a0f53dd13",
+        "live": "bcffdd13ec0d1d10c5ecf2c7f91ff6f6b70d8d4e2b55f5ae4904569a2ded6ffc"
+      },
       "epochs": [
         {
           "epoch": 1,
           "height": 170,
           "providerSays": "proved",
-          "proof": "73f58b89eadb77a1d3315a701d1208df08ab0038f991460fd62e5e417053aa58",
+          "proof": "b78e950fbc6a32a553a181e297e033455b237d1c562a6aa0f58ea101a1d2ff96",
           "tower": "valid",
-          "towerEvent": "1b93553ccb54b8bbac48fe5c5bf187bd6803b431248f2df160a6f86995713bb9",
+          "towerEvent": "d6abafe3d05627a25387d2ab2e1a010f9121f4e0f2324e81998cb584c6cfe599",
           "client": "verified",
           "paidSats": 512,
           "payment": {
-            "hash": "fcfd417a6c35a11ee0f91f1f25e16608dc9c2ccc3388dd2bb06ddce68d04da59",
-            "preimage": "284ec606be565c19daa0cce3f865883b9e1e26727ec87148849ae2cd0766dfee"
+            "hash": "685878c69bef3e43f6d1ebf38b2b9c9ad6f268ecef6ec65a345b9dd37ac049d4",
+            "preimage": "0eb9b9614e209e7001ba1c4a6710566cc8cc1a3675cdc9072665f64de482ba16"
           }
         },
         {
           "epoch": 2,
           "height": 180,
-          "proof": "46d1f41ce9248757e004893e3f84bbc05ac05b1bd723bbf8cc56dc4a8511dde2",
+          "proof": "7f2d9bc3950654ae49d0589d280099d3e3e5ff87f2e8f96fccadf66ce6a7786b",
           "providerSays": "proved",
-          "tower": "valid",
-          "towerEvent": "6ef2c93b873e16e8a2793eb157cedef333162cb1d28b6d18889324f24b3e492e",
           "client": "verified",
           "paidSats": 512,
           "payment": {
-            "hash": "a38b5092ddbaed669d04114af5f7336a3bc04f490b4485a6f3aea19414ac09ce",
-            "preimage": "f946e16f3bd3a853fbb9e950fd96ca29b9f72015809077331b637f6293326297"
-          }
+            "hash": "a8f493df4b3b792a5f24452c720e160a974e242d18f5ec76f99ca9fa4408032d",
+            "preimage": "4e9c8b8a25da6ac5701c7bfc0c532ed52d6210f8be3b19b35b37dfa567361f9c"
+          },
+          "tower": "valid",
+          "towerEvent": "05c44893fa79b1b88ec359b8324c29c842e4e15ab86707912de2b9dda7a61ced"
         },
         {
           "epoch": 3,
           "height": 190,
-          "proof": "c4331e5c6acbf7c818c375a51726c0ad76560bb06ea99f1d88dba7e25d501f65",
+          "proof": "13fd6dbac335d38f42f1f172be9ef8d69178e3b041e7a0e448c33fc43391684b",
           "providerSays": "proved",
-          "tower": "valid",
-          "towerEvent": "543cba69fc92799833e19b4a7511770e888d6802cfcfbc016b202424b9eacf60",
           "client": "verified",
           "paidSats": 512,
           "payment": {
-            "hash": "e97b5ea0d742e2fd90660fc7bdf7efcf7426358a6b71f0f26afb72dea392f5b5",
-            "preimage": "2e5a0feab89252126b13cd82236b927b29ff861d1cbdf061176209937198bceb"
-          }
+            "hash": "01a233175c8e00227bd34685c541d3dede4e5deb36fb964509aeec9cb5009211",
+            "preimage": "aa7a9487c56c84070a53c61bb7e195dad7634ad21f37929f803966551247377e"
+          },
+          "tower": "valid",
+          "towerEvent": "14e20e181281ba3f8f29f47efc2c2df87e375462e8dd4395a5d19185a5e31dd3"
         }
       ],
       "lightning": {
-        "channel_point": "d97327e8b80e2da8e5aa1936584111ebb1059b6db18f5d3dcdfd57b688446a97:0",
-        "close_txid": "9b68b928817e2f3f497cbb644852123fe54f1884475c1b967ed22f0d9eb727e2",
+        "channel_point": "bdfdba3765f9558151dd2e545335fab62507216475eb037174928a94cf06e57a:0",
+        "close_txid": "d3030660025b8c5abf5f5a6c2bacefa3b62c5d03c129822142aa07259cbcdfd5",
         "close_confirmations": 1418,
         "close_outputs_sats": [
           1536,
@@ -101,66 +116,83 @@
       "p_forfeit_given_challenge": 0,
       "providerLog": [
         {
-          "t": 1792494276100,
+          "t": 1792561117031,
           "provider": "honest",
           "event": "ln-channel",
-          "channel_point": "d97327e8b80e2da8e5aa1936584111ebb1059b6db18f5d3dcdfd57b688446a97:0",
+          "channel_point": "bdfdba3765f9558151dd2e545335fab62507216475eb037174928a94cf06e57a:0",
           "capacity_sats": 50000
         },
         {
-          "t": 1792494493768,
+          "t": 1792561725452,
           "provider": "honest",
           "event": "zk-epoch",
           "height": 170,
           "proved": true,
-          "proof": "73f58b89eadb77a1d3315a701d1208df08ab0038f991460fd62e5e417053aa58",
-          "bytes": 11240894,
-          "seconds": 204.019,
+          "proof": "b78e950fbc6a32a553a181e297e033455b237d1c562a6aa0f58ea101a1d2ff96",
+          "bytes": 11249724,
+          "seconds": 592.926,
           "published": true,
-          "id": "c131a8d9e730bdaa466bc13bbea0e3d1c1c814916ca3fdbe2febfe15da319e85"
+          "id": "7dfba040816227c053406bdca29c885583c0a61eb519a817c3e32fde3c73c93f"
         },
         {
-          "t": 1792494556448,
+          "t": 1792561771309,
           "provider": "honest",
           "event": "zk-epoch",
           "height": 180,
           "proved": true,
-          "proof": "46d1f41ce9248757e004893e3f84bbc05ac05b1bd723bbf8cc56dc4a8511dde2",
-          "bytes": 11286869,
-          "seconds": 43.38,
+          "proof": "7f2d9bc3950654ae49d0589d280099d3e3e5ff87f2e8f96fccadf66ce6a7786b",
+          "bytes": 11505040,
+          "seconds": 19.008,
           "published": true,
-          "id": "6b046a99f936dc2a1ca43b5e4de5979bde101556e5b11f223b41171dcb913156"
+          "id": "98fbfb13a691ef06096b6bc25e7264caedb2bf24a223cc7ceedf2306fe8ee11c"
         },
         {
-          "t": 1792494614671,
+          "t": 1792561792941,
           "provider": "honest",
           "event": "zk-epoch",
           "height": 190,
           "proved": true,
-          "proof": "c4331e5c6acbf7c818c375a51726c0ad76560bb06ea99f1d88dba7e25d501f65",
-          "bytes": 11328756,
-          "seconds": 48.334,
+          "proof": "13fd6dbac335d38f42f1f172be9ef8d69178e3b041e7a0e448c33fc43391684b",
+          "bytes": 11219484,
+          "seconds": 17.145,
           "published": true,
-          "id": "12e32fd347cbfb5c0e8e900d65e219aac58db879a198981b846188d99c963b47"
+          "id": "46e5f94e093f0ef830ce569b198796f74f2290a6d9c46235943b09d4f68f617f"
+        },
+        {
+          "t": 1792561887819,
+          "provider": "honest",
+          "event": "bond-refund",
+          "sha": "9b4903896423",
+          "fee_sats": 1000,
+          "txid": "9b5886a204720e7cb3db7b4f95775e7b03734bf584bdfe1d3cf7e6de8e9f80cf",
+          "vsize": 138
         }
       ]
     },
     {
       "role": "deletes 10%",
-      "pid": 40492,
+      "pid": 25312,
+      "nostr": "35c2c7abd16e5c730b588127fd57f7d3be0f107f1416077c215c92ede76cece1",
+      "offer": "20fb2306e3b5e0f55b31d2a5c702722a339855ea16fdfa12cdfd7d6de0d13d45",
+      "deal_events": {
+        "propose": "8450a1300f9d6256db800395d9a77e069d2e934d52051b9460cd388bf1302904",
+        "accept": "6b7c84ef0cb562f2d1d6dfc76e78df0cd43a1e9462cccdcca6dadfdc3c2000e9",
+        "seal": "d0cb6241dc833ff799c3bc465b794c7c2d0103c797dfff9cc673e61ea3439cf0",
+        "live": "ce30d65afd186c43d46d23bacace5da836adb8dae355f8d9dac9eb404ede7443"
+      },
       "epochs": [
         {
           "epoch": 1,
           "height": 170,
-          "proof": "f4cb1b84fbaf8dfdebd28f260b041cf7a418f973198ddcbbb84acb9ac6b4ac52",
-          "tower": "valid",
-          "towerEvent": "7ec18cc680ddbf1199a4aaa45ad274b7883d53aef58f9f284412c33942c030af",
           "providerSays": "proved",
+          "proof": "72bb20c51750468301c6d2bc700c95d89ee641cfe6f9f7f133e3c8a3bb5c8dfc",
+          "tower": "valid",
+          "towerEvent": "b70840a8c06a3caf6560cef6b694f23cd078ae3f7b4b7a19566204237494b02f",
           "client": "verified",
           "paidSats": 512,
           "payment": {
-            "hash": "55f5d5936a086f56202fc24aa777cec54b60e3ff1e4b41aaad85eca89c845efa",
-            "preimage": "18e3c95b1ed2c25a277da584a4922d97823d8fd0dc0d8028199807ec057071fa"
+            "hash": "be71e66afb8f8518e5d2db90f26e6cc5b188999872c89bea31d3cdd8dae4d324",
+            "preimage": "e5484ff7ed0327df1239ace586470966e288f2b24e75e956ca88fc2eb4529846"
           }
         },
         {
@@ -168,19 +200,19 @@
           "height": 180,
           "providerSays": "could not prove",
           "tower": "missing",
-          "towerEvent": "89c167b0610bdae98beb6aa63380f99ee9680350c3eb622b79bf21baeb6e0ee3"
+          "towerEvent": "23cce74890e0715a6602454254174b024747822e69bc2273c701a02614c9c496"
         },
         {
           "epoch": 3,
           "height": 190,
           "providerSays": "could not prove",
           "tower": "missing",
-          "towerEvent": "cb1048bfccabe86a4aa82233d0c68e9b36ca99d6364baba7c6a9a1acfa609e23"
+          "towerEvent": "561f328dd744bb6d07d0c4c3545869fe70f2f6c0feec86f2f2224050a994a841"
         }
       ],
       "lightning": {
-        "channel_point": "214ca1b326e434c54de0624ee695bd045cf49a5a19900adc957e3aa0f9c9ca2e:0",
-        "close_txid": "15c245f0b1b484e72e042ae20665f34c6b8fcf7e0ea1ea607c069de576292f9c",
+        "channel_point": "8e931ed03e30646720665eb2cef577035fbc843be0f37e6ac4d488a1ac80cc4d:0",
+        "close_txid": "b9e17869d27ab3f2e091e3b621c39049e54a1ca4327935833a5257281af437e8",
         "close_confirmations": 1417,
         "close_outputs_sats": [
           512,
@@ -200,7 +232,7 @@
         "cause": {
           "height": 180,
           "result": "missing",
-          "event": "89c167b0610bdae98beb6aa63380f99ee9680350c3eb622b79bf21baeb6e0ee3",
+          "event": "23cce74890e0715a6602454254174b024747822e69bc2273c701a02614c9c496",
           "why": "no proof 6 blocks after the boundary"
         },
         "challenges": [
@@ -218,44 +250,44 @@
       "p_forfeit_given_challenge": 0.9988209815422261,
       "providerLog": [
         {
-          "t": 1792494280505,
+          "t": 1792561124770,
           "provider": "deletes10",
           "event": "ln-channel",
-          "channel_point": "214ca1b326e434c54de0624ee695bd045cf49a5a19900adc957e3aa0f9c9ca2e:0",
+          "channel_point": "8e931ed03e30646720665eb2cef577035fbc843be0f37e6ac4d488a1ac80cc4d:0",
           "capacity_sats": 50000
         },
         {
-          "t": 1792494375901,
+          "t": 1792561742700,
           "provider": "deletes10",
           "event": "zk-epoch",
           "height": 170,
           "proved": true,
-          "proof": "f4cb1b84fbaf8dfdebd28f260b041cf7a418f973198ddcbbb84acb9ac6b4ac52",
-          "bytes": 11476464,
-          "seconds": 86.955,
+          "proof": "72bb20c51750468301c6d2bc700c95d89ee641cfe6f9f7f133e3c8a3bb5c8dfc",
+          "bytes": 11461838,
+          "seconds": 609.923,
           "published": true,
-          "id": "cd92c1bb82d46225d1a08e49265124acac0e268f25c678940fa6687f8bb96efa"
+          "id": "ff834effdc1959df6d128473623e4f289dbf07f8b08cbc4d43c6bea695b67045"
         },
         {
-          "t": 1792494512447,
+          "t": 1792561771093,
           "provider": "deletes10",
           "event": "zk-epoch",
           "height": 180,
           "proved": false,
           "why": "program rejected the witness: Error at pc=0:15:",
-          "seconds": 1.238
+          "seconds": 19.41
         },
         {
-          "t": 1792494565369,
+          "t": 1792561792825,
           "provider": "deletes10",
           "event": "zk-epoch",
           "height": 190,
           "proved": false,
           "why": "program rejected the witness: Error at pc=0:15:",
-          "seconds": 0.977
+          "seconds": 17.498
         },
         {
-          "t": 1792494627747,
+          "t": 1792561800352,
           "provider": "deletes10",
           "event": "bond-respond",
           "sha": "7804ecd5e206",
@@ -265,17 +297,7 @@
           "status": "rejected"
         },
         {
-          "t": 1792494668407,
-          "provider": "deletes10",
-          "event": "bond-respond",
-          "sha": "7804ecd5e206",
-          "i": 0,
-          "error": "package RBF failed: insufficient feerate: does not improve feerate diagram: min relay fee not met, 0 < 64; bad-txns-inputs-missingorspent",
-          "r": "35d5ef863f010d891dc1c219f8f93c86",
-          "status": "rejected"
-        },
-        {
-          "t": 1792494668701,
+          "t": 1792561835575,
           "provider": "deletes10",
           "event": "bond-respond",
           "sha": "7804ecd5e206",
@@ -288,20 +310,28 @@
     },
     {
       "role": "outsources",
-      "pid": 40772,
+      "pid": 32472,
+      "nostr": "6fa6c8436d3329c877186be698cf80aa1d6c31ef6944e0410b4dd491ce598083",
+      "offer": "442a9095c0210397ab02126795ededfb50d2ba460d0ff3bbb7034cfb91f3474e",
+      "deal_events": {
+        "propose": "f253f422bff73c5f335ee2ee765a03a1f54b4e4dc85e5f61f3a6415a8ed25902",
+        "accept": "cfedf07811a142cfb1df7c64612898ec296348f512cd5f6756f2af4a8f37b690",
+        "seal": "ce4d9ded0430606fed2586a212ce8d917a16718185be8b6f8f5d6b797feb4a08",
+        "live": "a4f65ade5793aa1f360d7e9c36867ae6d4c1736d5a5c695bcca8b35b206982f3"
+      },
       "epochs": [
         {
           "epoch": 1,
           "height": 170,
+          "proof": "a3b2a9eb580f25553274fa3b50f056b2aca9ee4f1e1ce1892cbfd2da31459a7b",
           "providerSays": "proved",
-          "proof": "2422432e8284a5e7ad05fdcd85780de263feb4b2ba6499ec01d3cdec8de8bc47",
           "tower": "valid",
-          "towerEvent": "b1222c7d8f7d6003433a327f56efc489053cc925b975ea225169decd39f01fca",
+          "towerEvent": "26f15f95aa96347951f9bb2146deefd47493e79d2f7d1ad548435c341977058f",
           "client": "verified",
           "paidSats": 512,
           "payment": {
-            "hash": "9fe60d9db15afb23559f9576718c55924e0f695d7800943e5b1c3783e9cdfae7",
-            "preimage": "62c6b691b3a666ec301145353b922550fbad1505cc2c594b92c0d3841825a0c1"
+            "hash": "72ba45616bb8413eec3ff4baec248c13209c3e68ef3fcd57cc14ebf83c520e6d",
+            "preimage": "fb0ee2f254cf1c5de2c7110e86d92d1cd8385b8e3a23cc8f4ea4a40b969caf1d"
           }
         },
         {
@@ -309,19 +339,19 @@
           "height": 180,
           "providerSays": "could not prove",
           "tower": "missing",
-          "towerEvent": "c073f3186ed7c5fd4564a08566e872faa1da17d0e8936e6d611c94c1f143f29c"
+          "towerEvent": "d1e683c05bf8a90a2693c6b5de19eeb51ac8f6a6bd0f350c48f849eae05c9670"
         },
         {
           "epoch": 3,
           "height": 190,
           "providerSays": "could not prove",
           "tower": "missing",
-          "towerEvent": "b8f1e6ab3ab14f11fb06e13043fe7d40b92eb74a59ff899d7254ad20c74abc97"
+          "towerEvent": "aeafa6c9e6bf31187d3efde3c1577d7b5fecbf22ebcefa20c3e9b8de70d91370"
         }
       ],
       "lightning": {
-        "channel_point": "32478931fa7f1174ccbeae84875e1d37920bebb1fe4dde23153475df31007988:0",
-        "close_txid": "d96910bb8af08021a7c473ece7aae3323b8f6d1d6bd5550939ec18aff34e6a67",
+        "channel_point": "9d6dcdf6c7ca5ad1495f18200151d035b6d889e6d7270cac7cc2d4a202d2a9e8:0",
+        "close_txid": "d653ad1bf553ef82176c48719d4971ed3518b373c295683cf30a54735fd8371f",
         "close_confirmations": 1416,
         "close_outputs_sats": [
           512,
@@ -341,7 +371,7 @@
         "cause": {
           "height": 180,
           "result": "missing",
-          "event": "c073f3186ed7c5fd4564a08566e872faa1da17d0e8936e6d611c94c1f143f29c",
+          "event": "d1e683c05bf8a90a2693c6b5de19eeb51ac8f6a6bd0f350c48f849eae05c9670",
           "why": "no proof 6 blocks after the boundary"
         },
         "challenges": [
@@ -359,44 +389,44 @@
       "p_forfeit_given_challenge": 1,
       "providerLog": [
         {
-          "t": 1792494284995,
+          "t": 1792561130135,
           "provider": "outsources",
           "event": "ln-channel",
-          "channel_point": "32478931fa7f1174ccbeae84875e1d37920bebb1fe4dde23153475df31007988:0",
+          "channel_point": "9d6dcdf6c7ca5ad1495f18200151d035b6d889e6d7270cac7cc2d4a202d2a9e8:0",
           "capacity_sats": 50000
         },
         {
-          "t": 1792494438950,
+          "t": 1792561706911,
           "provider": "outsources",
           "event": "zk-epoch",
           "height": 170,
           "proved": true,
-          "proof": "2422432e8284a5e7ad05fdcd85780de263feb4b2ba6499ec01d3cdec8de8bc47",
-          "bytes": 11384015,
-          "seconds": 149.681,
+          "proof": "a3b2a9eb580f25553274fa3b50f056b2aca9ee4f1e1ce1892cbfd2da31459a7b",
+          "bytes": 11320442,
+          "seconds": 574.038,
           "published": true,
-          "id": "329c5f57be94df7f4c6a010b6e8e8f331b209eb88d9a6d669d1161589b5361f0"
+          "id": "c2470241752a9df747670554041c22b7f8f044a871b0e89f473f67ac114da821"
         },
         {
-          "t": 1792494513429,
+          "t": 1792561771620,
           "provider": "outsources",
           "event": "zk-epoch",
           "height": 180,
           "proved": false,
           "why": "program rejected the witness: Error at pc=0:15:",
-          "seconds": 1.751
+          "seconds": 19.855
         },
         {
-          "t": 1792494613848,
+          "t": 1792561793441,
           "provider": "outsources",
           "event": "zk-epoch",
           "height": 190,
           "proved": false,
           "why": "program rejected the witness: Error at pc=0:15:",
-          "seconds": 49.061
+          "seconds": 17.869
         },
         {
-          "t": 1792494668849,
+          "t": 1792561836115,
           "provider": "outsources",
           "event": "bond-respond",
           "sha": "d94db8784f75",
@@ -406,7 +436,7 @@
           "status": "rejected"
         },
         {
-          "t": 1792494708095,
+          "t": 1792561870278,
           "provider": "outsources",
           "event": "bond-respond",
           "sha": "d94db8784f75",
@@ -420,103 +450,112 @@
   ],
   "watchtower": [
     {
-      "t": 1792494441358,
-      "watchtower": true,
-      "event": "attest",
-      "provider": "35c2c7abd16e",
-      "height": 170,
-      "result": "valid",
-      "proofEvent": "cd92c1bb82d46225d1a08e49265124acac0e268f25c678940fa6687f8bb96efa",
-      "proof": "f4cb1b84fbaf8dfdebd28f260b041cf7a418f973198ddcbbb84acb9ac6b4ac52",
-      "deals": 3,
-      "q": 16,
-      "verify_s": 64.994
-    },
-    {
-      "t": 1792494500206,
+      "t": 1792561743326,
       "watchtower": true,
       "event": "attest",
       "provider": "6fa6c8436d33",
       "height": 170,
+      "side": "stored",
       "result": "valid",
-      "proofEvent": "329c5f57be94df7f4c6a010b6e8e8f331b209eb88d9a6d669d1161589b5361f0",
-      "proof": "2422432e8284a5e7ad05fdcd85780de263feb4b2ba6499ec01d3cdec8de8bc47",
+      "proofEvent": "c2470241752a9df747670554041c22b7f8f044a871b0e89f473f67ac114da821",
+      "proof": "a3b2a9eb580f25553274fa3b50f056b2aca9ee4f1e1ce1892cbfd2da31459a7b",
       "deals": 3,
       "q": 16,
-      "verify_s": 58.356
+      "verify_s": 36.158
     },
     {
-      "t": 1792494506767,
+      "t": 1792561746323,
       "watchtower": true,
       "event": "attest",
       "provider": "9b9eecc0eab2",
       "height": 170,
+      "side": "stored",
       "result": "valid",
-      "proofEvent": "c131a8d9e730bdaa466bc13bbea0e3d1c1c814916ca3fdbe2febfe15da319e85",
-      "proof": "73f58b89eadb77a1d3315a701d1208df08ab0038f991460fd62e5e417053aa58",
+      "proofEvent": "7dfba040816227c053406bdca29c885583c0a61eb519a817c3e32fde3c73c93f",
+      "proof": "b78e950fbc6a32a553a181e297e033455b237d1c562a6aa0f58ea101a1d2ff96",
       "deals": 3,
       "q": 16,
-      "verify_s": 6.13
+      "verify_s": 2.832
     },
     {
-      "t": 1792494560369,
+      "t": 1792561749216,
+      "watchtower": true,
+      "event": "attest",
+      "provider": "35c2c7abd16e",
+      "height": 170,
+      "side": "stored",
+      "result": "valid",
+      "proofEvent": "ff834effdc1959df6d128473623e4f289dbf07f8b08cbc4d43c6bea695b67045",
+      "proof": "72bb20c51750468301c6d2bc700c95d89ee641cfe6f9f7f133e3c8a3bb5c8dfc",
+      "deals": 3,
+      "q": 16,
+      "verify_s": 2.709
+    },
+    {
+      "t": 1792561774658,
       "watchtower": true,
       "event": "attest",
       "provider": "9b9eecc0eab2",
       "height": 180,
+      "side": "stored",
       "result": "valid",
-      "proofEvent": "6b046a99f936dc2a1ca43b5e4de5979bde101556e5b11f223b41171dcb913156",
-      "proof": "46d1f41ce9248757e004893e3f84bbc05ac05b1bd723bbf8cc56dc4a8511dde2",
+      "proofEvent": "98fbfb13a691ef06096b6bc25e7264caedb2bf24a223cc7ceedf2306fe8ee11c",
+      "proof": "7f2d9bc3950654ae49d0589d280099d3e3e5ff87f2e8f96fccadf66ce6a7786b",
       "deals": 3,
       "q": 16,
-      "verify_s": 3.36
+      "verify_s": 3.107
     },
     {
-      "t": 1792494560576,
+      "t": 1792561774743,
       "watchtower": true,
       "event": "attest",
       "provider": "35c2c7abd16e",
       "height": 180,
+      "side": "stored",
       "result": "missing",
       "why": "no proof 6 blocks after the boundary"
     },
     {
-      "t": 1792494560790,
+      "t": 1792561774844,
       "watchtower": true,
       "event": "attest",
       "provider": "6fa6c8436d33",
       "height": 180,
+      "side": "stored",
       "result": "missing",
       "why": "no proof 6 blocks after the boundary"
     },
     {
-      "t": 1792494618798,
+      "t": 1792561796625,
       "watchtower": true,
       "event": "attest",
       "provider": "9b9eecc0eab2",
       "height": 190,
+      "side": "stored",
       "result": "valid",
-      "proofEvent": "12e32fd347cbfb5c0e8e900d65e219aac58db879a198981b846188d99c963b47",
-      "proof": "c4331e5c6acbf7c818c375a51726c0ad76560bb06ea99f1d88dba7e25d501f65",
+      "proofEvent": "46e5f94e093f0ef830ce569b198796f74f2290a6d9c46235943b09d4f68f617f",
+      "proof": "13fd6dbac335d38f42f1f172be9ef8d69178e3b041e7a0e448c33fc43391684b",
       "deals": 3,
       "q": 16,
-      "verify_s": 3.522
+      "verify_s": 3.465
     },
     {
-      "t": 1792494619060,
+      "t": 1792561796716,
       "watchtower": true,
       "event": "attest",
       "provider": "35c2c7abd16e",
       "height": 190,
+      "side": "stored",
       "result": "missing",
       "why": "no proof 6 blocks after the boundary"
     },
     {
-      "t": 1792494619286,
+      "t": 1792561796842,
       "watchtower": true,
       "event": "attest",
       "provider": "6fa6c8436d33",
       "height": 190,
+      "side": "stored",
       "result": "missing",
       "why": "no proof 6 blocks after the boundary"
     }

@@ -92,7 +92,7 @@ fn main() {
     let secp = Secp256k1::new();
     let fee = party(&secp, "bsb/fee-wallet");
     let fee_addr = Address::p2tr(&secp, fee.x, None, Network::Regtest);
-    let node = Node { rpc, secp, fee, fee_addr };
+    let node = Node { rpc, secp, fee, fee_addr, net: NetCfg::regtest() };
     let secp = &node.secp;
 
     let chain: Value = node.rpc.call("getblockchaininfo", json!([])).expect("bitcoind regtest not reachable");
