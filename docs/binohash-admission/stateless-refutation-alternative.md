@@ -32,6 +32,20 @@ A weak challenger who only possesses 100 work against a claim of 120 has an inva
 
 No mutable journal-cursor UTXO is needed to encode an ever-growing maximum. There remains a fixed provider claim, a proof-of-inclusion requirement for any selected certificate, and a single global collateral input, whose valid spend can win only once.
 
+## Public-input bridge into the existing Phase 6 prover wrapper
+
+`model/stateless_public_input.mjs` defines a canonical byte serialization and one 32-byte SHA-256 journal digest for future RISC Zero guest output. The existing `zk/risc0/host/src/wrap.rs` requires a 32-byte RISC Zero journal and the existing `zk/bitvm-check/src/main.rs` verifies a Groth16 proof against one public field element, so this interface fits the *size* of the current pipeline. It does **not** mean that the existing guest proves the new refutation statement.
+
+Encoded fields, all domain separated and versioned:
+
+- Bitcoin network genesis hash, provider frozen-claim commitment and challenger certificate digest
+- Challenger fork tip and provider/challenger work as unsigned 256-bit big-endian integers
+- Bitcoin anchor block hash, its confirmation height, admission cutoff and dispute deadline
+- Collateral outpoint (Bitcoin txid serialized little-endian, vout little-endian)
+- SHA-256 of the exact payout scriptPubKey
+
+`model/stateless_public_input.test.mjs` contains 13 independent binding/encoding tests. An actual guest must recompute the digest *from cryptographically verified data* and commit that exact digest as its output. This JS adapter currently hashes arbitrary caller-supplied values, so its output remains untrusted. The final construction must bind that digest to the actual Bitcoin transaction and prohibit arbitrary payout scripts. Encoding the payout-script hash alone is insufficient enforcement.
+
 ## Model implementation
 
 - `model/stateless_refutation.mjs`: frozen claim, counterexample digest, exact unsigned 256-bit work comparison and reference contest.
