@@ -71,3 +71,7 @@ jobs:
         run: node model/fixed_certificate_gate_vectors.mjs > /tmp/bsb-fixed-certificate-gate.json
       - name: Check witness substitution and adversarial regrinding against Bitcoin Core
         run: cargo run --release --manifest-path research/consensus-check/Cargo.toml < /tmp/bsb-fixed-certificate-gate.json
+      - name: Generate fixed-cert certificate-specific payout and timeout vectors
+        run: node model/fixed_payout_consensus_vectors.mjs > /tmp/bsb-fixed-payout.json
+      - name: Check mock response, guarded payouts, expiration and late-race boundaries in Core
+        run: cargo run --release --manifest-path research/consensus-check/Cargo.toml < /tmp/bsb-fixed-payout.json
