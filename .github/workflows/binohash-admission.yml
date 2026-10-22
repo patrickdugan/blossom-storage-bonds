@@ -47,3 +47,7 @@ jobs:
         run: node model/binohash_linked_cursor_vectors.mjs > /tmp/binohash-linked-cursor-vectors.json
       - name: Cross-check honest and hostile cursor successors against Bitcoin Core
         run: cargo run --release --manifest-path research/consensus-check/Cargo.toml < /tmp/binohash-linked-cursor-vectors.json
+      - name: Generate one-hop pre-signed SINGLE|ANYONECANPAY cursor vectors
+        run: node model/single_acp_successor_vectors.mjs > /tmp/binohash-signed-template-vectors.json
+      - name: Check successor amount, script, and unknown next-prevout in Bitcoin Core
+        run: cargo run --release --manifest-path research/consensus-check/Cargo.toml < /tmp/binohash-signed-template-vectors.json
