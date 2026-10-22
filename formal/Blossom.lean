@@ -35,6 +35,7 @@ inductive Stage where
   | challenged
   | providerPaid
   | clientForfeit
+  | cooperativeClosed
   deriving DecidableEq, Repr
 
 structure Account where
@@ -88,6 +89,11 @@ inductive Step (price : Nat) : Account → Account → Prop where
       (uncontested : s.stage = .live)
       (termEnded : Prop) (verified : termEnded) :
       Step price s { s with stage := Stage.providerPaid, locked := 0, provider := s.provider + (s.locked - fee), minerFees := s.minerFees + fee }
+  | cooperativeClose (s : Account) (providerAmount clientAmount fee : Nat)
+      (available : s.stage = .live ∨ s.stage = .challenged)
+      (balance : providerAmount + clientAmount + fee = s.locked)
+      (bothSigned : Prop) (authorized : bothSigned) :
+      Step price s { s with stage := Stage.cooperativeClosed, locked := 0, provider := s.provider + providerAmount, client := s.client + clientAmount, minerFees := s.minerFees + fee }
 
 theorem initial_bond_total (bond : Nat) :
     bondTotal (initial bond) = bond := by
@@ -102,6 +108,15 @@ theorem terminal_is_absorbing (price : Nat) {s t : Account}
     (h : Step price s t)
     (done : s.stage = .providerPaid ∨ s.stage = .clientForfeit) :
     False := by
+  cases h <;> simp_all
+
+/-- Cooperative key-path closure requires independent authorization from both
+parties and is terminal even when the client agreed during a challenged round.
+This is an authorization predicate, not a verified MuSig2 implementation. -/
+theorem any_terminal_is_absorbing (price : Nat) {s t : Account}
+    (h : Step price s t)
+    (done : s.stage = .providerPaid ∨ s.stage = .clientForfeit ∨
+      s.stage = .cooperativeClosed) : False := by
   cases h <;> simp_all
 
 /-- Reflexive/transitive closure of the authorized settlement graph. -/
@@ -134,6 +149,8 @@ theorem increased_revenue_requires_proof (price : Nat) {s t : Account}
   | answer _ _ _ _ _ => exact False.elim (changed rfl)
   | forfeit _ _ _ _ _ => exact False.elim (changed rfl)
   | refund _ _ _ _ _ => exact False.elim (changed rfl)
+  | cooperativeClose _ _ _ _ _ _ => exact False.elim (changed rfl)
+  | cooperativeClose _ _ _ _ _ _ => exact False.elim (changed rfl)
 
 /-- Every payment record must be bound to this deal and the agreed Merkle
 root, must have at least one sampled opening and must use a fresh epoch ID.
