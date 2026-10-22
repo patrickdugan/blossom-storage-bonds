@@ -2,7 +2,7 @@
 
 **Status: RESEARCH / BLOCKED AT BITCOIN-ENFORCED DYNAMIC CERTIFICATE ADMISSION.** This branch contains real Bitcoin transaction serialization, legacy Script ECDSA tests, a tiny unfunded Bitcoin Core consensus check, and several explicitly idealized protocol specifications. None is a deployable storage-bond contract.
 
-**272 deterministic Node tests and 39 offline Bitcoin Core 26 input Script cases passed in GitHub CI** ([witness-binding run](https://github.com/patrickdugan/blossom-storage-bonds/actions/runs/39817682863)). The Core harness checks three scripts separately on one unfunded transaction. It does not establish real UTXO spendability, Bitcoin block validity, or a deployable bond.
+**284 deterministic Node tests and 45 offline Bitcoin Core 26 input Script cases passed in GitHub CI** ([two-generation witness run](https://github.com/patrickdugan/blossom-storage-bonds/actions/runs/39818341328)). The Core harness checks three scripts separately on one unfunded transaction. It does not establish real UTXO spendability, Bitcoin block validity, or a deployable bond.
 
 ```bash
 node --test model/*.test.mjs
@@ -22,6 +22,8 @@ No bitcoind, block mining, GPU proofs, or funded pilot runs are invoked by these
 
 **[ADR-004: BIP141-anchored challenge witnesses](witness-anchored-certificates.md).** A SegWit certificate witness can leave its txid unchanged while changing its wtxid and eventual coinbase witness commitment. The composite signs SHA256(certificate) in OP_RETURN. Synthetic BIP141 proofs authenticate which witness bytes a hypothetical block included; a separate BitVM verification predicate must compare those bytes to the signed output commitment. All three script inputs pass the offline Core consensus check, including a mutated witness that fails the off-chain certificate-equality predicate.
 
+**[ADR-005: Two witness-stable cursor generations](two-generation-witness.md).** A second pre-signed transaction can spend a predictable parent txid even when the parent's SegWit certificate witness is chosen afterward. Six more Bitcoin Core cases pass. The alternate certificates also demonstrate why the eventual BitVM circuit must verify certificate-witness equality with an authenticated public input: the three spending scripts accept witness substitutions by design. Bounded slots do not guarantee open admission of later stronger forks.
+
 ## What is reproducible
 
 - `model/binohash_finddelete_poc.mjs` and `secp256k1_legacy_demo.mjs`: insecure low-security ECDSA/FindAndDelete proof of concept, signed toy transactions
@@ -32,6 +34,7 @@ No bitcoind, block mining, GPU proofs, or funded pilot runs are invoked by these
 - `model/contest_spec*.mjs`: idealized maximal-work journal and rebuttal state
 - `model/recursive_sighash_boundary.test.mjs`: each non-bug legacy sighash binds its current prevout, while the historical SINGLE bug discards its output constraint; this narrows the recursive pre-signature route
 - `model/witness_anchor*.mjs` and `model/composite_witness_binding.test.mjs`: 28 deterministic synthetic BIP141 commitment and certificate-equivalence tests. They verify Merkle arithmetic but do not authenticate a real header chain.
+- `model/witness_stable_chain_vectors*.mjs`: 12 more Node tests and 6 offline Core cases showing two pre-signed generations preserve txid under witness substitutions, including unsafe unbound alternatives.
 - `model/txid_admission*.mjs`, `model/legacy_sighash*.mjs`, `model/cursor_sighash.test.mjs`: transaction serialization, verified sighash vectors, and input binding
 - [Transaction-level acceptance checklist](next-step.md), [initial adversarial review](../binohash-admission-review.md)
 
