@@ -26,6 +26,20 @@ Detailed caveats and reproduction: `docs/binohash-admission/LEAN-STORAGE-PROTOCO
 For the sentinel/payment formal track, the next task is an auditable refinement from every real Taproot spend path and Bitcoin signature in `regtest/src/bin/bond.rs` to `UTXORefinement.admitted`. Include cooperative key paths, payout splits, and fee accounting. `ConsensusCoverage` is an explicit premise and MUST NOT be represented as established for real Bitcoin. The TypeScript Merkle verifier's byte layout, odd-leaf duplication and 4 KiB padding remain implementation-refinement obligations.
 
 The previous 363 Node / 133 Core Script passing baseline still describes the Binohash research suite; formal modules run in separate Lean CI jobs.
+## Current executable/formal refinement progress
+
+The ongoing formalization now has four Lean 4 modules, all kernel-checked in CI:
+
+- `formal/Blossom.lean` includes a finite `maxRounds` sentinel chain, slot exhaustion and joint cooperative closure with a signed provider/client split.
+- `formal/UTXORefinement.lean` has a configuration flag for a MuSig2 cooperative keypath versus the operational NUMS agent's unavailable keypath, with explicit rejection theorems for NUMS mode. Real consensus coverage remains unproved.
+- `formal/MerkleBinding.lean` reduces two conflicting same-index openings to an explicit collision event.
+- `formal/PaymentChannel.lean` models positive, deal/root-bound signed channel increments, monotonic cumulative amounts, no replay in the formal receipt ledger, provider close, client timeout refund and their post-deadline race.
+
+Code-level progress: `model/taproot_spend_inventory.mjs` adds Rust source-drift checks for the actual bond-state variants, including the final refund-only state, BIP341 sighash and fee shape. `model/storage_bonds.ts` now rejects zero-sample epochs and invalid proof array shapes; `model/merkle_refinement.test.ts` cross-checks the actual TypeScript implementation against independent SHA256 Merkle roots. `layer1/channel.ts` now rejects malformed/nonpositive/expired invoices, overflow, client-side replay and parallel signing attempts on one channel, with `layer1/channel-invoice.test.ts` providing executable tests.
+
+The latest confirmed model CI prior to this document revision is [run #39871845755](https://github.com/patrickdugan/blossom-storage-bonds/actions/runs/39871845755), and the formal Lean run is [#39871845739](https://github.com/patrickdugan/blossom-storage-bonds/actions/runs/39871845739). The model suite includes 372 Node regressions, 32 TypeScript storage/channel tests and 133 unfunded Core Script cases. Counts and CI state must be rechecked after further commits.
+
+The payment-channel invoice is unsigned `bsbch1` JSON; provider identity/origin authentication still depends on application transport. Payment tracking is in memory and cannot yet satisfy durable restart-safe exactly-once semantics. The standalone bond tool uses NUMS, while the older regtest harness tests a MuSig2 keypath close. The formal source inventory is not a compiler or consensus proof. Next work must connect verified BIP341/342 and channel signatures, exact state output amounts, Merkle tree geometry, and persistent receipts to `ConsensusCoverage` and `ChannelStep`.
 ## Research goal
 
 Create a Bitcoin-enforced storage-bond construction allowing arbitrary permissionless stronger-fork certificates with exact 256-bit verified chain work and appropriate inclusion/cutoff proofs to control collateral settlement, while protecting timely stronger challenges and requiring the provider to answer the *actual submitted certificate* if that original protocol policy is retained.
