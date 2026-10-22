@@ -10,7 +10,7 @@ let v,cases;
 before(()=>{v=compositeCursorConsensusVectors();cases=new Map(v.cases.map(c=>[c.name,c]));});
 const named=n=>cases.get(n);
 function inspect(name){
-  const tx=decodeLegacyTransaction(named(name).tx_hex);
+  const tx=decodeLegacyTransaction(named(name).stripped_tx_hex);
   const sig=parseBitcoinSignature(tx.vin[1].scriptSig.slice(2));
   const z=displayHashToZ(legacySignatureHash(tx,1,P2PK,sig.hashType));
   return {
@@ -19,7 +19,7 @@ function inspect(name){
   };
 }
 test('M01: composite transaction has separate P2PK and Binohash inputs',()=>{
-  assert.deepEqual(v.checks.map(x=>x.input_index),[1,2]);
+  assert.deepEqual(v.checks.map(x=>x.input_index),[0,1,2]);
 });
 test('M02: Binohash carrier sits after last output so legacy SINGLE bug holds',()=>{
   const c=inspect('composite-challenger-A');assert.equal(c.tx.vin.length,3);
@@ -84,4 +84,23 @@ test('M14: script-valid composite does not authenticate exact chain work',()=>{
   // There is no header-chain proof, fork certificate verifier, or work
   // comparator in the scripts. Arbitrary 32-byte strings are admitted.
   assert.equal(v.commitments.first_a_sig,v.commitments.first_b_sig);
+});
+
+test('M15: sponsor has real native v0 P2WSH Script path, verified as third input',()=>{
+  assert.equal(v.checks[0].script_pub_key.slice(0,4),'0020');
+  assert.equal(v.checks[0].script_pub_key.length,68);
+  assert.equal(v.cases[0].expected_inputs.length,3);
+});
+test('M16: Binohash and one-hop cursor guard can coexist with true witness data',()=>{
+  assert.equal(named('unrelated-segwit-witness-uncaptured').expected_valid,true);
+  assert.equal(named('unrelated-segwit-witness-uncaptured').expected_inputs[0].expected_valid,true);
+});
+test('M17: SegWit serialization differs from stripped serialization for valid sponsor input',()=>{
+  const c=named('composite-challenger-A');
+  assert.notEqual(c.tx_hex,c.stripped_tx_hex);
+  assert.equal(c.tx_hex.slice(8,12),'0001'); // BIP141 marker and flag after version
+});
+test('M18: certificate variants preserve cursor signature while changing witness commitment',()=>{
+  assert.equal(v.commitments.first_a_sig,v.commitments.first_b_sig);
+  assert.notEqual(named('composite-challenger-A').wtxid,named('composite-challenger-B').wtxid);
 });
