@@ -67,3 +67,7 @@ jobs:
         run: node model/refund_bypass_consensus_vectors.mjs > /tmp/bsb-refund-bypass.json
       - name: Verify refund signature, CLTV and unrelated witness cases against Bitcoin Core
         run: cargo run --release --manifest-path research/consensus-check/Cargo.toml < /tmp/bsb-refund-bypass.json
+      - name: Generate fixed-certificate P2WSH and ALL-guardian vectors
+        run: node model/fixed_certificate_gate_vectors.mjs > /tmp/bsb-fixed-certificate-gate.json
+      - name: Check witness substitution and adversarial regrinding against Bitcoin Core
+        run: cargo run --release --manifest-path research/consensus-check/Cargo.toml < /tmp/bsb-fixed-certificate-gate.json
