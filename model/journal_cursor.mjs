@@ -86,3 +86,19 @@ export function proposedCursorInvariants({liveCursor,settlement,history=[]}) {
       'all-path bond refund gating', 'admission and response deadline enforcement']
   };
 }
+
+/**
+ * Proposed freeze is a transaction that consumes the LIVE cursor after cutoff.
+ * Height locks only enforce the EARLIEST valid block. They cannot stop another
+ * challenge from spending an unconsumed cursor after cutoff; both spend paths
+ * compete until one confirms. Output script is again a test-only placeholder.
+ */
+export function freezeCursor({cursor,admissionEnd,fee=1000n}) {
+  if (!cursor || !isRef(cursor.ref) || !validSats(cursor.budget) ||
+      !Number.isSafeInteger(admissionEnd) || admissionEnd<1 ||
+      !validSats(fee) || fee>=cursor.budget) throw new TypeError('invalid freeze');
+  const tx={version:2,vin:[standardInput(cursor.ref)],
+    vout:[{valueSats:cursor.budget-fee,scriptPubKey:puzzleCommitment(`frozen/${cursor.root}`)}],
+    lockTime:admissionEnd};
+  return {tx,ref:spendOf(tx),frozenRoot:cursor.root,lockedValue:cursor.budget-fee};
+}
