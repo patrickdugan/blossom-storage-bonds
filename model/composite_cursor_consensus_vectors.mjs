@@ -12,6 +12,7 @@
  * Core only verifies Script for individually supplied inputs.
  * The next cursor txid is dynamic, so no recursive presignature exists.
  */
+import {createHash} from 'node:crypto';
 import {dummyPool,makeLockingScript,solveToyBinohash} from './binohash_finddelete_poc.mjs';
 import {signOne,P2PK} from './single_acp_successor_vectors.mjs';
 import {transactionId,serializeTransaction,witnessTransactionId} from './txid_admission.mjs';
@@ -21,6 +22,7 @@ const POOL=dummyPool();
 export const BINOLOCK=makeLockingScript(POOL);
 const ID=h=>h.repeat(32);
 const OP_RETURN=hex=>'6a20'+hex.repeat(32);
+const CERT_COMMIT=hex=>'6a20'+createHash('sha256').update(Buffer.from(hex,'hex')).digest('hex');
 const VALUE=40000n;
 
 function txTemplate({certificate='aa',cursorPrev=ID('22'),sponsorPrev=ID('11'),cursorScript=P2PK,cursorValue=VALUE}={}) {
@@ -31,7 +33,7 @@ function txTemplate({certificate='aa',cursorPrev=ID('22'),sponsorPrev=ID('11'),c
       {prevTxid:ID('33'),prevVout:0,scriptSig:'',sequence:0xfffffffe,witness:[]}
     ],
     vout:[
-      {valueSats:0n,scriptPubKey:OP_RETURN(certificate)},
+      {valueSats:0n,scriptPubKey:CERT_COMMIT(certificate.repeat(32))},
       {valueSats:cursorValue,scriptPubKey:cursorScript},
     ]};
   return signOne(empty);
@@ -47,6 +49,7 @@ const vector=(name,tx,expect,perInput)=>({
 function inputResults(cursor,puzzle){
   return [{input_index:0,expected_valid:true},{input_index:1,expected_valid:cursor},{input_index:2,expected_valid:puzzle}];
 }
+export function compositeAnchoringSamples(){return {a:grind(txTemplate({certificate:'aa'})),b:grind(txTemplate({certificate:'bb'}))};}
 export function compositeCursorConsensusVectors(){
   const a=grind(txTemplate({certificate:'aa'}));
   const b=grind(txTemplate({certificate:'bb'}));
