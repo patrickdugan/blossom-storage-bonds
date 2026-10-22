@@ -198,6 +198,64 @@ theorem response_advances_round (s : UTXOState) (tx : BondTx)
     (applyBondTx s tx).account.round = s.account.round + 1 := by
   simp [applyBondTx, accountAfter, hp]
 
+/-- A low-level history parameterized by any alleged Bitcoin acceptance
+predicate. This permits the refinement obligation to be stated for real
+consensus acceptance rather than only the hand-written formal checks. -/
+inductive RawBitcoinRun
+    (bitcoinAccepts : UTXOState → BondTx → Prop) :
+    UTXOState → UTXOState → Prop where
+  | refl (s : UTXOState) : RawBitcoinRun bitcoinAccepts s s
+  | extend {start middle : UTXOState}
+      (prefixRun : RawBitcoinRun bitcoinAccepts start middle)
+      (tx : BondTx) (accepted : bitcoinAccepts middle tx) :
+      RawBitcoinRun bitcoinAccepts start (applyBondTx middle tx)
+
+/-- Exact statement of the *unproved* Bitcoin-to-Script refinement premise:
+every accepted real consensus spend must satisfy the UTXO, path, witness,
+payout, timelock and successor checks in admitted. -/
+def ConsensusCoverage (bitcoinAccepts : UTXOState → BondTx → Prop) : Prop :=
+  ∀ s tx, bitcoinAccepts s tx → admitted s tx
+
+/-- Conditional multi-transaction forward simulation. It lifts the one-step
+proof to an arbitrarily long Bitcoin run, assuming consensus coverage. -/
+theorem bitcoin_run_refines_abstract
+    (bitcoinAccepts : UTXOState → BondTx → Prop)
+    (coverage : ConsensusCoverage bitcoinAccepts)
+    {start finish : UTXOState}
+    (history : RawBitcoinRun bitcoinAccepts start finish) :
+    Reach 0 start.account finish.account := by
+  induction history with
+  | refl =>
+      exact Reach.refl _
+  | extend prefixRun tx accepted ih =>
+      exact Reach.more ih
+        (admitted_refines_abstract _ tx (coverage _ tx accepted))
+
+theorem arbitrary_run_conserves_bond_including_fees
+    (bitcoinAccepts : UTXOState → BondTx → Prop)
+    (coverage : ConsensusCoverage bitcoinAccepts)
+    {start finish : UTXOState}
+    (history : RawBitcoinRun bitcoinAccepts start finish) :
+    bondTotal start.account = bondTotal finish.account := by
+  exact reachable_preserves_bond 0
+    (bitcoin_run_refines_abstract bitcoinAccepts coverage history)
+
+/-- Instantiating coverage with the formal verifier yields a completed
+abstract safety theorem. Replacing this instantiation with Bitcoin Core
+remains the outstanding implementation-conformance proof. -/
+theorem formal_ledger_initial_value_conserved
+    (bond ref : Nat) {finish : UTXOState}
+    (history : RawBitcoinRun admitted (utxoInitial bond ref) finish) :
+    bondTotal finish.account = bond := by
+  have coverage : ConsensusCoverage admitted := by
+    intro s tx h
+    exact h
+  have preserved := arbitrary_run_conserves_bond_including_fees
+    admitted coverage history
+  calc
+    bondTotal finish.account = bondTotal (utxoInitial bond ref).account := preserved.symm
+    _ = bond := initial_bond_total bond
+
 /-- This hypothetical policy allows an unenumerated key path. It creates a
 counterexample to deriving the refinement theorem from mere UTXO inclusion.
 A full Bitcoin theorem needs to prove complete coverage of ALL spend paths. -/
