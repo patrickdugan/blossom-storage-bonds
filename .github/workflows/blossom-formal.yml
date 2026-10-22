@@ -33,3 +33,4 @@ jobs:
           lean -o formal/Blossom.olean formal/Blossom.lean
           LEAN_PATH=formal lean formal/UTXORefinement.lean
           LEAN_PATH=formal lean formal/MerkleBinding.lean
+          LEAN_PATH=formal lean formal/PaymentChannel.lean
