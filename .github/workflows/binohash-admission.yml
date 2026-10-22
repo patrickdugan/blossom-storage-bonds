@@ -59,3 +59,7 @@ jobs:
         run: node model/composite_cursor_consensus_vectors.mjs > /tmp/binohash-composite-vectors.json
       - name: Verify both Script inputs on same unfunded transaction
         run: cargo run --release --manifest-path research/consensus-check/Cargo.toml < /tmp/binohash-composite-vectors.json
+      - name: Generate witness-stable two-generation cursor scripts
+        run: node model/witness_stable_chain_vectors.mjs > /tmp/bsb-witness-stable-vectors.json
+      - name: Verify both generations and alternate witnesses with Bitcoin Core
+        run: cargo run --release --manifest-path research/consensus-check/Cargo.toml < /tmp/bsb-witness-stable-vectors.json
