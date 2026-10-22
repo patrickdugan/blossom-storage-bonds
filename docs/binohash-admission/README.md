@@ -2,7 +2,7 @@
 
 **Status: RESEARCH / BLOCKED AT BITCOIN-ENFORCED DYNAMIC CERTIFICATE ADMISSION.** This branch contains real Bitcoin transaction serialization, legacy Script ECDSA tests, a tiny unfunded Bitcoin Core consensus check, and several explicitly idealized protocol specifications. None is a deployable storage-bond contract.
 
-**175 deterministic Node tests passing** locally. The offline Core 26 legacy Script harness independently verifies **9 of 9 cases**, including a valid second spend that regrinds a Binohash toy signature for a malicious cursor-burning output.
+**188 deterministic Node tests passing** locally. The offline Core 26 legacy Script harness independently verifies **9 of 9 cases**, including a valid second spend that regrinds a Binohash toy signature for a malicious cursor-burning output.
 
 ```bash
 node --test model/*.test.mjs
@@ -23,6 +23,7 @@ No bitcoind, block mining, GPU proofs, or funded pilot runs are invoked by these
 - `model/binohash_finddelete_poc.mjs` and `secp256k1_legacy_demo.mjs`: insecure low-security ECDSA/FindAndDelete proof of concept, signed toy transactions
 - `model/binohash_consensus_vectors.mjs` and `research/consensus-check/`: unfunded raw transaction checks using vendored Bitcoin Core's consensus engine
 - `model/stateless_refutation*.mjs`: 22 stronger-work existential counterexample tests with explicit external-oracle assumptions
+- `model/stateless_public_input*.mjs`: 13 canonical 32-byte RISC Zero journal schema tests, including exact uint256 work, payout script and collateral binding
 - `model/journal_cursor*.mjs`, `model/cutoff_race.test.mjs` and `model/utxo_admission_graph*.mjs`: cursor races and refund bypass
 - `model/contest_spec*.mjs`: idealized maximal-work journal and rebuttal state
 - `model/txid_admission*.mjs`, `model/legacy_sighash*.mjs`, `model/cursor_sighash.test.mjs`: transaction serialization, verified sighash vectors, and input binding
