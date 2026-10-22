@@ -1,0 +1,30 @@
+name: Blossom Lean protocol invariants
+
+on:
+  push:
+    branches: [research/binohash-admission]
+    paths:
+      - "formal/**"
+      - "lean-toolchain"
+      - ".github/workflows/blossom-formal.yml"
+  pull_request:
+    paths:
+      - "formal/**"
+      - "lean-toolchain"
+      - ".github/workflows/blossom-formal.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  lean:
+    name: Lean4 kernel check for storage-payment state machine
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: leanprover/lean-action@v1
+      - name: Check proof file (no sorry)
+        run: |
+          ! grep -Eq '(^|[[:space:]])(sorry|admit)([[:space:]]|$)' formal/Blossom.lean
+          lean formal/Blossom.lean
