@@ -39,31 +39,39 @@ structure Account where
   provider : Nat
   client : Nat
   epochRevenue : Nat
+  minerFees : Nat
   deriving Repr
 
-def bondTotal (s : Account) : Nat := s.locked + s.provider + s.client
+def bondTotal (s : Account) : Nat := s.locked + s.provider + s.client + s.minerFees
 
 def initial (bond : Nat) : Account :=
   { stage := .live, locked := bond, provider := 0, client := 0,
-    epochRevenue := 0 }
+    epochRevenue := 0, minerFees := 0 }
 
 /-- Every authorized accounting transition is specified here. For a real
-Bitcoin contract, Script and transaction validity must refine this relation. -/
+Bitcoin contract, Script and transaction validity must refine this relation.
+Settlement value includes the miner fee debited from the locked bond. -/
 inductive Step (price : Nat) : Account → Account → Prop where
   | payEpoch (s : Account) (proof : StorageProof)
       (stageOk : s.stage = .live) (verified : accepts proof) :
       Step price s { s with epochRevenue := s.epochRevenue + price }
   | challenge (s : Account) (eligible : s.stage = .live) :
       Step price s { s with stage := .challenged }
-  | answer (s : Account) (challenged : s.stage = .challenged)
+  | answer (s : Account) (fee : Nat) (affordable : fee ≤ s.locked)
+      (challenged : s.stage = .challenged)
       (validResponse : Prop) (verified : validResponse) :
-      Step price s { s with stage := Stage.providerPaid, locked := 0, provider := s.provider + s.locked }
-  | forfeit (s : Account) (challenged : s.stage = .challenged)
+      Step price s { s with stage := Stage.providerPaid, locked := 0,
+        provider := s.provider + (s.locked - fee), minerFees := s.minerFees + fee }
+  | forfeit (s : Account) (fee : Nat) (affordable : fee ≤ s.locked)
+      (challenged : s.stage = .challenged)
       (deadlinePassed : Prop) (verified : deadlinePassed) :
-      Step price s { s with stage := Stage.clientForfeit, locked := 0, client := s.client + s.locked }
-  | refund (s : Account) (uncontested : s.stage = .live)
+      Step price s { s with stage := Stage.clientForfeit, locked := 0,
+        client := s.client + (s.locked - fee), minerFees := s.minerFees + fee }
+  | refund (s : Account) (fee : Nat) (affordable : fee ≤ s.locked)
+      (uncontested : s.stage = .live)
       (termEnded : Prop) (verified : termEnded) :
-      Step price s { s with stage := Stage.providerPaid, locked := 0, provider := s.provider + s.locked }
+      Step price s { s with stage := Stage.providerPaid, locked := 0,
+        provider := s.provider + (s.locked - fee), minerFees := s.minerFees + fee }
 
 theorem initial_bond_total (bond : Nat) :
     bondTotal (initial bond) = bond := by
@@ -71,7 +79,7 @@ theorem initial_bond_total (bond : Nat) :
 
 theorem step_preserves_bond (price : Nat) {s t : Account}
     (h : Step price s t) : bondTotal s = bondTotal t := by
-  cases h <;> simp [bondTotal, Nat.add_assoc, Nat.add_left_comm, Nat.add_comm]
+  cases h <;> simp [bondTotal] <;> omega
 
 /-- A completed provider payout or forfeiture admits no further authorized step. -/
 theorem terminal_is_absorbing (price : Nat) {s t : Account}
@@ -107,8 +115,8 @@ theorem increased_revenue_requires_proof (price : Nat) {s t : Account}
   cases h with
   | payEpoch p _ verified => exact ⟨p, verified⟩
   | challenge _ => exact False.elim (changed rfl)
-  | answer _ _ _ => exact False.elim (changed rfl)
-  | forfeit _ _ _ => exact False.elim (changed rfl)
-  | refund _ _ _ => exact False.elim (changed rfl)
+  | answer _ _ _ _ _ => exact False.elim (changed rfl)
+  | forfeit _ _ _ _ _ => exact False.elim (changed rfl)
+  | refund _ _ _ _ _ => exact False.elim (changed rfl)
 
 end BlossomFormal
