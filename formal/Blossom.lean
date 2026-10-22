@@ -63,8 +63,7 @@ inductive Step (price : Nat) : Account → Account → Prop where
       Step price s { s with stage := Stage.clientForfeit, locked := 0, client := s.client + s.locked }
   | refund (s : Account) (uncontested : s.stage = .live)
       (termEnded : Prop) (verified : termEnded) :
-      Step price s { s with stage := .providerPaid,
-        locked := 0, provider := s.provider + s.locked }
+      Step price s { s with stage := Stage.providerPaid, locked := 0, provider := s.provider + s.locked }
 
 theorem initial_bond_total (bond : Nat) :
     bondTotal (initial bond) = bond := by
@@ -79,22 +78,7 @@ theorem terminal_is_absorbing (price : Nat) {s t : Account}
     (h : Step price s t)
     (done : s.stage = .providerPaid ∨ s.stage = .clientForfeit) :
     False := by
-  cases h with
-  | payEpoch _ _ live _ => cases done with
-    | inl d => simp [live] at d
-    | inr d => simp [live] at d
-  | challenge _ live => cases done with
-    | inl d => simp [live] at d
-    | inr d => simp [live] at d
-  | answer _ challenged _ _ => cases done with
-    | inl d => simp [challenged] at d
-    | inr d => simp [challenged] at d
-  | forfeit _ challenged _ _ => cases done with
-    | inl d => simp [challenged] at d
-    | inr d => simp [challenged] at d
-  | refund _ live _ _ => cases done with
-    | inl d => simp [live] at d
-    | inr d => simp [live] at d
+  cases h <;> simp_all
 
 /-- Reflexive/transitive closure of the authorized settlement graph. -/
 inductive Reach (price : Nat) : Account → Account → Prop where
@@ -105,7 +89,7 @@ inductive Reach (price : Nat) : Account → Account → Prop where
 theorem reachable_preserves_bond (price : Nat) {a b : Account}
     (h : Reach price a b) : bondTotal a = bondTotal b := by
   induction h with
-  | refl s => rfl
+  | refl => rfl
   | more path edge ih =>
     exact ih.trans (step_preserves_bond price edge)
 
@@ -121,10 +105,10 @@ theorem increased_revenue_requires_proof (price : Nat) {s t : Account}
     (h : Step price s t) (changed : s.epochRevenue ≠ t.epochRevenue) :
     ∃ p : StorageProof, accepts p := by
   cases h with
-  | payEpoch s p _ verified => exact ⟨p, verified⟩
-  | challenge s _ => exact False.elim (changed rfl)
-  | answer s _ _ _ => exact False.elim (changed rfl)
-  | forfeit s _ _ _ => exact False.elim (changed rfl)
-  | refund s _ _ _ => exact False.elim (changed rfl)
+  | payEpoch p _ verified => exact ⟨p, verified⟩
+  | challenge _ => exact False.elim (changed rfl)
+  | answer _ _ _ => exact False.elim (changed rfl)
+  | forfeit _ _ _ => exact False.elim (changed rfl)
+  | refund _ _ _ => exact False.elim (changed rfl)
 
 end BlossomFormal
