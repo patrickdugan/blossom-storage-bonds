@@ -17,7 +17,7 @@ Latest confirmed run on baseline: https://github.com/patrickdugan/blossom-storag
 
 Blossom now has three kernel-checked Lean 4 modules:
 
-- `formal/Blossom.lean`: epoch payments require accepted sampled openings; sentinel response moves to the **next live round**; miner fees are tracked and total bond value is conserved.
+- `formal/Blossom.lean`: epoch payments require a nonempty accepted proof bound to the correct deal and Merkle root and a fresh epoch ID; the paid-epoch ledger prevents replay through any authorized history. Deal/root commitments remain immutable. A sentinel response advances to the **next live round** and miner fees are included in bond conservation.
 - `formal/UTXORefinement.lean`: spent outpoint tracking, payout restrictions and `bitcoin_run_refines_abstract` across arbitrary histories **conditional on** `ConsensusCoverage`. Counterexamples exhibit a missing spend path and an old independent CLTV refund bypass.
 - `formal/MerkleBinding.lean`: same-index chunk-opening collisions reduce to a concrete leaf, node or root commitment hash collision, without an assumption of SHA256 global injectivity. A paid Lightning invoice alone is not proof of storage.
 
