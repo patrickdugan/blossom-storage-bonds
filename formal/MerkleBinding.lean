@@ -118,12 +118,13 @@ theorem unique_chunk_if_collision_free
     (noNode : ¬ NodeCollision node)
     (noRoot : ¬ RootCollision rootTag n) :
     x = y := by
-  by_contra h
-  rcases two_verified_openings_imply_collision leaf node rootTag n root x y a b
-    hOrient h1 h2 h with badLeaf | badNode | badRoot
-  · exact noLeaf badLeaf
-  · exact noNode badNode
-  · exact noRoot badRoot
+  by_cases h : x = y
+  · exact h
+  · rcases two_verified_openings_imply_collision leaf node rootTag n root x y a b
+      hOrient h1 h2 h with badLeaf | badNode | badRoot
+    · exact False.elim (noLeaf badLeaf)
+    · exact False.elim (noNode badNode)
+    · exact False.elim (noRoot badRoot)
 
 /-- A receipt policy for epoch payment: accepting evidence is a separate
 condition from merely observing Lightning value movement. -/
