@@ -10,19 +10,23 @@
 import {legacySignatureHash,encodePushData} from './legacy_sighash.mjs';
 import {transactionId} from './txid_admission.mjs';
 import {
-  N,G,mod,inverse,multiply,pubkey,parsePubkey,verifyECDSA,
+  N,G,mod,inverse,multiply,pubkey,parsePubkey,verifyECDSA,add,liftX,
   recoverPublicKey,encodeBitcoinSignature,parseBitcoinSignature,displayHashToZ
 } from './secp256k1_legacy_demo.mjs';
 
 const OP_DROP='75', OP_CHECKMULTISIG='ae';
 const OP_0='00', OP_3='53';
 const BUG_Z=displayHashToZ('00'.repeat(31)+'01');
-const signRmin = (z) => {
-  const k=inverse(2n,N),r=mod(multiply(k).x,N);
-  const d=inverse(r,N); // r*d == 1 so s = 2(z+1)
-  const s=mod(2n*(z+1n),N);
-  return {r,s,publicKey:pubkey(multiply(d)),signature:encodeBitcoinSignature(r,s,1)};
-};
+// These constants are independent of the transaction and selection. A real
+// grinder only changes sighash bytes; elliptic curve work stays in setup.
+const RMIN=mod(multiply(inverse(2n,N)).x,N);
+const PMIN_PUBKEY=pubkey(multiply(inverse(RMIN,N)));
+const DUMMY_R=liftX(1n,false);
+const MINUS_ZG=multiply(-mod(BUG_Z,N));
+const signRmin = (z) => ({
+  r:RMIN,s:mod(2n*(z+1n),N),publicKey:PMIN_PUBKEY,
+  signature:encodeBitcoinSignature(RMIN,mod(2n*(z+1n),N),1)
+});
 
 export function dummyPool(n=80){
   if(!Number.isSafeInteger(n)||n<1||n>127)throw RangeError('toy dummy pool size must be 1..127');
@@ -30,7 +34,8 @@ export function dummyPool(n=80){
   for(let i=1;i<=n;i++){
     const r=1n,s=BigInt(i);
     const signature=encodeBitcoinSignature(r,s,3);
-    const publicKey=pubkey(recoverPublicKey({z:BUG_Z,r,s,odd:false}));
+    // r=1: recovered key is s*R - z*G. Reuse constant R and z*G.
+    const publicKey=pubkey(add(multiply(s,DUMMY_R),MINUS_ZG));
     ret.push({index:i-1,r,s,signature,publicKey});
   }
   return ret;
