@@ -18,7 +18,7 @@ const PUB=pubkey(multiply(D));
 export const P2PK=encodePushData(PUB)+'ac';
 const HASH_TYPE=0x83;
 const X32=v=>v.repeat(32);
-function signOne(tx,script=P2PK,secret=D) {
+export function signOne(tx,script=P2PK,secret=D) {
   const digest=legacySignatureHash(tx,1,script,HASH_TYPE);
   const z=displayHashToZ(digest);
   const R=multiply(K);
