@@ -5,11 +5,13 @@ on:
     branches: [research/binohash-admission]
     paths:
       - "model/*.mjs"
+      - "model/*.ts"
       - "research/consensus-check/**"
       - ".github/workflows/binohash-admission.yml"
   pull_request:
     paths:
       - "model/*.mjs"
+      - "model/*.ts"
       - "research/consensus-check/**"
       - ".github/workflows/binohash-admission.yml"
 
@@ -32,6 +34,8 @@ jobs:
           node-version: "22"
       - name: No mining, GPU proof generation, or pilot execution
         run: node --test model/*.test.mjs
+      - name: Real TypeScript storage/Merkle verification and adversarial vectors
+        run: node --experimental-strip-types --test model/merkle_refinement.test.ts model/storage_bonds.test.ts
 
   offline-consensus:
     name: Offline Core 26 legacy Script verifier (no bitcoind)
