@@ -24,6 +24,7 @@ inductive SpendPath where
   | response
   | forfeit
   | refund
+  | cooperative
   | outsidePath
   deriving DecidableEq, Repr
 
@@ -31,6 +32,7 @@ inductive Recipient where
   | successorBond
   | provider
   | challenger
+  | jointSplit
   | arbitrary
   deriving DecidableEq, Repr
 
@@ -40,6 +42,7 @@ structure BondTx where
   path : SpendPath
   recipient : Recipient
   payout : Nat
+  clientPayout : Nat := 0
   fee : Nat
   providerSignature : Bool
   clientSignature : Bool
@@ -65,6 +68,7 @@ def witnessValid (tx : BondTx) : Prop :=
   | .response => tx.providerSignature = true ∧ tx.clientSignature = true ∧ tx.hashOpening = true
   | .forfeit => tx.clientSignature = true ∧ tx.timelockSatisfied = true
   | .refund => tx.providerSignature = true ∧ tx.timelockSatisfied = true
+  | .cooperative => tx.providerSignature = true ∧ tx.clientSignature = true
   | .outsidePath => False
 
 def stageEligible (s : Account) (tx : BondTx) : Prop :=
@@ -73,6 +77,7 @@ def stageEligible (s : Account) (tx : BondTx) : Prop :=
   | .response => s.stage = Stage.challenged
   | .forfeit => s.stage = Stage.challenged
   | .refund => s.stage = Stage.live
+  | .cooperative => s.stage = Stage.live ∨ s.stage = Stage.challenged
   | .outsidePath => False
 
 def recipientExpected (tx : BondTx) : Prop :=
@@ -81,13 +86,15 @@ def recipientExpected (tx : BondTx) : Prop :=
   | .response => tx.recipient = Recipient.successorBond
   | .forfeit => tx.recipient = Recipient.challenger
   | .refund => tx.recipient = Recipient.provider
+  | .cooperative => tx.recipient = Recipient.jointSplit
   | .outsidePath => False
 
 /-- Value accounting uses the bond's actual UTXO amount. Fees must appear in
 the equation. signedOutputs represents BIP341 authorization for the entire
 output template (or an equally strong covenant). -/
 def payoutValid (s : Account) (tx : BondTx) : Prop :=
-  tx.payout + tx.fee = s.locked ∧
+  tx.payout + tx.clientPayout + tx.fee = s.locked ∧
+  (tx.path = SpendPath.cooperative ∨ tx.clientPayout = 0) ∧
   tx.signedOutputs = true ∧ recipientExpected tx
 
 /-- UTXO membership, spend-once, Script evidence, exact payout accounting,
@@ -106,12 +113,13 @@ def accountAfter (a : Account) (tx : BondTx) : Account :=
   | .response => { a with stage := Stage.live, round := a.round + 1, locked := a.locked - tx.fee, minerFees := a.minerFees + tx.fee }
   | .forfeit => { a with stage := Stage.clientForfeit, locked := 0, client := a.client + (a.locked - tx.fee), minerFees := a.minerFees + tx.fee }
   | .refund => { a with stage := Stage.providerPaid, locked := 0, provider := a.provider + (a.locked - tx.fee), minerFees := a.minerFees + tx.fee }
+  | .cooperative => { a with stage := Stage.cooperativeClosed, locked := 0, provider := a.provider + tx.payout, client := a.client + tx.clientPayout, minerFees := a.minerFees + tx.fee }
   | .outsidePath => a
 
 def nextLive (tx : BondTx) : Option Nat :=
   match tx.path with
   | .challenge | .response => some tx.successor
-  | .forfeit | .refund | .outsidePath => none
+  | .forfeit | .refund | .cooperative | .outsidePath => none
 
 def applyBondTx (s : UTXOState) (tx : BondTx) : UTXOState :=
   { account := accountAfter s.account tx,
@@ -126,11 +134,16 @@ theorem admitted_refines_abstract (s : UTXOState) (tx : BondTx)
     Step 0 s.account (accountAfter s.account tx) := by
   rcases h with ⟨_, _, st, wit, out, _, _⟩
   have hv : tx.fee ≤ s.account.locked := by
-    dsimp [payoutValid] at out
+    rcases out with ⟨balance, _, _, _⟩
     omega
+  have ordinaryClientZero : tx.path ≠ SpendPath.cooperative → tx.clientPayout = 0 := by
+    intro notCoop
+    rcases out with ⟨_, splitOrZero, _, _⟩
+    exact splitOrZero.resolve_left notCoop
   cases hp : tx.path with
   | challenge =>
       simp [stageEligible, hp] at st
+      have zero := ordinaryClientZero (by simp [hp])
       simpa [accountAfter, hp] using
         (Step.challenge (price := 0) s.account tx.fee hv st)
   | response =>
@@ -151,6 +164,14 @@ theorem admitted_refines_abstract (s : UTXOState) (tx : BondTx)
       simpa [accountAfter, hp] using
         (Step.refund (price := 0) s.account tx.fee hv st
           (tx.timelockSatisfied = true) wit.2)
+  | cooperative =>
+      simp [stageEligible, hp] at st
+      simp [witnessValid, hp] at wit
+      rcases out with ⟨balance, _, _, _⟩
+      simpa [accountAfter, hp] using
+        (Step.cooperativeClose (price := 0) s.account
+          tx.payout tx.clientPayout tx.fee st balance
+          (tx.providerSignature = true ∧ tx.clientSignature = true) wit)
   | outsidePath =>
       simp [stageEligible, hp] at st
 
@@ -159,6 +180,22 @@ theorem admitted_spend_conserves_bond (s : UTXOState) (tx : BondTx)
     bondTotal s.account = bondTotal (applyBondTx s tx).account := by
   change bondTotal s.account = bondTotal (accountAfter s.account tx)
   exact step_preserves_bond 0 (admitted_refines_abstract s tx h)
+
+/-- The permitted cooperative key-path spend requires both authorizations.
+A Bitcoin MuSig2 aggregate signature is modeled by these TWO premises: the
+real cryptographic connection still requires an implementation refinement. -/
+theorem admitted_cooperative_requires_both
+    (s : UTXOState) (tx : BondTx)
+    (h : admitted s tx) (coop : tx.path = SpendPath.cooperative) :
+    tx.providerSignature = true ∧ tx.clientSignature = true := by
+  rcases h with ⟨_, _, _, witness, _, _, _⟩
+  simpa [witnessValid, coop] using witness
+
+theorem admitted_cooperative_split_conserves_input
+    (s : UTXOState) (tx : BondTx)
+    (h : admitted s tx) (coop : tx.path = SpendPath.cooperative) :
+    tx.payout + tx.clientPayout + tx.fee = s.account.locked := by
+  exact h.2.2.2.2.1
 
 theorem spent_prevout_recorded (s : UTXOState) (tx : BondTx) :
     tx.prevout ∈ (applyBondTx s tx).spent := by
