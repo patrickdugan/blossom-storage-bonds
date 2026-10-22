@@ -1,0 +1,28 @@
+name: Binohash admission model
+
+on:
+  push:
+    branches: [research/binohash-admission]
+    paths:
+      - "model/*.mjs"
+      - ".github/workflows/binohash-admission.yml"
+  pull_request:
+    paths:
+      - "model/*.mjs"
+      - ".github/workflows/binohash-admission.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  model-tests:
+    name: Node 22 research regressions only
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: No bitcoind, GPU proof generation, mining, or pilot execution
+        run: node --test model/*.test.mjs
