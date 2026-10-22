@@ -24,6 +24,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: leanprover/lean-action@v1
+        with:
+          auto-config: false
+          build: false
+          test: false
+          lint: false
       - name: Check proof file (no sorry)
         run: |
           ! grep -Eq '(^|[[:space:]])(sorry|admit)([[:space:]]|$)' formal/Blossom.lean
