@@ -213,7 +213,7 @@ def outsidePathExample : BondTx :=
 
 theorem unenumerated_path_counterexample :
     weakExternalAdmission outsidePathExample ∧ ¬ witnessValid outsidePathExample := by
-  decide
+  simp [weakExternalAdmission, witnessValid, outsidePathExample]
 
 /-- ADR-006 counterexample: an old provider refund depends only on its own
 CLTV and bonded UTXO, while the desired fork-contest rule also needs to check
@@ -235,6 +235,6 @@ def bypassView : ExternalJournalView :=
 
 theorem independent_journal_refund_bypass :
     legacyRefundPermitted bypassView ∧ ¬ contestRefundPermitted bypassView := by
-  decide
+  simp [legacyRefundPermitted, contestRefundPermitted, bypassView]
 
 end BlossomFormal
