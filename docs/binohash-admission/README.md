@@ -1,14 +1,13 @@
-# Blossom storage bonds: Binohash admission handoff
+# Blossom storage bonds: Binohash admission research
 
-Status **BLOCKED**, reference model only. Adds 17 deterministic research tests using Node 22's builtin test runner. No external dependencies, Bitcoin activity or proof generation. Published on GitHub in the research branch with explicit owner approval.
+The GitHub working branch is **[research/binohash-admission](https://github.com/patrickdugan/blossom-storage-bonds/tree/research/binohash-admission)**, based on pushed `phase-6-bitvm2-spike`. The local Phase 7 commit `4494714` is not present on GitHub. This branch does **not** replace that regression fixture.
 
-For the current research branch, run:
+The model includes **55 deterministic tests**, no external dependencies, and three signature-hash results matched to Bitcoin Core test vectors. Run with Node 22 or later:
 
 ```bash
-node --test model/binohash_admission.test.mjs
+node --test model/*.test.mjs
 ```
 
-See [`docs/binohash-admission-review.md`](../binohash-admission-review.md) for limitations and the transaction-level integration requirements.
+Read [the transaction-graph integration gate](next-step.md) and [the initial Binohash admission review](../binohash-admission-review.md).
 
-The tests prove a failure of a **specific unsafe class of designs** even under idealized Binohash-style transaction binding. They do not prove that Binohash cannot participate in a viable construction, and do not implement a production Binohash verifier.
-The local phase-7 commit `4494714` is not available in GitHub's remote history. The branch starts from `phase-6-bitvm2-spike`. Port these research tests onto that local checkout before trusting interactions with the six-transaction journal.
+Status: **BLOCKED ON CONSENSUS-ENFORCEABLE CHALLENGE ADMISSION.** The branch contains educational models and independently tested Bitcoin transaction serialization and legacy sighash calculations. It does not implement a sound refund covenant, Binohash grinding, or a permissionless miner/relay route.
