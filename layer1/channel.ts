@@ -38,6 +38,7 @@ export class ChannelPayee implements Payee {
   private readonly dir: string;
   private payUrl = "";
   private readonly pending = new Map<string, { inv: Invoice; preimage: string; paid: boolean }>();
+  private readonly inFlightChannelClients = new Set<string>();
   /** Per client: the channel file and the latest state the client has signed. */
   readonly channels = new Map<string, { path: string; paid: number; sig?: string }>();
 
@@ -80,12 +81,18 @@ export class ChannelPayee implements Payee {
         if (Math.floor(Date.now() / 1000) >= p.inv.expiresAt) throw new Error("invoice expired");
         const ch = this.channels.get(client_x);
         if (!ch) throw new Error("no channel with this client");
-        const expectedPaid = ch.paid + p.inv.amountMsat / 1000;
-        if (!Number.isSafeInteger(expectedPaid) || paid !== expectedPaid)
-          throw new Error(`state pays ${paid} sats, expected ${expectedPaid}`);
-        await this.tool.run("chan-verify", ch.path, String(paid), String(sig));
-        ch.paid = paid; ch.sig = sig; p.paid = true;
-        json(res, 200, { preimage: p.preimage });
+        if (this.inFlightChannelClients.has(client_x)) throw new Error("channel verification already in flight");
+        this.inFlightChannelClients.add(client_x);
+        try {
+          const expectedPaid = ch.paid + p.inv.amountMsat / 1000;
+          if (!Number.isSafeInteger(expectedPaid) || paid !== expectedPaid)
+            throw new Error(`state pays ${paid} sats, expected ${expectedPaid}`);
+          await this.tool.run("chan-verify", ch.path, String(paid), String(sig));
+          ch.paid = paid; ch.sig = sig; p.paid = true;
+          json(res, 200, { preimage: p.preimage });
+        } finally {
+          this.inFlightChannelClients.delete(client_x);
+        }
       }
     } catch (e) { fail(res, 402, (e as Error).message); }
     return true;
