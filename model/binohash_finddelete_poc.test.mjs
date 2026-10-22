@@ -109,3 +109,18 @@ test('P19: no puzzle work can turn a valid spend into an authenticated journal c
   assert.equal(verifyToyScript(solved.tx,solved.lockScript).valid,true);
   assert.equal(publishedElsewhere.work>100n,true);
 });
+
+test('P20: SegWit witness-only certificate bytes are invisible to legacy Binohash sighash',()=>{
+  const witnessTx={...solved.tx,vin:solved.tx.vin.map((v,i)=>i===0?{...v,witness:['01']}:v)};
+  const otherWitnessTx={...solved.tx,vin:solved.tx.vin.map((v,i)=>i===0?{...v,witness:['02']}:v)};
+  const hashA=legacySignatureHash(witnessTx,1,solved.lockScript,1,solved.pair.map(d=>d.signature));
+  const hashB=legacySignatureHash(otherWitnessTx,1,solved.lockScript,1,solved.pair.map(d=>d.signature));
+  assert.equal(hashA,hashB);
+  assert.equal(verifyToyScript(witnessTx,solved.lockScript).valid,true);
+  assert.equal(verifyToyScript(otherWitnessTx,solved.lockScript).valid,true);
+});
+test('P21: certificate digest in transaction output is bound by puzzle sighash',()=>{
+  const tx={...solved.tx,vout:[{...solved.tx.vout[0],scriptPubKey:'6a20'+'11'.repeat(32)}]};
+  assert.notEqual(legacySignatureHash(tx,1,solved.lockScript,1,solved.pair.map(d=>d.signature)),solved.hashDisplay);
+  assert.equal(verifyToyScript(tx,solved.lockScript).valid,false);
+});
