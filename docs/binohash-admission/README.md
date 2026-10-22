@@ -2,7 +2,7 @@
 
 **Status: RESEARCH / BLOCKED AT BITCOIN-ENFORCED DYNAMIC CERTIFICATE ADMISSION.** This branch contains real Bitcoin transaction serialization, legacy Script ECDSA tests, a tiny unfunded Bitcoin Core consensus check, and several explicitly idealized protocol specifications. None is a deployable storage-bond contract.
 
-**228 deterministic Node tests and 39 offline Bitcoin Core 26 input Script checks have passed in GitHub CI** ([composite run](https://github.com/patrickdugan/blossom-storage-bonds/actions/runs/39814580846)). Additional recursive sighash-boundary regressions have been committed and await their own CI run. The Core harness verifies supplied unfunded inputs separately and checks no real Bitcoin UTXO set.
+**272 deterministic Node tests and 39 offline Bitcoin Core 26 input Script cases passed in GitHub CI** ([witness-binding run](https://github.com/patrickdugan/blossom-storage-bonds/actions/runs/39817682863)). The Core harness checks three scripts separately on one unfunded transaction. It does not establish real UTXO spendability, Bitcoin block validity, or a deployable bond.
 
 ```bash
 node --test model/*.test.mjs
@@ -20,15 +20,18 @@ No bitcoind, block mining, GPU proofs, or funded pilot runs are invoked by these
 
 **[ADR-003: One-hop protected composite cursor](one-hop-composite.md).** A previously authorized SIGHASH_SINGLE|ANYONECANPAY signature pins the next cursor amount and script for a single known parent outpoint, while a toy Binohash input cryptographically binds the candidate's transaction data. Core Script accepts fresh certificate commitments while rejecting Binohash regrinds that burn the protected successor. The parent txid changes with each new certificate; a second transition needs a newly authorized signature. This protects exactly one dynamic transition and does not solve recursion.
 
+**[ADR-004: BIP141-anchored challenge witnesses](witness-anchored-certificates.md).** A SegWit certificate witness can leave its txid unchanged while changing its wtxid and eventual coinbase witness commitment. The composite signs SHA256(certificate) in OP_RETURN. Synthetic BIP141 proofs authenticate which witness bytes a hypothetical block included; a separate BitVM verification predicate must compare those bytes to the signed output commitment. All three script inputs pass the offline Core consensus check, including a mutated witness that fails the off-chain certificate-equality predicate.
+
 ## What is reproducible
 
 - `model/binohash_finddelete_poc.mjs` and `secp256k1_legacy_demo.mjs`: insecure low-security ECDSA/FindAndDelete proof of concept, signed toy transactions
-- `model/binohash_consensus_vectors.mjs`, `model/binohash_linked_cursor_vectors.mjs`, `model/single_acp_successor_vectors.mjs`, `model/composite_cursor_consensus_vectors.mjs` and `research/consensus-check/`: unfunded raw transaction checks using vendored Bitcoin Core's consensus Script engine, including a two-input composite
+- `model/binohash_consensus_vectors.mjs`, `model/binohash_linked_cursor_vectors.mjs`, `model/single_acp_successor_vectors.mjs`, `model/composite_cursor_consensus_vectors.mjs` and `research/consensus-check/`: unfunded raw transaction checks using vendored Bitcoin Core's consensus Script engine, including a three-input composite
 - `model/stateless_refutation*.mjs`: 22 stronger-work existential counterexample tests with explicit external-oracle assumptions
 - `model/stateless_public_input*.mjs`: 13 canonical 32-byte RISC Zero journal schema tests, including exact uint256 work, payout script and collateral binding
 - `model/journal_cursor*.mjs`, `model/cutoff_race.test.mjs` and `model/utxo_admission_graph*.mjs`: cursor races and refund bypass
 - `model/contest_spec*.mjs`: idealized maximal-work journal and rebuttal state
 - `model/recursive_sighash_boundary.test.mjs`: each non-bug legacy sighash binds its current prevout, while the historical SINGLE bug discards its output constraint; this narrows the recursive pre-signature route
+- `model/witness_anchor*.mjs` and `model/composite_witness_binding.test.mjs`: 28 deterministic synthetic BIP141 commitment and certificate-equivalence tests. They verify Merkle arithmetic but do not authenticate a real header chain.
 - `model/txid_admission*.mjs`, `model/legacy_sighash*.mjs`, `model/cursor_sighash.test.mjs`: transaction serialization, verified sighash vectors, and input binding
 - [Transaction-level acceptance checklist](next-step.md), [initial adversarial review](../binohash-admission-review.md)
 
