@@ -80,3 +80,25 @@ The existing Node and Bitcoin Core Script regressions are independent test suite
 ## Handoff milestone
 
 The next most useful formal PR is a **Taproot spending-path refinement matrix**, beginning with the on-chain sentinel contract's actual `regtest/src/bin/bond.rs` transaction templates and every Taproot key path/leaf. One proven unauthorized escape should halt a full-architecture security claim even if all the abstract preservation theorems continue to pass.
+
+## Implementation-refinement checkpoint: Taproot variants, epoch verification and channels
+
+The executable source inventory is `model/taproot_spend_inventory.mjs`, tested by `model/taproot_spend_inventory.test.mjs` in Node CI. It watches selected source expressions and aborts on changes to the known bond-state leaves, NUMS/MuSig2 key choice, refund and forfeiture clocks, BIP341 sighash mode, P2A anchor, and channel payout equation. Its assertions are source-drift checks, **not** a Rust AST proof or exhaustive Bitcoin consensus audit.
+
+Two configurations must stay separate. `regtest/src/main.rs` builds states with a two-party MuSig2 internal key and tests a cooperative keypath close. `regtest/src/bin/bond.rs`, used by the standalone agent, calls `build_chain(secp, nums(), ...)`, so its keypath is treated as unavailable under the unknown-discrete-log assumption. `UTXORefinement.lean` now makes keypath availability a state parameter. `nums_mode_excludes_cooperative_spend` proves exclusion under the configured abstract policy, while `admitted_cooperative_requires_enabled_keypath` constrains the MuSig2 case. These predicates still require actual Taproot cryptographic refinement.
+
+The finite Rust chain creates k challenged states and k+1 live bond states, with the last live state refund-only. Lean now tracks `maxRounds`, requires `round < maxRounds` for a challenge and response, proves the round bound over authorized histories, and rejects challenges once the configured limit is exhausted. This explicitly exposes the limited sentinel inventory and leaves miner-confirmation races as a separate issue.
+
+The direct TypeScript verifier in `model/storage_bonds.ts` previously accepted `q=0` because an empty `every()` call succeeds. It now requires a nonempty challenge and checks nonce/root length, proof-array count, chunk length and sibling hash shape. `model/merkle_refinement.test.ts` exercises real TypeScript execution against an independently coded domain-separated SHA256 Merkle reference on even and odd tree widths. Successful tests provide concrete byte-level checks; arbitrary-input equivalence with Lean and SHA256 collision resistance remain separate proofs.
+
+`formal/PaymentChannel.lean` models the standalone Spilman-style channel used by `layer1/channel.ts` and `regtest/src/bin/bond.rs`. Kernel-checked results establish conservation of funded channel value including close fee, monotonic client-signed cumulative payment, the accepted-epoch prerequisite for increasing that amount, record persistence across abstract histories, and terminal exclusivity. The provider can close using a co-signed state; the client may alternatively refund after CLTV maturity. The theorem `refund_maturity_does_not_disable_provider_close` deliberately captures their competing validity after maturity.
+
+The `bsbch1` invoice decoder and payer/payee now reject malformed or nonpositive amounts, non-whole-satoshi invoices, invalid hashes, bad expiry fields, expired payments and overflowing totals. The payer also rejects repeated invoice hashes and overlapping in-flight payments on one channel. `layer1/channel-invoice.test.ts` tests these behaviors with mocked signing and HTTP; the TypeScript tests run under Node 22 native type-stripping.
+
+**Critical unproved payment boundaries:** `bsbch1` invoices are base64url-encoded JSON rather than cryptographically signed invoices. Authentication of the provider and payment URL is therefore an application/transport requirement. In-memory invoice and channel state do not supply durable crash-safe replay prevention. Signatures, actual Bitcoin fee economics, UTXO set membership, post-CLTV race resolution, and payment receipt settlement remain external to the Lean proof. The abstract signer and verification predicates must be connected to the Rust agent and real Bitcoin validation before claiming end-to-end correctness.
+
+Lean reproduction additionally includes:
+
+```sh
+LEAN_PATH=formal lean formal/PaymentChannel.lean
+```
