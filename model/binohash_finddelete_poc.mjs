@@ -58,17 +58,17 @@ export function makeUnlockingScript(pair,puzzleSignature,puzzlePubkey){
   return OP_0+[a.signature,b.signature,puzzleSignature].map(encodePushData).join('')+
     OP_3+[a.publicKey,b.publicKey,puzzlePubkey].map(encodePushData).join('')+OP_3;
 }
-export function solveToyBinohash({tx=makeCarrierTx(),pool=dummyPool(),maxLength=59}={}){
-  if(tx.vin.length<2||tx.vout.length!==1)throw Error('toy requires input 1 and exactly one output');
+export function solveToyBinohash({tx=makeCarrierTx(),pool=dummyPool(),maxLength=59,inputIndex=1}={}){
+  if(!Number.isInteger(inputIndex)||inputIndex<0||inputIndex>=tx.vin.length||inputIndex<tx.vout.length)throw Error('toy needs an in-range input index past final output (legacy SIGHASH_SINGLE bug)');
   const script=makeLockingScript(pool);
   for(let i=0;i<pool.length;i++)for(let j=i+1;j<pool.length;j++){
     const pair=[pool[i],pool[j]];
-    const z=displayHashToZ(legacySignatureHash(tx,1,script,1,pair.map(d=>d.signature)));
+    const z=displayHashToZ(legacySignatureHash(tx,inputIndex,script,1,pair.map(d=>d.signature)));
     const puzzle=signRmin(z);
     if(Buffer.from(puzzle.signature,'hex').length>maxLength)continue;
     const unlocking=makeUnlockingScript(pair,puzzle.signature,puzzle.publicKey);
-    const funded={...tx,vin:tx.vin.map((input,k)=>k===1?{...input,scriptSig:unlocking}:input)};
-    return {tx:funded,lockScript:script,unlocking,pool,pairIndices:[i,j],pair,puzzle,hashDisplay:legacySignatureHash(tx,1,script,1,pair.map(d=>d.signature)),attempts:i*(2*pool.length-i-1)/2+(j-i),toyDigest:[i,j],txid:transactionId(funded)};
+    const funded={...tx,vin:tx.vin.map((input,k)=>k===inputIndex?{...input,scriptSig:unlocking}:input)};
+    return {tx:funded,lockScript:script,unlocking,pool,pairIndices:[i,j],pair,puzzle,hashDisplay:legacySignatureHash(tx,inputIndex,script,1,pair.map(d=>d.signature)),attempts:i*(2*pool.length-i-1)/2+(j-i),toyDigest:[i,j],txid:transactionId(funded)};
   }
   throw Error('no toy small-signature puzzle solution');
 }
