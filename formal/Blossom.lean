@@ -57,12 +57,10 @@ inductive Step (price : Nat) : Account → Account → Prop where
       Step price s { s with stage := .challenged }
   | answer (s : Account) (challenged : s.stage = .challenged)
       (validResponse : Prop) (verified : validResponse) :
-      Step price s { s with stage := .providerPaid,
-        locked := 0, provider := s.provider + s.locked }
+      Step price s { s with stage := Stage.providerPaid, locked := 0, provider := s.provider + s.locked }
   | forfeit (s : Account) (challenged : s.stage = .challenged)
       (deadlinePassed : Prop) (verified : deadlinePassed) :
-      Step price s { s with stage := .clientForfeit,
-        locked := 0, client := s.client + s.locked }
+      Step price s { s with stage := Stage.clientForfeit, locked := 0, client := s.client + s.locked }
   | refund (s : Account) (uncontested : s.stage = .live)
       (termEnded : Prop) (verified : termEnded) :
       Step price s { s with stage := .providerPaid,
@@ -101,14 +99,14 @@ theorem terminal_is_absorbing (price : Nat) {s t : Account}
 /-- Reflexive/transitive closure of the authorized settlement graph. -/
 inductive Reach (price : Nat) : Account → Account → Prop where
   | refl (s : Account) : Reach price s s
-  | more {a b c : Account} (prefix : Reach price a b)
+  | more {a b c : Account} (path : Reach price a b)
       (edge : Step price b c) : Reach price a c
 
 theorem reachable_preserves_bond (price : Nat) {a b : Account}
     (h : Reach price a b) : bondTotal a = bondTotal b := by
   induction h with
   | refl s => rfl
-  | more prefix edge ih =>
+  | more path edge ih =>
     exact ih.trans (step_preserves_bond price edge)
 
 theorem any_reachable_bond_is_conserved (bond price : Nat)
