@@ -153,6 +153,23 @@ theorem increased_revenue_requires_bound_fresh_epoch
   | forfeit _ _ _ _ _ => exact False.elim (changed rfl)
   | refund _ _ _ _ _ => exact False.elim (changed rfl)
 
+/-- Neither a sentinel spend nor a verified Lightning epoch changes the
+original deal identity or the committed replica Merkle root. -/
+theorem step_keeps_deal_and_root (price : Nat) {s t : Account}
+    (h : Step price s t) :
+    s.dealId = t.dealId ∧ s.rootCommitment = t.rootCommitment := by
+  cases h <;> simp
+
+theorem reachable_keeps_deal_and_root (price : Nat) {s t : Account}
+    (history : Reach price s t) :
+    s.dealId = t.dealId ∧ s.rootCommitment = t.rootCommitment := by
+  induction history with
+  | refl =>
+      exact ⟨rfl, rfl⟩
+  | more path edge ih =>
+      have later := step_keeps_deal_and_root price edge
+      exact ⟨ih.1.trans later.1, ih.2.trans later.2⟩
+
 /-- An already paid epoch cannot disappear from authorized state history. -/
 theorem step_retains_paid_epochs (price : Nat) {s t : Account}
     (h : Step price s t) (epoch : Nat)
