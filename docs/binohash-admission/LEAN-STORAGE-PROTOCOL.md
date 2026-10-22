@@ -11,7 +11,7 @@ The original `model/storage_bonds.ts` has two economic layers:
 
 The current Lean files:
 
-- [`formal/Blossom.lean`](../../formal/Blossom.lean): the state machine, accepted-epoch proof prerequisite, sentinel rounds, bond accounting and miner fees.
+- [`formal/Blossom.lean`](../../formal/Blossom.lean): the state machine, deal/root-bound epoch proof prerequisite, replay-resistant paid-epoch ledger, sentinel rounds, bond accounting and miner fees.
 - [`formal/UTXORefinement.lean`](../../formal/UTXORefinement.lean): bond prevout identity, consumed outpoints, output scripts, payout amounts, fees, witness/timelock predicates and forward simulation over arbitrary transaction histories.
 - [`formal/MerkleBinding.lean`](../../formal/MerkleBinding.lean): an unconditional Merkle collision-reduction theorem for conflicting openings at the same checked sample index, plus an explicit counterexample to treating Lightning payment as proof of storage.
 
@@ -19,7 +19,9 @@ The current Lean files:
 
 ### Bond accounting and authorizations
 
-`accepted_samples_authenticated` states what the abstract acceptance predicate grants for every sampled index. `increased_revenue_requires_proof` proves that any authorized epoch transition changing provider revenue carries an accepted proof.
+`accepted_samples_authenticated` states what the abstract acceptance predicate grants for every sampled index. `increased_revenue_requires_bound_fresh_epoch` strengthens the payment rule: a revenue-changing step carries an accepted proof whose deal ID and Merkle root match the agreed contract, with a nonempty sampled-index set and an epoch ID absent from the paid ledger. The proof also includes a nonce field, whose randomness and binding to sampled indices remain verifier obligations.
+
+`step_retains_paid_epochs`, `reachable_retains_paid_epochs` and `paid_epoch_cannot_be_replayed_after_history` prevent a paid epoch ID from becoming eligible for payment again after any length of authorized state history. `step_keeps_deal_and_root` and `reachable_keeps_deal_and_root` prove the committed deal identity and replica root remain unchanged through payment, challenge, response, refund and forfeiture. The actual Lightning payer must persist paid-epoch state and authenticate invoice identifiers for this abstract rule to describe its behavior.
 
 `step_preserves_bond`, `reachable_preserves_bond` and `any_reachable_bond_is_conserved` prove that **locked + provider released + client forfeited + miner fees** remains equal to initial bond value across all authorized histories. This required a substantive revision: terminal settlement subtracts the fee from the recipient payout; a challenge or successful response can also pay fees out of the live locked amount. A successful sentinel response *advances the round* and reopens the bond, rather than paying out the provider.
 
@@ -59,7 +61,7 @@ These theorems treat the hash functions as **arbitrary functions**. They do not 
 2. **Sentinel response soundness.** Link salted sentinel hashes to the correct ciphertext windows and prove that every exposed Taproot response path checks the required preimages and preserves the agreed replica root/next round. Hash collision resistance, challenge-secret unpredictability and setup cut-and-choose honesty are cryptographic/economic assumptions.
 3. **Bitcoin consensus coverage.** Audit all Taproot key paths and script leaves, exact BIP341/342 signatures/sighash, sequence-based BIP68/112 CSV finality, BIP65 CLTV, confirmation rules, and every possible collateral exit. Current `UTXORefinement` enumerates challenge, response, forfeit and term-end refund. It intentionally excludes cooperative close/keypath cases until their recipient splits and actual signature conditions are formalized. No existing theorem states that Bitcoin Core satisfies `ConsensusCoverage`.
 4. **Confirmation/liveness and adversarial timing.** The Lean Step semantics encode eligibility of a confirmed transition. They do not establish eventual miner inclusion or an absolute response upper deadline. Competing valid Bitcoin transactions still race for the same UTXO.
-5. **Lightning settlement correctness.** Verify authenticated deal/nonce/epoch identifiers, unique invoices, payer receipt logic, prevention of double-billing and actual payment channel settlement. A valid Merkle proof is necessary for the modeled authorization; a real payer can still voluntarily send Lightning value outside this application policy.
+5. **Lightning settlement correctness.** Verify the real client's fresh-nonce generation and its deterministic binding to sample indices, authenticated deal/epoch identifiers, durable exactly-once receipt persistence, unique invoices and actual Lightning settlement. Lean prevents repeated epoch authorization in its model; the application/Lightning bridge is unproved. A valid Merkle proof is necessary for the modeled authorization; a real payer can still voluntarily send Lightning value outside this application policy.
 6. **Economic security.** Formally state independent uniform sample assumptions for the `f^q` deletion-detection model, multi-window sentinel survival, dishonest setup cut-and-choose and incentive conditions. The TypeScript estimators are not Lean proofs.
 7. **Independent fork-admission game.** The Binohash/BitVM fork-certificate journal in ADR-001 to ADR-010 remains a separate contract design, with an old CLTV refund bypass in ADR-006. Its soundness does not follow from this sentinel-bond accounting proof.
 
