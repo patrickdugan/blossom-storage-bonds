@@ -16,6 +16,8 @@ The experiment combines that signature with an independently ground toy Binohash
 
 Input 1 constrains the one-step transition destination. Input 2 signs the submitted certificate digest, both prevouts, and both outputs. The carrier uses public toy secrets and tiny parameters that provide no practical collision resistance.
 
+The two input scripts have **separate legacy opcode budgets**. The successor guard therefore sits in its own P2PK input, outside the Binohash carrier's near-201-opcode script. This only establishes an opcode-budget separation, not a deployable full-strength Binohash implementation or a general recursive covenant.
+
 ## Expected consensus-level observations
 
 - Honest challenger A: both Script inputs valid.
