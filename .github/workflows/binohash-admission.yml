@@ -63,3 +63,7 @@ jobs:
         run: node model/witness_stable_chain_vectors.mjs > /tmp/bsb-witness-stable-vectors.json
       - name: Verify both generations and alternate witnesses with Bitcoin Core
         run: cargo run --release --manifest-path research/consensus-check/Cargo.toml < /tmp/bsb-witness-stable-vectors.json
+      - name: Generate independent CLTV refund bypass vectors
+        run: node model/refund_bypass_consensus_vectors.mjs > /tmp/bsb-refund-bypass.json
+      - name: Verify refund signature, CLTV and unrelated witness cases against Bitcoin Core
+        run: cargo run --release --manifest-path research/consensus-check/Cargo.toml < /tmp/bsb-refund-bypass.json
