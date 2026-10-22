@@ -15,6 +15,7 @@
 import {dummyPool,makeLockingScript,solveToyBinohash} from './binohash_finddelete_poc.mjs';
 import {signOne,P2PK} from './single_acp_successor_vectors.mjs';
 import {transactionId,serializeTransaction,witnessTransactionId} from './txid_admission.mjs';
+import {p2wshScriptPubKey,witnessScript} from './witness_anchor.mjs';
 
 const POOL=dummyPool();
 export const BINOLOCK=makeLockingScript(POOL);
@@ -25,7 +26,7 @@ const VALUE=40000n;
 function txTemplate({certificate='aa',cursorPrev=ID('22'),sponsorPrev=ID('11'),cursorScript=P2PK,cursorValue=VALUE}={}) {
   const empty={version:2,lockTime:0,
     vin:[
-      {prevTxid:sponsorPrev,prevVout:0,scriptSig:'',sequence:0xfffffffe,witness:[]},
+      {prevTxid:sponsorPrev,prevVout:0,scriptSig:'',sequence:0xfffffffe,witness:[certificate.repeat(32),witnessScript]},
       {prevTxid:cursorPrev,prevVout:0,scriptSig:'',sequence:0xfffffffe,witness:[]},
       {prevTxid:ID('33'),prevVout:0,scriptSig:'',sequence:0xfffffffe,witness:[]}
     ],
@@ -39,12 +40,12 @@ const setOut=(tx,i,changes)=>({...tx,vout:tx.vout.map((out,j)=>i===j?{...out,...
 const setIn=(tx,i,changes)=>({...tx,vin:tx.vin.map((input,j)=>i===j?{...input,...changes}:input)});
 const grind=tx=>solveToyBinohash({tx,pool:POOL,inputIndex:2}).tx;
 const vector=(name,tx,expect,perInput)=>({
-  name,tx_hex:serializeTransaction(tx,true).toString('hex'),
+  name,tx_hex:serializeTransaction(tx,true).toString('hex'),stripped_tx_hex:serializeTransaction(tx,false).toString('hex'),
   txid:transactionId(tx),wtxid:witnessTransactionId(tx),
   expected_valid:expect,expected_inputs:perInput
 });
 function inputResults(cursor,puzzle){
-  return [{input_index:1,expected_valid:cursor},{input_index:2,expected_valid:puzzle}];
+  return [{input_index:0,expected_valid:true},{input_index:1,expected_valid:cursor},{input_index:2,expected_valid:puzzle}];
 }
 export function compositeCursorConsensusVectors(){
   const a=grind(txTemplate({certificate:'aa'}));
@@ -56,13 +57,14 @@ export function compositeCursorConsensusVectors(){
   const sponsorChanged=setIn(a,0,{prevTxid:ID('44')});
   const sponsorRegrind=grind(sponsorChanged);
   const oldCursorChanged=setIn(a,1,{prevTxid:ID('55')});
-  const supplementalWitness=setIn(a,0,{witness:['42'.repeat(80)]});
+  const supplementalWitness=setIn(a,0,{witness:['42'.repeat(80),witnessScript]});
   const nextA=grind(txTemplate({certificate:'ee',cursorPrev:transactionId(a)}));
   const nextStale=setIn(nextA,1,{prevTxid:transactionId(b)});
   const nextB=grind(txTemplate({certificate:'ee',cursorPrev:transactionId(b)}));
   return {
     schema:'bsb/unfunded-multi-script-vectors/v1',
     checks:[
+      {input_index:0,script_pub_key:p2wshScriptPubKey,spent_output_amount_sats:1000},
       {input_index:1,script_pub_key:P2PK,spent_output_amount_sats:Number(VALUE)},
       {input_index:2,script_pub_key:BINOLOCK,spent_output_amount_sats:5000}
     ],
