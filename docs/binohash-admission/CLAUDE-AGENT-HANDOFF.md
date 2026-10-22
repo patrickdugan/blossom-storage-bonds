@@ -13,6 +13,19 @@ Tracked blocker: https://github.com/patrickdugan/blossom-storage-bonds/issues/2
 Latest confirmed run on baseline: https://github.com/patrickdugan/blossom-storage-bonds/actions/runs/39861714302
 363/363 deterministic Node tests and 133/133 offline vendored Bitcoin Core 26 *per-input Script* cases passed. All are UNFUNDED. No mining, live UTXO enforcement, actual proof job, relay test or pilot.
 
+## New formal verification track (2026-10-23)
+
+Blossom now has three kernel-checked Lean 4 modules:
+
+- `formal/Blossom.lean`: epoch payments require accepted sampled openings; sentinel response moves to the **next live round**; miner fees are tracked and total bond value is conserved.
+- `formal/UTXORefinement.lean`: spent outpoint tracking, payout restrictions and `bitcoin_run_refines_abstract` across arbitrary histories **conditional on** `ConsensusCoverage`. Counterexamples exhibit a missing spend path and an old independent CLTV refund bypass.
+- `formal/MerkleBinding.lean`: same-index chunk-opening collisions reduce to a concrete leaf, node or root commitment hash collision, without an assumption of SHA256 global injectivity. A paid Lightning invoice alone is not proof of storage.
+
+Detailed caveats and reproduction: `docs/binohash-admission/LEAN-STORAGE-PROTOCOL.md`.
+
+For the sentinel/payment formal track, the next task is an auditable refinement from every real Taproot spend path and Bitcoin signature in `regtest/src/bin/bond.rs` to `UTXORefinement.admitted`. Include cooperative key paths, payout splits, and fee accounting. `ConsensusCoverage` is an explicit premise and MUST NOT be represented as established for real Bitcoin. The TypeScript Merkle verifier's byte layout, odd-leaf duplication and 4 KiB padding remain implementation-refinement obligations.
+
+The previous 363 Node / 133 Core Script passing baseline still describes the Binohash research suite; formal modules run in separate Lean CI jobs.
 ## Research goal
 
 Create a Bitcoin-enforced storage-bond construction allowing arbitrary permissionless stronger-fork certificates with exact 256-bit verified chain work and appropriate inclusion/cutoff proofs to control collateral settlement, while protecting timely stronger challenges and requiring the provider to answer the *actual submitted certificate* if that original protocol policy is retained.
