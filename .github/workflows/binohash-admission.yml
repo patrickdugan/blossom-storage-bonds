@@ -51,3 +51,7 @@ jobs:
         run: node model/single_acp_successor_vectors.mjs > /tmp/binohash-signed-template-vectors.json
       - name: Check successor amount, script, and unknown next-prevout in Bitcoin Core
         run: cargo run --release --manifest-path research/consensus-check/Cargo.toml < /tmp/binohash-signed-template-vectors.json
+      - name: Generate composite Binohash and protected cursor vectors
+        run: node model/composite_cursor_consensus_vectors.mjs > /tmp/binohash-composite-vectors.json
+      - name: Verify both Script inputs on same unfunded transaction
+        run: cargo run --release --manifest-path research/consensus-check/Cargo.toml < /tmp/binohash-composite-vectors.json
