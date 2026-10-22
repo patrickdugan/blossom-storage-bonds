@@ -163,8 +163,8 @@ def mayRefund (s : Channel) (deadlineReached clientSigned : Bool) : Prop :=
   s.phase = .open ∧ deadlineReached = true ∧ clientSigned = true
 
 theorem refund_maturity_does_not_disable_provider_close
-    (s : Channel) (open : s.phase = .open) :
+    (s : Channel) (hOpen : s.phase = .open) :
     mayClose s true true ∧ mayRefund s true true := by
-  simp [mayClose, mayRefund, open]
+  simp [mayClose, mayRefund, hOpen]
 
 end BlossomFormal
