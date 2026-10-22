@@ -55,10 +55,20 @@ structure UTXOState where
   account : Account
   liveBond : Option Nat
   spent : List Nat
+  cooperativeKeypathEnabled : Bool := false
   deriving Repr
 
 def utxoInitial (bond ref : Nat) : UTXOState :=
-  { account := initial bond, liveBond := some ref, spent := [] }
+  { account := initial bond, liveBond := some ref, spent := [],
+    cooperativeKeypathEnabled := false }
+
+/-- The older regtest demonstration used a MuSig2 internal key. Its jointly
+authorized key-path close is represented by enabling cooperative admission.
+The operational bsb-bond tool currently constructs its states with nums(),
+so the formal default excludes the key path. This is a deployment-selection
+parameter; neither variant implies cryptographic key unspendability. -/
+def utxoMuSig2Initial (bond ref : Nat) : UTXOState :=
+  { utxoInitial bond ref with cooperativeKeypathEnabled := true }
 
 /-- A leaf-specific Script condition. The booleans represent authenticated
 results of an external consensus verifier, not arbitrary caller assertions. -/
@@ -97,6 +107,12 @@ def payoutValid (s : Account) (tx : BondTx) : Prop :=
   (tx.path = SpendPath.cooperative ∨ tx.clientPayout = 0) ∧
   tx.signedOutputs = true ∧ recipientExpected tx
 
+/-- Source-selected Taproot key-path availability. For NUMS mode the
+cooperative path is excluded by construction, conditional on the usual
+unknown discrete-log assumption for the internal key. -/
+def keypathPermitted (s : UTXOState) (tx : BondTx) : Prop :=
+  tx.path ≠ SpendPath.cooperative ∨ s.cooperativeKeypathEnabled = true
+
 /-- UTXO membership, spend-once, Script evidence, exact payout accounting,
 and a fresh successor outpoint are distinct premises. -/
 def admitted (s : UTXOState) (tx : BondTx) : Prop :=
@@ -105,7 +121,8 @@ def admitted (s : UTXOState) (tx : BondTx) : Prop :=
   stageEligible s.account tx ∧
   witnessValid tx ∧
   payoutValid s.account tx ∧
-  tx.successor ≠ tx.prevout ∧ tx.successor ∉ s.spent
+  tx.successor ≠ tx.prevout ∧ tx.successor ∉ s.spent ∧
+  keypathPermitted s tx
 
 def accountAfter (a : Account) (tx : BondTx) : Account :=
   match tx.path with
@@ -124,7 +141,8 @@ def nextLive (tx : BondTx) : Option Nat :=
 def applyBondTx (s : UTXOState) (tx : BondTx) : UTXOState :=
   { account := accountAfter s.account tx,
     liveBond := nextLive tx,
-    spent := tx.prevout :: s.spent }
+    spent := tx.prevout :: s.spent,
+    cooperativeKeypathEnabled := s.cooperativeKeypathEnabled }
 
 /-- This is the forward simulation theorem. It requires each of the
 underlying Bitcoin/script checks in admitted, rather than assuming that a
@@ -132,7 +150,7 @@ generic Bitcoin-valid spend automatically meets the abstract protocol. -/
 theorem admitted_refines_abstract (s : UTXOState) (tx : BondTx)
     (h : admitted s tx) :
     Step 0 s.account (accountAfter s.account tx) := by
-  rcases h with ⟨_, _, st, wit, out, _, _⟩
+  rcases h with ⟨_, _, st, wit, out, _, _, _⟩
   have hv : tx.fee ≤ s.account.locked := by
     rcases out with ⟨balance, _, _, _⟩
     omega
@@ -186,6 +204,33 @@ theorem exhausted_sentinel_chain_rejects_challenge
   have eligible := valid.2.2.1
   simp [stageEligible, path, exhausted] at eligible
 
+/-- A NUMS-mode configuration excludes cooperative authorization even if
+an adversarial input pretends to have both signature booleans. This theorem
+checks the configured abstract policy. Proving unknown discrete logarithm for
+the actual deployed Taproot key remains a separate cryptographic assumption. -/
+theorem nums_mode_excludes_cooperative_spend
+    (s : UTXOState) (tx : BondTx)
+    (disabled : s.cooperativeKeypathEnabled = false)
+    (coop : tx.path = SpendPath.cooperative) :
+    ¬ admitted s tx := by
+  intro h
+  rcases h with ⟨_, _, _, _, _, _, _, policy⟩
+  rcases policy with other | enabled
+  · exact other coop
+  · rw [disabled] at enabled
+    contradiction
+
+/-- A permitted cooperative close can only occur in a MuSig2-configured
+state, since NUMS mode denies the extra key-path closure. -/
+theorem admitted_cooperative_requires_enabled_keypath
+    (s : UTXOState) (tx : BondTx)
+    (h : admitted s tx) (coop : tx.path = SpendPath.cooperative) :
+    s.cooperativeKeypathEnabled = true := by
+  rcases h with ⟨_, _, _, _, _, _, _, policy⟩
+  rcases policy with notCoop | enabled
+  · exact False.elim (notCoop coop)
+  · exact enabled
+
 theorem admitted_spend_conserves_bond (s : UTXOState) (tx : BondTx)
     (h : admitted s tx) :
     bondTotal s.account = bondTotal (applyBondTx s tx).account := by
@@ -199,14 +244,14 @@ theorem admitted_cooperative_requires_both
     (s : UTXOState) (tx : BondTx)
     (h : admitted s tx) (coop : tx.path = SpendPath.cooperative) :
     tx.providerSignature = true ∧ tx.clientSignature = true := by
-  rcases h with ⟨_, _, _, witness, _, _, _⟩
+  rcases h with ⟨_, _, _, witness, _, _, _, _⟩
   simpa [witnessValid, coop] using witness
 
 theorem admitted_cooperative_split_conserves_input
     (s : UTXOState) (tx : BondTx)
     (h : admitted s tx) (coop : tx.path = SpendPath.cooperative) :
     tx.payout + tx.clientPayout + tx.fee = s.account.locked := by
-  rcases h with ⟨_, _, _, _, pay, _, _⟩
+  rcases h with ⟨_, _, _, _, pay, _, _, _⟩
   exact pay.1
 
 theorem spent_prevout_recorded (s : UTXOState) (tx : BondTx) :
