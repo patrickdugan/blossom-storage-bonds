@@ -1,0 +1,11 @@
+[package]
+name = "bsb-binohash-consensus-check"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+# Frozen legacy libbitcoinconsensus, vendored from Bitcoin Core 26 sources.
+# Final upstream public library was removed in Bitcoin Core 28.
+[dependencies]
+bitcoinconsensus = "=0.106.0+26.0"
+serde_json = "1"
