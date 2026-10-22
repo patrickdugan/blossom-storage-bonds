@@ -35,6 +35,7 @@ inductive Stage where
 
 structure Account where
   stage : Stage
+  round : Nat
   locked : Nat
   provider : Nat
   client : Nat
@@ -45,7 +46,7 @@ structure Account where
 def bondTotal (s : Account) : Nat := s.locked + s.provider + s.client + s.minerFees
 
 def initial (bond : Nat) : Account :=
-  { stage := .live, locked := bond, provider := 0, client := 0,
+  { stage := .live, round := 0, locked := bond, provider := 0, client := 0,
     epochRevenue := 0, minerFees := 0 }
 
 /-- Every authorized accounting transition is specified here. For a real
@@ -55,13 +56,15 @@ inductive Step (price : Nat) : Account → Account → Prop where
   | payEpoch (s : Account) (proof : StorageProof)
       (stageOk : s.stage = .live) (verified : accepts proof) :
       Step price s { s with epochRevenue := s.epochRevenue + price }
-  | challenge (s : Account) (eligible : s.stage = .live) :
-      Step price s { s with stage := .challenged }
+  | challenge (s : Account) (fee : Nat) (affordable : fee ≤ s.locked)
+      (eligible : s.stage = .live) :
+      Step price s { s with stage := .challenged,
+        locked := s.locked - fee, minerFees := s.minerFees + fee }
   | answer (s : Account) (fee : Nat) (affordable : fee ≤ s.locked)
       (challenged : s.stage = .challenged)
       (validResponse : Prop) (verified : validResponse) :
-      Step price s { s with stage := Stage.providerPaid, locked := 0,
-        provider := s.provider + (s.locked - fee), minerFees := s.minerFees + fee }
+      Step price s { s with stage := Stage.live, round := s.round + 1,
+        locked := s.locked - fee, minerFees := s.minerFees + fee }
   | forfeit (s : Account) (fee : Nat) (affordable : fee ≤ s.locked)
       (challenged : s.stage = .challenged)
       (deadlinePassed : Prop) (verified : deadlinePassed) :
@@ -114,7 +117,7 @@ theorem increased_revenue_requires_proof (price : Nat) {s t : Account}
     ∃ p : StorageProof, accepts p := by
   cases h with
   | payEpoch p _ verified => exact ⟨p, verified⟩
-  | challenge _ => exact False.elim (changed rfl)
+  | challenge _ _ _ => exact False.elim (changed rfl)
   | answer _ _ _ _ _ => exact False.elim (changed rfl)
   | forfeit _ _ _ _ _ => exact False.elim (changed rfl)
   | refund _ _ _ _ _ => exact False.elim (changed rfl)
