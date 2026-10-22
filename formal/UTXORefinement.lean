@@ -73,8 +73,8 @@ def witnessValid (tx : BondTx) : Prop :=
 
 def stageEligible (s : Account) (tx : BondTx) : Prop :=
   match tx.path with
-  | .challenge => s.stage = Stage.live
-  | .response => s.stage = Stage.challenged
+  | .challenge => s.stage = Stage.live ∧ s.round < s.maxRounds
+  | .response => s.stage = Stage.challenged ∧ s.round < s.maxRounds
   | .forfeit => s.stage = Stage.challenged
   | .refund => s.stage = Stage.live
   | .cooperative => s.stage = Stage.live ∨ s.stage = Stage.challenged
@@ -143,14 +143,13 @@ theorem admitted_refines_abstract (s : UTXOState) (tx : BondTx)
   cases hp : tx.path with
   | challenge =>
       simp [stageEligible, hp] at st
-      have zero := ordinaryClientZero (by simp [hp])
       simpa [accountAfter, hp] using
-        (Step.challenge (price := 0) s.account tx.fee hv st)
+        (Step.challenge (price := 0) s.account tx.fee hv st.1 st.2)
   | response =>
       simp [stageEligible, hp] at st
       simp [witnessValid, hp] at wit
       simpa [accountAfter, hp] using
-        (Step.answer (price := 0) s.account tx.fee hv st
+        (Step.answer (price := 0) s.account tx.fee hv st.1 st.2
           (tx.hashOpening = true) wit.2.2)
   | forfeit =>
       simp [stageEligible, hp] at st
@@ -174,6 +173,18 @@ theorem admitted_refines_abstract (s : UTXOState) (tx : BondTx)
           (tx.providerSignature = true ∧ tx.clientSignature = true) wit)
   | outsidePath =>
       simp [stageEligible, hp] at st
+
+/-- The final refund-only bond state offers no additional challenge slot.
+This theorem checks admissibility, rather than making a claim about real
+mempool admission or BitVM fork-certificate scheduling. -/
+theorem exhausted_sentinel_chain_rejects_challenge
+    (s : UTXOState) (tx : BondTx)
+    (exhausted : s.account.round = s.account.maxRounds)
+    (path : tx.path = SpendPath.challenge) :
+    ¬ admitted s tx := by
+  intro valid
+  have eligible := valid.2.2.1
+  simp [stageEligible, path, exhausted] at eligible
 
 theorem admitted_spend_conserves_bond (s : UTXOState) (tx : BondTx)
     (h : admitted s tx) :
