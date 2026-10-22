@@ -21,8 +21,12 @@ const PREFIX = "bsbch1";
 export function decodeChannelInvoice(pr: string): Invoice & { payUrl: string } {
   if (!pr.startsWith(PREFIX)) throw new Error("not a bsb channel invoice");
   const v = JSON.parse(Buffer.from(pr.slice(PREFIX.length), "base64url").toString("utf8"));
-  if (typeof v.h !== "string" || !Number.isSafeInteger(v.a) || typeof v.p !== "string" || typeof v.u !== "string") throw new Error("malformed invoice");
-  return { paymentRequest: pr, paymentHash: v.h, amountMsat: v.a, payee: v.p, memo: String(v.m ?? ""), expiresAt: Number(v.x), payUrl: v.u };
+  if (typeof v.h !== "string" || !/^[0-9a-f]{64}$/i.test(v.h) ||
+      !Number.isSafeInteger(v.a) || v.a <= 0 || v.a % 1000 !== 0 ||
+      typeof v.p !== "string" || !/^bsbch:[0-9a-f]{64}$/i.test(v.p) ||
+      typeof v.u !== "string" || !/^https?:\/\//i.test(v.u) ||
+      !Number.isSafeInteger(v.x) || v.x < 1) throw new Error("malformed invoice");
+  return { paymentRequest: pr, paymentHash: v.h, amountMsat: v.a, payee: v.p, memo: String(v.m ?? ""), expiresAt: v.x, payUrl: v.u };
 }
 
 export interface ChannelFile { provider_x: string; client_x: string; capacity_sats: number; t_refund: number; funding_txid?: string; funding_vout?: number }
@@ -44,6 +48,7 @@ export class ChannelPayee implements Payee {
 
   async createInvoice(amountMsat: number, memo: string, ttlSec = 600): Promise<Invoice> {
     if (!Number.isSafeInteger(amountMsat) || amountMsat <= 0 || amountMsat % 1000 !== 0) throw new Error("amount must be whole sats");
+    if (!Number.isSafeInteger(ttlSec) || ttlSec < 1) throw new Error("invoice TTL must be positive seconds");
     const preimage = randomBytes(32).toString("hex");
     const h = sha256(Buffer.from(preimage, "hex")).toString("hex");
     const pr = PREFIX + Buffer.from(JSON.stringify({ h, a: amountMsat, p: this.nodeId, m: memo, x: Math.floor(Date.now() / 1000) + ttlSec, u: this.payUrl })).toString("base64url");
@@ -72,9 +77,12 @@ export class ChannelPayee implements Payee {
         const p = this.pending.get(inv.paymentHash);
         if (!p || p.inv.paymentRequest !== paymentRequest) throw new Error("unknown invoice");
         if (p.paid) throw new Error("invoice already paid");
+        if (Math.floor(Date.now() / 1000) >= p.inv.expiresAt) throw new Error("invoice expired");
         const ch = this.channels.get(client_x);
         if (!ch) throw new Error("no channel with this client");
-        if (paid !== ch.paid + p.inv.amountMsat / 1000) throw new Error(`state pays ${paid} sats, expected ${ch.paid + p.inv.amountMsat / 1000}`);
+        const expectedPaid = ch.paid + p.inv.amountMsat / 1000;
+        if (!Number.isSafeInteger(expectedPaid) || paid !== expectedPaid)
+          throw new Error(`state pays ${paid} sats, expected ${expectedPaid}`);
         await this.tool.run("chan-verify", ch.path, String(paid), String(sig));
         ch.paid = paid; ch.sig = sig; p.paid = true;
         json(res, 200, { preimage: p.preimage });
@@ -97,6 +105,8 @@ export class ChannelPayer implements Payer {
   private readonly tool: BondTool;
   private readonly clientX: string;
   private readonly chans = new Map<string, { path: string; paid: number }>();
+  private readonly paidInvoiceHashes = new Set<string>();
+  private readonly inFlightChannels = new Set<string>();
 
   constructor(clientX: string, tool: BondTool) { this.nodeId = `bsbch:${clientX}`; this.clientX = clientX; this.tool = tool; }
 
@@ -113,16 +123,26 @@ export class ChannelPayer implements Payer {
 
   async pay(pr: string, maxMsat: number): Promise<{ preimage: string }> {
     const inv = decodeChannelInvoice(pr);
+    if (Math.floor(Date.now() / 1000) >= inv.expiresAt) throw new Error("invoice expired");
     if (inv.amountMsat > maxMsat) throw new Error("invoice amount over max");
     const ch = this.chans.get(inv.payee);
     if (!ch) throw new Error("no channel to this payee");
-    const paid = ch.paid + inv.amountMsat / 1000;
-    const { sig } = await this.tool.run("chan-sign", ch.path, String(paid));
-    const r = await fetch(inv.payUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ paymentRequest: pr, client_x: this.clientX, paid, sig }) });
-    if (r.status !== 200) throw new Error(`payee refused: ${r.status} ${r.headers.get("x-reason") ?? ""}`);
-    const { preimage } = (await r.json()) as { preimage: string };
-    if (!preimageMatches(inv.paymentHash, preimage)) throw new Error("payee returned a wrong preimage");
-    ch.paid = paid;
-    return { preimage };
+    if (this.paidInvoiceHashes.has(inv.paymentHash)) throw new Error("invoice already paid");
+    if (this.inFlightChannels.has(inv.payee)) throw new Error("channel payment already in flight");
+    this.inFlightChannels.add(inv.payee);
+    try {
+      const paid = ch.paid + inv.amountMsat / 1000;
+      if (!Number.isSafeInteger(paid) || paid <= ch.paid) throw new Error("channel payment total overflow");
+      const { sig } = await this.tool.run("chan-sign", ch.path, String(paid));
+      const r = await fetch(inv.payUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ paymentRequest: pr, client_x: this.clientX, paid, sig }) });
+      if (r.status !== 200) throw new Error(`payee refused: ${r.status} ${r.headers.get("x-reason") ?? ""}`);
+      const { preimage } = (await r.json()) as { preimage: string };
+      if (!preimageMatches(inv.paymentHash, preimage)) throw new Error("payee returned a wrong preimage");
+      ch.paid = paid;
+      this.paidInvoiceHashes.add(inv.paymentHash);
+      return { preimage };
+    } finally {
+      this.inFlightChannels.delete(inv.payee);
+    }
   }
 }
