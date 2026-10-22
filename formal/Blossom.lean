@@ -112,6 +112,19 @@ theorem step_preserves_round_limit (price : Nat) {s t : Account}
     t.round ≤ t.maxRounds := by
   cases h <;> simp_all <;> omega
 
+/-- The presigned Challenge_i has no upper term-end lock. At term
+maturity, if a live bond still has a sentinel slot, a challenge transition
+and the provider refund transition are both authorized from the SAME state.
+The Bitcoin UTXO race is resolved by confirmation, not by this protocol. -/
+theorem mature_live_bond_has_competing_challenge_and_refund
+    (s : Account) (live : s.stage = Stage.live)
+    (remaining : s.round < s.maxRounds) :
+    (∃ t : Account, Step 0 s t ∧ t.stage = Stage.challenged) ∧
+    (∃ t : Account, Step 0 s t ∧ t.stage = Stage.providerPaid) := by
+  constructor
+  · exact ⟨_, Step.challenge (price := 0) s 0 (Nat.zero_le _) live remaining, rfl⟩
+  · exact ⟨_, Step.refund (price := 0) s 0 (Nat.zero_le _) live True trivial, rfl⟩
+
 /-- A completed provider payout or forfeiture admits no further authorized step. -/
 theorem terminal_is_absorbing (price : Nat) {s t : Account}
     (h : Step price s t)
