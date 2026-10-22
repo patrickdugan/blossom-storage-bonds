@@ -1,5 +1,8 @@
 # ADR-008: Certificate-specific escrow, two payout branches, and an unsolved response clock
 
+**SECURITY CORRECTION (ADR-009):** This separate guardian input is optional from the bond's point of view. An attacker can spend the original P2WSH bond directly to arbitrary outputs after opening its mock response/timeout gate, omitting the guardian entirely. The initial claim that two-input templates protect every collateral exit was unsafe. See [ADR-009: bond-only bypass and self-guarded P2WSH](self-guarded-payout.md) and its Bitcoin Core positive attack vectors.
+
+
 **Status:** Unfunded Bitcoin Core 26 Script test. **The response preimage is a mock token, not a BitVM verdict.** Permissionless fork admission, exact chainwork and dynamic proof verification remain unimplemented.
 
 ## Question
@@ -66,7 +69,7 @@ But the **late response branch is Script-valid**. Bitcoin's CLTV checks earliest
 
 The Script checks that a fixed public certificate matches a SHA256 digest and that a witness contains a fixed mock response preimage. It does **not** check whether the certificate describes actual Bitcoin headers, whether exact 256-bit cumulative work exceeds a provider claim, whether the answer is a valid BitVM proof, or whether its opening was timely. This is a proof-of-transaction mechanics, not a proof of adjudication.
 
-The guardian prevents changed outputs only if its original signing secret is unavailable to adversaries after templates are prepared. In this test the secret is intentionally public, and a malicious re-signed provider payout passes the same Bitcoin Script checks.
+The guardian rejects changed outputs **only on transactions that include the guardian input**, and only if the setup signer secret is unavailable. The bond can otherwise be spent alone under its P2WSH script. This is a fatal bypass for this candidate. In this test the secret is intentionally public, and a malicious re-signed provider payout passes the same Bitcoin Script checks.
 
 The candidate certificate digest was hard-coded at setup. That makes the working graph unusable for arbitrary permissionless challengers, even though it verifies the desired output amounts for one known contest.
 

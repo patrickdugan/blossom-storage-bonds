@@ -75,3 +75,11 @@ jobs:
         run: node model/fixed_payout_consensus_vectors.mjs > /tmp/bsb-fixed-payout.json
       - name: Check mock response, guarded payouts, expiration and late-race boundaries in Core
         run: cargo run --release --manifest-path research/consensus-check/Cargo.toml < /tmp/bsb-fixed-payout.json
+      - name: Generate bond-only bypass attempts against optional guardian
+        run: node model/bond_only_bypass_vectors.mjs > /tmp/bsb-bond-only.json
+      - name: Check malicious bond-only spends against Bitcoin Core
+        run: cargo run --release --manifest-path research/consensus-check/Cargo.toml < /tmp/bsb-bond-only.json
+      - name: Generate self-guarding BIP143 bond signature vectors
+        run: node model/self_guarded_payout_vectors.mjs > /tmp/bsb-self-guarded.json
+      - name: Verify BIP143 input-bound payout signature and dispute branches against Bitcoin Core
+        run: cargo run --release --manifest-path research/consensus-check/Cargo.toml < /tmp/bsb-self-guarded.json
