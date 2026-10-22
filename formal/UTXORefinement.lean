@@ -195,7 +195,8 @@ theorem admitted_cooperative_split_conserves_input
     (s : UTXOState) (tx : BondTx)
     (h : admitted s tx) (coop : tx.path = SpendPath.cooperative) :
     tx.payout + tx.clientPayout + tx.fee = s.account.locked := by
-  exact h.2.2.2.2.1
+  rcases h with ⟨_, _, _, _, pay, _, _⟩
+  exact pay.1
 
 theorem spent_prevout_recorded (s : UTXOState) (tx : BondTx) :
     tx.prevout ∈ (applyBondTx s tx).spent := by
