@@ -1,5 +1,8 @@
 # ADR-009: Bond-only bypass and a self-guarding P2WSH repair candidate
 
+**Next iteration:** The ADR-009 fixture uses an externally spendable OP_TRUE sponsor input that could be consumed by a third party before either pre-signed settlement. [ADR-010](one-input-self-guarded.md) removes that input entirely and tests a bond-only, self-guarded settlement with a fixed 1,000-satoshi fee. Its proof and deadline limitations remain unchanged.
+
+
 **Status:** Adversarial Bitcoin Core Script research. A mock answer token, fixed certificate and publicly known signing key are used throughout. The repaired construction still depends on trusted pre-signing/key erasure and does not authenticate Bitcoin work, BitVM proofs, or deadline ordering.
 
 ## Critical correction to ADR-008

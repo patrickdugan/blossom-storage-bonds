@@ -83,3 +83,7 @@ jobs:
         run: node model/self_guarded_payout_vectors.mjs > /tmp/bsb-self-guarded.json
       - name: Verify BIP143 input-bound payout signature and dispute branches against Bitcoin Core
         run: cargo run --release --manifest-path research/consensus-check/Cargo.toml < /tmp/bsb-self-guarded.json
+      - name: Generate one-input self-guarded payout vectors without a sponsor
+        run: node model/one_input_self_guarded_vectors.mjs > /tmp/bsb-one-input.json
+      - name: Verify sponsor-free payout binding and timeout boundaries in Bitcoin Core
+        run: cargo run --release --manifest-path research/consensus-check/Cargo.toml < /tmp/bsb-one-input.json
