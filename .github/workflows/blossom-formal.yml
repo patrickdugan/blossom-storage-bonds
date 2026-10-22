@@ -29,5 +29,6 @@ jobs:
           echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
       - name: Check proof file (no sorry)
         run: |
-          ! grep -Eq '(^|[[:space:]])(sorry|admit)([[:space:]]|$)' formal/Blossom.lean
-          lean formal/Blossom.lean
+          ! grep -En '(^|[[:space:]])(sorry|admit)([[:space:]]|$)' formal/*.lean
+          lean -o formal/Blossom.olean formal/Blossom.lean
+          LEAN_PATH=formal lean formal/UTXORefinement.lean
