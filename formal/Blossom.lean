@@ -58,23 +58,19 @@ inductive Step (price : Nat) : Account → Account → Prop where
       Step price s { s with epochRevenue := s.epochRevenue + price }
   | challenge (s : Account) (fee : Nat) (affordable : fee ≤ s.locked)
       (eligible : s.stage = .live) :
-      Step price s { s with stage := .challenged,
-        locked := s.locked - fee, minerFees := s.minerFees + fee }
+      Step price s { s with stage := Stage.challenged, locked := s.locked - fee, minerFees := s.minerFees + fee }
   | answer (s : Account) (fee : Nat) (affordable : fee ≤ s.locked)
       (challenged : s.stage = .challenged)
       (validResponse : Prop) (verified : validResponse) :
-      Step price s { s with stage := Stage.live, round := s.round + 1,
-        locked := s.locked - fee, minerFees := s.minerFees + fee }
+      Step price s { s with stage := Stage.live, round := s.round + 1, locked := s.locked - fee, minerFees := s.minerFees + fee }
   | forfeit (s : Account) (fee : Nat) (affordable : fee ≤ s.locked)
       (challenged : s.stage = .challenged)
       (deadlinePassed : Prop) (verified : deadlinePassed) :
-      Step price s { s with stage := Stage.clientForfeit, locked := 0,
-        client := s.client + (s.locked - fee), minerFees := s.minerFees + fee }
+      Step price s { s with stage := Stage.clientForfeit, locked := 0, client := s.client + (s.locked - fee), minerFees := s.minerFees + fee }
   | refund (s : Account) (fee : Nat) (affordable : fee ≤ s.locked)
       (uncontested : s.stage = .live)
       (termEnded : Prop) (verified : termEnded) :
-      Step price s { s with stage := Stage.providerPaid, locked := 0,
-        provider := s.provider + (s.locked - fee), minerFees := s.minerFees + fee }
+      Step price s { s with stage := Stage.providerPaid, locked := 0, provider := s.provider + (s.locked - fee), minerFees := s.minerFees + fee }
 
 theorem initial_bond_total (bond : Nat) :
     bondTotal (initial bond) = bond := by
