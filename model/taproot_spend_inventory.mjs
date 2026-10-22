@@ -96,7 +96,9 @@ export function auditTaprootSources(overrides={}) {
     'agent funding uses NUMS');
   expect(demo,/let internal = XOnlyPublicKey::from_slice\(&agg\.serialize_xonly\(\)\)/,
     'demo uses MuSig2 aggregated internal key');
-  expect(demo,/musig_keypath_sig\(/,'demo tests cooperative keypath signature');
+  expect(demo,/taproot_key_spend_signature_hash\(0,\s*&Prevouts::All\(&\[prev\]\),\s*TapSighashType::Default\)/,
+    'demo key-path binds all prevouts and outputs');
+  expect(demo,/FirstRound::new\(tctx\.clone\(\)/,'demo performs MuSig2 signing rounds');
   // First-class transaction authorization depends on Bitcoin's BIP341
   // Taproot default sighash over all prevouts and all outputs.
   expect(signed,/taproot_script_spend_signature_hash\(0,\s*&Prevouts::All\(&\[prev\.clone\(\)\]\),\s*lh,\s*TapSighashType::Default\)/,
