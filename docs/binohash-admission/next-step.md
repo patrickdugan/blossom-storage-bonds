@@ -1,3 +1,5 @@
+> **2026-10-22 update:** The research suite now has 132 passing Node tests. See [ADR-001: journal cursor and joint settlement](cursor-architecture.md) for the concrete dual-input settlement topology, live-cursor outpoint tests, external challenger fee sponsorship, legacy sighash checks, script-budget arithmetic and cutoff/freeze races. This remains model-only: no Bitcoin-enforced cursor successor exists yet.
+
 # Binohash admission: transaction-graph integration gate
 
 Research branch: `research/binohash-admission`; starts from pushed `phase-6-bitvm2-spike` (`a8c9bb11`). Local Phase 7 commit `4494714`, and its nine failed commitment-carrier experiments, remain outside accessible GitHub history. The local journal regression remains the authoritative starting fixture when available.
