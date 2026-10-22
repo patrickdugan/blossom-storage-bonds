@@ -1,32 +1,35 @@
-# Binohash admission research
+# Binohash and permissionless Bitcoin storage-bond challenges
 
-**Status: BLOCKED AT BITCOIN CONSENSUS ENFORCEMENT.** The published model and transaction serialization experiments use idealized authorization at precisely the stage that still needs a real Bitcoin contract.
+**Status: RESEARCH / BLOCKED AT BITCOIN-ENFORCED DYNAMIC CERTIFICATE ADMISSION.** This branch contains real Bitcoin transaction serialization, legacy Script ECDSA tests, a tiny unfunded Bitcoin Core consensus check, and several explicitly idealized protocol specifications. None is a deployable storage-bond contract.
 
-Current research: **132 deterministic Node tests passing** (10 files). Run:
+**175 deterministic Node tests passing** locally. The offline Core 26 legacy Script harness independently verifies **9 of 9 cases**, including a valid second spend that regrinds a Binohash toy signature for a malicious cursor-burning output.
 
 ```bash
 node --test model/*.test.mjs
+node model/binohash_consensus_vectors.mjs > /tmp/binohash-vectors.json
+cargo run --release --manifest-path research/consensus-check/Cargo.toml < /tmp/binohash-vectors.json
 ```
 
-This command needs Node 22+, uses no external packages, and starts no bitcoin node or proof job. The dedicated GitHub workflow runs only these tests.
+No bitcoind, block mining, GPU proofs, or funded pilot runs are invoked by these commands. The GitHub workflow runs these checks on the research branch and PR.
 
-### Research artifacts
+## Two protocol directions
 
-- [ADR-001: journal cursor and joint settlement](cursor-architecture.md): candidate UTXO topology, fee sponsorship, exact-work ties, freeze race, required Bitcoin enforcement
-- [Next transaction-level acceptance gate](next-step.md): direct script and refund criteria
-- [Binohash admission review](../binohash-admission-review.md): original attacks against selected challenge roots and provider refunds
-- `model/utxo_admission_graph*.mjs`: UTXO conflict and stale spending paths
-- `model/journal_cursor*.mjs`: chained cursor, live joint spend and hypothetical challenger funding
-- `model/cutoff_race.test.mjs`: last-block and post-cutoff transaction conflicts
-- `model/cursor_sighash.test.mjs`: four real legacy signature-hash mode commitment cases
-- `model/binohash_budget*.mjs`: published opcode-count and script-size arithmetic
-- `model/legacy_sighash*.mjs`: Bitcoin Core vectors and legacy FindAndDelete
-- `model/contest_spec*.mjs`: reference specification with **omniscient journal and chain-work oracle**
+**[ADR-001: Mutable journal cursor](cursor-architecture.md).** Each challenge replaces one UTXO containing the journal state. Settlement co-spends that live cursor and the bond, invalidating settlements on older outpoints. The blocker is authorization of a unique, permissionlessly generated valid successor without allowing a malicious challenger to burn or redirect the cursor. The Binohash toy demonstrates why a fresh signature can also authorize an unwanted transaction when the actual successor policy is absent.
 
-### Provenance
+**[ADR-002: Stateless stronger-fork refutation](stateless-refutation-alternative.md).** Freeze the provider's exact work assertion at cutoff and allow any stranger to refute it with **one** verified, Bitcoin-anchored, strictly stronger fork. A weaker submitted candidate cannot consume collateral, so later stronger candidates remain actionable. This can avoid maintaining a maximal-work journal, but it changes the provider-claim and rebuttal semantics. The challenger must supply a dynamically verifiable exact-work proof, whose validity, inclusion, binding and fixed payout the current model assumes as external predicates.
 
-This GitHub branch begins at pushed `phase-6-bitvm2-spike` (`a8c9bb11`). The owner's Phase 7 commit `4494714`, including the six-transaction / 151-header stronger-fork regression, has not been pushed here; integration with that fixture has **not** occurred.
+## What is reproducible
 
-The tests are adversarial protocol models, serialization, and signature-hash checks. The construction has **not** produced a Bitcoin consensus-valid, permissionless long-chain admission covenant. It has not run production Binohash grinding or sent any transaction to miners. The optimistic path to a working solution is an independently enforced, unique cursor-successor transition that can survive arbitrary challengers and then be co-spent at settlement. A stale provider-only refund leaf must be removed from every bond path.
+- `model/binohash_finddelete_poc.mjs` and `secp256k1_legacy_demo.mjs`: insecure low-security ECDSA/FindAndDelete proof of concept, signed toy transactions
+- `model/binohash_consensus_vectors.mjs` and `research/consensus-check/`: unfunded raw transaction checks using vendored Bitcoin Core's consensus engine
+- `model/stateless_refutation*.mjs`: 22 stronger-work existential counterexample tests with explicit external-oracle assumptions
+- `model/journal_cursor*.mjs`, `model/cutoff_race.test.mjs` and `model/utxo_admission_graph*.mjs`: cursor races and refund bypass
+- `model/contest_spec*.mjs`: idealized maximal-work journal and rebuttal state
+- `model/txid_admission*.mjs`, `model/legacy_sighash*.mjs`, `model/cursor_sighash.test.mjs`: transaction serialization, verified sighash vectors, and input binding
+- [Transaction-level acceptance checklist](next-step.md), [initial adversarial review](../binohash-admission-review.md)
 
-The working PR remains draft until a successful Bitcoin-level construction exists.
+## Missing integration
+
+The local Phase 7 regression `4494714` and its six-transaction/151-header fixture remain unavailable in this GitHub remote. The research branch starts from pushed `phase-6-bitvm2-spike`. The real spending graph has not been integrated or proven safe; old provider-only refund paths remain a known bypass.
+
+The PR is intentionally draft. Any deployed solution must protect every collateral exit, validate arbitrary challengers' exact work and anchoring, and enforce the admission cutoff and payout with current Bitcoin consensus rules. The miner/relay question for full Binohash remains deferred.
