@@ -126,7 +126,16 @@ theorem any_terminal_is_absorbing (price : Nat) {s t : Account}
     (h : Step price s t)
     (done : s.stage = .providerPaid ∨ s.stage = .clientForfeit ∨
       s.stage = .cooperativeClosed) : False := by
-  cases h <;> simp_all
+  cases h with
+  | cooperativeClose _ _ _ available _ _ _ =>
+      rcases available with live | challenged
+      · simp_all
+      · simp_all
+  | payEpoch _ _ _ _ _ _ _ => simp_all
+  | challenge _ _ _ => simp_all
+  | answer _ _ _ _ _ => simp_all
+  | forfeit _ _ _ _ _ => simp_all
+  | refund _ _ _ _ _ => simp_all
 
 /-- Reflexive/transitive closure of the authorized settlement graph. -/
 inductive Reach (price : Nat) : Account → Account → Prop where
