@@ -1,41 +1,80 @@
-# Formal protocol proof: storage, epochs, and the bond payment machine
+# Lean formalization: Blossom storage proofs and payment mechanics
 
-File: [`formal/Blossom.lean`](../../formal/Blossom.lean).
+Status: **kernel-checked safety theorems about an abstract storage/payment protocol**, with explicit cryptographic assumptions and an unproved Bitcoin consensus refinement boundary. This work is on the draft `research/binohash-admission` branch.
 
-Lean 4 is pinned in the repository's `lean-toolchain`. The workflow `blossom-formal.yml` runs the checker. The intended trust boundary is smaller than a claim of complete Bitcoin protocol correctness.
+## Scope and exact source mapping
 
-## Scope
+The original `model/storage_bonds.ts` has two economic layers:
 
-The TypeScript implementation `model/storage_bonds.ts` has two economic layers:
+1. **Pay per proof.** The client supplies a fresh nonce, computes sampled 4 KiB ciphertext-chunk indices, verifies supplied Merkle chunk paths against the agreed root, then pays that epoch through Lightning.
+2. **Sentinel collateral.** The provider locks a pre-signed Taproot bond at state `Bond_i`. A client challenge reveals a salted sentinel secret and consumes `Bond_i` to `Challenged_i`. A correct provider preimage response spends `Challenged_i` to the *next live* `Bond_(i+1)`. After a CSV delay, a missing response allows client forfeiture. The provider may refund a still-live `Bond_i` after the term-end CLTV condition, subject to all actual spend paths.
 
-1. Epochs: sampled 4 KiB chunk openings are verified against the deal's Merkle root; the client pays only after accepting an epoch proof.
-2. Sentinels: a bond moves from live to challenged, then resolves by provider response or client forfeiture, with an uncontested provider refund at the contract term end.
+The current Lean files:
 
-The Lean specification models accepted Merkle openings as a proposition (`accepts`), and the authorized state transitions as an inductive relation (`Step`). Accounting tracks locked bond, provider release, client forfeiture, and off-chain epoch revenue separately.
+- [`formal/Blossom.lean`](../../formal/Blossom.lean): the state machine, accepted-epoch proof prerequisite, sentinel rounds, bond accounting and miner fees.
+- [`formal/UTXORefinement.lean`](../../formal/UTXORefinement.lean): bond prevout identity, consumed outpoints, output scripts, payout amounts, fees, witness/timelock predicates and forward simulation over arbitrary transaction histories.
+- [`formal/MerkleBinding.lean`](../../formal/MerkleBinding.lean): an unconditional Merkle collision-reduction theorem for conflicting openings at the same checked sample index, plus an explicit counterexample to treating Lightning payment as proof of storage.
 
-## Theorems
+## Kernel-checked theorems
 
-- `accepted_samples_authenticated`: an accepted storage proof provides an authenticated opening for each sampled index (by the definition of `accepts`).
-- `initial_bond_total`, `step_preserves_bond`, `reachable_preserves_bond`, `any_reachable_bond_is_conserved`: bond balance is conserved across any permitted sequence.
-- `terminal_is_absorbing`: the abstract protocol cannot perform another authorized transition after a terminal provider or client payout.
-- `increased_revenue_requires_proof`: every single authorized state transition that changes off-chain epoch revenue carries an accepted proof.
+### Bond accounting and authorizations
 
-These are exact deductive claims about the Lean transition system. They do not assume the result that conservation holds; the proof follows the transition constructors and their balance updates.
+`accepted_samples_authenticated` states what the abstract acceptance predicate grants for every sampled index. `increased_revenue_requires_proof` proves that any authorized epoch transition changing provider revenue carries an accepted proof.
 
-## Refinement obligations before calling this a formal proof of Blossom
+`step_preserves_bond`, `reachable_preserves_bond` and `any_reachable_bond_is_conserved` prove that **locked + provider released + client forfeited + miner fees** remains equal to initial bond value across all authorized histories. This required a substantive revision: terminal settlement subtracts the fee from the recipient payout; a challenge or successful response can also pay fees out of the live locked amount. A successful sentinel response *advances the round* and reopens the bond, rather than paying out the provider.
 
-The authenticated chunk predicate must be refined to SHA256 domain-separated Merkle inclusion (with binding of root, index, chunk count and committed ciphertext). Proving soundness requires cryptographic collision-resistance assumptions, and possession cannot be inferred from one successful opening.
+`terminal_is_absorbing` ensures that a refunded or forfeited bond cannot continue through a protocol Step constructor.
 
-Epoch proof acceptance currently states proof membership, rather than a fully executable Merkle verifier with nonce-derived random indices, proof path lengths and timing. Random challenge unpredictability, the probability of detecting deletion, proof replay and client prepayment risks need separate theorems and hypotheses.
+### Bitcoin UTXO refinement boundary
 
-The sentinel challenge/response relation has an abstract `validResponse` proposition and an abstract `deadlinePassed` proposition. A future refinement must show that actual Taproot/Bitcoin transactions enforce them, including BIP341/342 signatures, exact preimage matching, BIP68/112 CSV heights, every keypath/script leaf, and the continuing bond covenant. The externally signed storage bond can contain a provider refund path that bypasses independent fork-admission state, as ADR-006 demonstrates.
+`admitted_refines_abstract` proves a one-transaction forward simulation from a checked UTXO bond spend to the appropriate abstract Step, covering script-path authorization, value equation, payout recipient, fee and successor.
 
-The model treats an authorized refund after term end as a valid transition from `live`; it assumes challenge admission moves that same live bond to `challenged` before competing refunds. Proofs about mining censorship or a missed inclusion deadline require a liveness/fairness model beyond this file.
+`old_prevout_cannot_be_reused` uses an actual consumed-outpoint list in the formal ledger. `terminal_spend_prevents_further_bond_spends` and `response_advances_round` prove that spent collateral cannot be reused and that a response creates the next live bond round.
 
-Payment conservation is for the locked bond. Lightning value conservation, channel solvency, receipt authentication and invoice settlement require another refinement.
+`bitcoin_run_refines_abstract` and `arbitrary_run_conserves_bond_including_fees` extend the simulation to **arbitrarily long chains of transactions**, conditional on `ConsensusCoverage`. That premise is:
 
-**Current status: a formal contract-level safety specification, not a fully verified storage proof, not cryptographic security, and not an on-chain payment mechanism proof.**
+```
+For every state and transaction:
+  RealBitcoinConsensusAccepts(state, tx)
+    implies admitted(state, tx)
+```
 
-## Next milestone
+In the actual code this is parametrized as `ConsensusCoverage bitcoinAccepts`. It is an **unproved implementation-security obligation**, and is exactly where script-path exhaustiveness, real BIP341/342 witness/script checks, sighash commitment coverage, UTXO ownership and output binding must be established. The internal theorem `formal_ledger_initial_value_conserved` instantiates acceptance with the formal `admitted` predicate, so it cannot certify real Bitcoin consensus.
 
-Model Bitcoin UTXO ownership and terminal spend conflict explicitly in Lean, then prove a forward simulation between `model/storage_bonds.ts` transitions, serialized spending transactions and the formal relation. Add assumptions that bind outputs and show that every alternate provider exit is excluded. Retain the counterexample fixture for the independent CLTV refund as a falsifying case.
+`unenumerated_path_counterexample` proves that admitting an unspecified path breaks the implication from generic spend acceptance to the formal authorization rule. `independent_journal_refund_bypass` formally witnesses an old provider refund that passes its local CLTV/UTXO checks despite an unanswered external stronger-fork challenge. These are explicit logical counterexamples, complementing the unfunded Bitcoin Core counterexample of ADR-006.
+
+### Storage-commitment binding
+
+`parallel_path_collision_or_equal` handles two Merkle paths with the same left/right orientation bits, even with different sibling hashes. `two_verified_openings_imply_collision` proves that distinct chunks opening the same committed root at a fixed indexed path force a collision at either the domain-separated leaf hash, internal-node compression hash, or count-bound root hash.
+
+`checked_same_index_openings_imply_collision` additionally checks both openings against the same index's direction bits and a common path depth. Hence different payloads accepted at that same position imply a concrete collision witness. `unique_chunk_if_collision_free` is the conditional uniqueness corollary when no such collisions occur.
+
+These theorems treat the hash functions as **arbitrary functions**. They do not assume global injectivity of 256-bit SHA-256, which is mathematically impossible on unbounded messages. The remaining computational assumption is that an adversary cannot feasibly find one of the exhibited SHA-256 collisions. Formal treatment of SHA-256 collision-resistant security and the exact TypeScript buffer encoding is separate.
+
+`lightning_alone_does_not_certify_storage` exhibits a settled invoice with no accepted sample proof. The verification-before-payment rule must be enforced by the **client application**, rather than being inferred from the Lightning protocol.
+
+## Remaining architecture proof obligations
+
+1. **Exact Merkle verifier correspondence.** Show that `model/storage_bonds.ts` computes the same indexed leaf, inner-node and root bytes, including the 4 KiB chunk padding, chunk-count commitment, odd-sibling duplication, path length and index validity. The Lean Merkle model currently takes an explicit tree depth and assumes every path was produced according to the committed tree geometry.
+2. **Sentinel response soundness.** Link salted sentinel hashes to the correct ciphertext windows and prove that every exposed Taproot response path checks the required preimages and preserves the agreed replica root/next round. Hash collision resistance, challenge-secret unpredictability and setup cut-and-choose honesty are cryptographic/economic assumptions.
+3. **Bitcoin consensus coverage.** Audit all Taproot key paths and script leaves, exact BIP341/342 signatures/sighash, sequence-based BIP68/112 CSV finality, BIP65 CLTV, confirmation rules, and every possible collateral exit. Current `UTXORefinement` enumerates challenge, response, forfeit and term-end refund. It intentionally excludes cooperative close/keypath cases until their recipient splits and actual signature conditions are formalized. No existing theorem states that Bitcoin Core satisfies `ConsensusCoverage`.
+4. **Confirmation/liveness and adversarial timing.** The Lean Step semantics encode eligibility of a confirmed transition. They do not establish eventual miner inclusion or an absolute response upper deadline. Competing valid Bitcoin transactions still race for the same UTXO.
+5. **Lightning settlement correctness.** Verify authenticated deal/nonce/epoch identifiers, unique invoices, payer receipt logic, prevention of double-billing and actual payment channel settlement. A valid Merkle proof is necessary for the modeled authorization; a real payer can still voluntarily send Lightning value outside this application policy.
+6. **Economic security.** Formally state independent uniform sample assumptions for the `f^q` deletion-detection model, multi-window sentinel survival, dishonest setup cut-and-choose and incentive conditions. The TypeScript estimators are not Lean proofs.
+7. **Independent fork-admission game.** The Binohash/BitVM fork-certificate journal in ADR-001 to ADR-010 remains a separate contract design, with an old CLTV refund bypass in ADR-006. Its soundness does not follow from this sentinel-bond accounting proof.
+
+## Reproduce
+
+CI: `.github/workflows/blossom-formal.yml` uses pinned Lean 4.15.0 and rejects `sorry` or `admit` before compiling.
+
+```sh
+lean -o formal/Blossom.olean formal/Blossom.lean
+LEAN_PATH=formal lean formal/UTXORefinement.lean
+LEAN_PATH=formal lean formal/MerkleBinding.lean
+```
+
+The existing Node and Bitcoin Core Script regressions are independent test suites. Their success establishes only the properties they explicitly execute. Lean theorems establish mathematical consequences of the stated formal predicates.
+
+## Handoff milestone
+
+The next most useful formal PR is a **Taproot spending-path refinement matrix**, beginning with the on-chain sentinel contract's actual `regtest/src/bin/bond.rs` transaction templates and every Taproot key path/leaf. One proven unauthorized escape should halt a full-architecture security claim even if all the abstract preservation theorems continue to pass.
