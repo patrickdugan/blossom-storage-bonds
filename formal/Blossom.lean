@@ -41,6 +41,7 @@ inductive Stage where
 structure Account where
   stage : Stage
   round : Nat
+  maxRounds : Nat
   dealId : Nat
   rootCommitment : Nat
   paidEpochs : List Nat
@@ -54,14 +55,14 @@ structure Account where
 def bondTotal (s : Account) : Nat := s.locked + s.provider + s.client + s.minerFees
 
 def initial (bond : Nat) : Account :=
-  { stage := .live, round := 0, dealId := 0, rootCommitment := 0,
+  { stage := .live, round := 0, maxRounds := 1, dealId := 0, rootCommitment := 0,
     paidEpochs := [], locked := bond, provider := 0, client := 0,
     epochRevenue := 0, minerFees := 0 }
 
 /-- Agreement parameters are fixed at deal creation and retained across
 all authorized state transitions. -/
-def initialDeal (bond deal root : Nat) : Account :=
-  { initial bond with dealId := deal, rootCommitment := root }
+def initialDeal (bond deal root k : Nat) : Account :=
+  { initial bond with dealId := deal, rootCommitment := root, maxRounds := k }
 
 /-- Every authorized accounting transition is specified here. For a real
 Bitcoin contract, Script and transaction validity must refine this relation.
@@ -75,10 +76,10 @@ inductive Step (price : Nat) : Account → Account → Prop where
       (nonempty : proof.sampled ≠ []) :
       Step price s { s with epochRevenue := s.epochRevenue + price, paidEpochs := proof.epochId :: s.paidEpochs }
   | challenge (s : Account) (fee : Nat) (affordable : fee ≤ s.locked)
-      (eligible : s.stage = .live) :
+      (eligible : s.stage = .live) (remaining : s.round < s.maxRounds) :
       Step price s { s with stage := Stage.challenged, locked := s.locked - fee, minerFees := s.minerFees + fee }
   | answer (s : Account) (fee : Nat) (affordable : fee ≤ s.locked)
-      (challenged : s.stage = .challenged)
+      (challenged : s.stage = .challenged) (remaining : s.round < s.maxRounds)
       (validResponse : Prop) (verified : validResponse) :
       Step price s { s with stage := Stage.live, round := s.round + 1, locked := s.locked - fee, minerFees := s.minerFees + fee }
   | forfeit (s : Account) (fee : Nat) (affordable : fee ≤ s.locked)
@@ -103,6 +104,14 @@ theorem step_preserves_bond (price : Nat) {s t : Account}
     (h : Step price s t) : bondTotal s = bondTotal t := by
   cases h <;> simp [bondTotal] <;> omega
 
+/-- Remaining pre-signed sentinel capacity is a protocol invariant. The
+final state of a k-sentinel chain is live with round = k, but its challenge
+leaf is absent; only refund and cooperative paths remain. -/
+theorem step_preserves_round_limit (price : Nat) {s t : Account}
+    (h : Step price s t) (within : s.round ≤ s.maxRounds) :
+    t.round ≤ t.maxRounds := by
+  cases h <;> simp_all <;> omega
+
 /-- A completed provider payout or forfeiture admits no further authorized step. -/
 theorem terminal_is_absorbing (price : Nat) {s t : Account}
     (h : Step price s t)
@@ -114,8 +123,8 @@ theorem terminal_is_absorbing (price : Nat) {s t : Account}
       · simp_all
       · simp_all
   | payEpoch _ _ _ _ _ _ _ => simp_all
-  | challenge _ _ _ => simp_all
-  | answer _ _ _ _ _ => simp_all
+  | challenge _ _ _ _ => simp_all
+  | answer _ _ _ _ _ _ => simp_all
   | forfeit _ _ _ _ _ => simp_all
   | refund _ _ _ _ _ => simp_all
 
@@ -132,8 +141,8 @@ theorem any_terminal_is_absorbing (price : Nat) {s t : Account}
       · simp_all
       · simp_all
   | payEpoch _ _ _ _ _ _ _ => simp_all
-  | challenge _ _ _ => simp_all
-  | answer _ _ _ _ _ => simp_all
+  | challenge _ _ _ _ => simp_all
+  | answer _ _ _ _ _ _ => simp_all
   | forfeit _ _ _ _ _ => simp_all
   | refund _ _ _ _ _ => simp_all
 
@@ -155,6 +164,14 @@ theorem any_reachable_bond_is_conserved (bond price : Nat)
     bondTotal s = bond := by
   exact (reachable_preserves_bond price h).symm.trans (initial_bond_total bond)
 
+theorem reachable_preserves_round_limit (price : Nat) {a b : Account}
+    (h : Reach price a b) (within : a.round ≤ a.maxRounds) :
+    b.round ≤ b.maxRounds := by
+  induction h with
+  | refl => exact within
+  | more prefixRun edge ih =>
+      exact step_preserves_round_limit price edge ih
+
 /-- A direct epoch payment must carry an accepted storage-proof instance.
 This theorem checks authorization at the transition boundary; it does not
 establish SHA256 collision resistance or possession of all stored chunks. -/
@@ -163,8 +180,8 @@ theorem increased_revenue_requires_proof (price : Nat) {s t : Account}
     ∃ p : StorageProof, accepts p := by
   cases h with
   | payEpoch p _ verified _ _ _ _ => exact ⟨p, verified⟩
-  | challenge _ _ _ => exact False.elim (changed rfl)
-  | answer _ _ _ _ _ => exact False.elim (changed rfl)
+  | challenge _ _ _ _ => exact False.elim (changed rfl)
+  | answer _ _ _ _ _ _ => exact False.elim (changed rfl)
   | forfeit _ _ _ _ _ => exact False.elim (changed rfl)
   | refund _ _ _ _ _ => exact False.elim (changed rfl)
   | cooperativeClose _ _ _ _ _ _ _ => exact False.elim (changed rfl)
@@ -182,8 +199,8 @@ theorem increased_revenue_requires_bound_fresh_epoch
   cases h with
   | payEpoch p _ valid dealOk rootOk fresh nonempty =>
       exact ⟨p, valid, dealOk, rootOk, fresh, nonempty⟩
-  | challenge _ _ _ => exact False.elim (changed rfl)
-  | answer _ _ _ _ _ => exact False.elim (changed rfl)
+  | challenge _ _ _ _ => exact False.elim (changed rfl)
+  | answer _ _ _ _ _ _ => exact False.elim (changed rfl)
   | forfeit _ _ _ _ _ => exact False.elim (changed rfl)
   | refund _ _ _ _ _ => exact False.elim (changed rfl)
   | cooperativeClose _ _ _ _ _ _ _ => exact False.elim (changed rfl)
