@@ -126,6 +126,66 @@ theorem unique_chunk_if_collision_free
     · exact False.elim (noNode badNode)
     · exact False.elim (noRoot badRoot)
 
+/-- At height k, the k-th low-order bit of the chunk index determines
+whether the Merkle sibling lies on the left. -/
+def indexDirections (index depth : Nat) : List Bool :=
+  (List.range depth).map (fun k => decide ((index / 2 ^ k) % 2 = 1))
+
+def pathDirections (path : List Sibling) : List Bool :=
+  path.map Sibling.siblingOnLeft
+
+def checkedIndexedOpening
+    (leaf : Nat → Nat) (node : Nat → Nat → Nat)
+    (rootTag : Nat → Nat → Nat)
+    (n depth root index chunk : Nat) (path : List Sibling) : Prop :=
+  index < n ∧
+  path.length = depth ∧
+  pathDirections path = indexDirections index depth ∧
+  verifiesRoot leaf node rootTag n root chunk path
+
+/-- Equality of the checked index-orientation vectors supplies the
+SameDirections witness needed for the binding reduction. -/
+theorem same_directions_of_bits
+    {a b : List Sibling} (h : pathDirections a = pathDirections b) :
+    SameDirections a b := by
+  induction a generalizing b with
+  | nil =>
+      cases b with
+      | nil => exact SameDirections.nil
+      | cons hd tl =>
+          simp [pathDirections] at h
+  | cons hd tl ih =>
+      cases b with
+      | nil =>
+          simp [pathDirections] at h
+      | cons hd2 tl2 =>
+          have hpair :
+              hd.siblingOnLeft :: pathDirections tl =
+                hd2.siblingOnLeft :: pathDirections tl2 := by
+            simpa [pathDirections] using h
+          have leftEq := (List.cons.inj hpair).1
+          have restEq := (List.cons.inj hpair).2
+          exact SameDirections.cons hd hd2 leftEq (ih restEq)
+
+/-- With both opening verifiers checking the same index, path length and
+ordered position bits, a conflicting chunk payload yields an explicit
+collision even if the sibling hash values differ at every level. -/
+theorem checked_same_index_openings_imply_collision
+    (leaf : Nat → Nat) (node : Nat → Nat → Nat)
+    (rootTag : Nat → Nat → Nat)
+    (n depth root index x y : Nat)
+    (a b : List Sibling)
+    (h1 : checkedIndexedOpening leaf node rootTag n depth root index x a)
+    (h2 : checkedIndexedOpening leaf node rootTag n depth root index y b)
+    (different : x ≠ y) :
+    LeafCollision leaf ∨ NodeCollision node ∨ RootCollision rootTag n := by
+  rcases h1 with ⟨_, _, directionA, merkleA⟩
+  rcases h2 with ⟨_, _, directionB, merkleB⟩
+  have matching : SameDirections a b :=
+    same_directions_of_bits (directionA.trans directionB.symm)
+  exact two_verified_openings_imply_collision leaf node rootTag n root x y a b
+    matching merkleA merkleB different
+
 /-- A receipt policy for epoch payment: accepting evidence is a separate
 condition from merely observing Lightning value movement. -/
 structure OffchainReceipt where
