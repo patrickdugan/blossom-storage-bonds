@@ -23,12 +23,10 @@ jobs:
     timeout-minutes: 12
     steps:
       - uses: actions/checkout@v4
-      - uses: leanprover/lean-action@v1
-        with:
-          auto-config: false
-          build: false
-          test: false
-          lint: false
+      - name: Install standalone Lean 4 with elan
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh | sh -s -- -y --default-toolchain leanprover/lean4:v4.15.0
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
       - name: Check proof file (no sorry)
         run: |
           ! grep -Eq '(^|[[:space:]])(sorry|admit)([[:space:]]|$)' formal/Blossom.lean
