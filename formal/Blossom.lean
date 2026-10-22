@@ -108,7 +108,16 @@ theorem terminal_is_absorbing (price : Nat) {s t : Account}
     (h : Step price s t)
     (done : s.stage = .providerPaid ∨ s.stage = .clientForfeit) :
     False := by
-  cases h <;> simp_all
+  cases h with
+  | cooperativeClose _ _ _ available _ _ _ =>
+      rcases available with live | challenged
+      · simp_all
+      · simp_all
+  | payEpoch _ _ _ _ _ _ _ => simp_all
+  | challenge _ _ _ => simp_all
+  | answer _ _ _ _ _ => simp_all
+  | forfeit _ _ _ _ _ => simp_all
+  | refund _ _ _ _ _ => simp_all
 
 /-- Cooperative key-path closure requires independent authorization from both
 parties and is terminal even when the client agreed during a challenged round.
@@ -149,8 +158,7 @@ theorem increased_revenue_requires_proof (price : Nat) {s t : Account}
   | answer _ _ _ _ _ => exact False.elim (changed rfl)
   | forfeit _ _ _ _ _ => exact False.elim (changed rfl)
   | refund _ _ _ _ _ => exact False.elim (changed rfl)
-  | cooperativeClose _ _ _ _ _ _ => exact False.elim (changed rfl)
-  | cooperativeClose _ _ _ _ _ _ => exact False.elim (changed rfl)
+  | cooperativeClose _ _ _ _ _ _ _ => exact False.elim (changed rfl)
 
 /-- Every payment record must be bound to this deal and the agreed Merkle
 root, must have at least one sampled opening and must use a fresh epoch ID.
@@ -169,6 +177,7 @@ theorem increased_revenue_requires_bound_fresh_epoch
   | answer _ _ _ _ _ => exact False.elim (changed rfl)
   | forfeit _ _ _ _ _ => exact False.elim (changed rfl)
   | refund _ _ _ _ _ => exact False.elim (changed rfl)
+  | cooperativeClose _ _ _ _ _ _ _ => exact False.elim (changed rfl)
 
 /-- Neither a sentinel spend nor a verified Lightning epoch changes the
 original deal identity or the committed replica Merkle root. -/
