@@ -26,23 +26,32 @@ export function cursorGenesis({source, sourceValue, initialWork = 0n}) {
     version:2,vin:[standardInput(source)],
     vout:[{valueSats:sourceValue-1000n,scriptPubKey:puzzleCommitment(`journal/${commitment}`)}],lockTime:0
   };
-  return {tx,ref:spendOf(tx),root:commitment,work:initialWork,budget:sourceValue-1000n};
+  return {tx,ref:spendOf(tx),root:commitment,work:initialWork,budget:sourceValue-1000n,bestIds:[]};
 }
 /**
  * Builds ONE tentative journal update, consuming exactly the current cursor.
  * The model computes a digest; it does NOT prove the candidate's chainwork.
  */
-export function cursorUpdate({cursor,certificateId,work,validatedWork,fee=1000n}) {
+export function cursorUpdate({cursor,certificateId,work,validatedWork,fee=1000n,sponsor=null,allowTies=false}) {
   if(!cursor || !isRef(cursor.ref) || typeof cursor.root !== 'string' || !validSats(cursor.budget))
     throw new TypeError('invalid journal cursor');
   if(typeof certificateId !== 'string' || !certificateId || !validSats(work)) throw new TypeError('invalid certificate');
   if(!validatedWork) throw new Error('requires external exact-work verification oracle');
-  if(work <= cursor.work) throw new Error('non-increasing work');
-  if(!validSats(fee) || fee>=cursor.budget) throw new RangeError('insufficient cursor value');
+  if(work < cursor.work || (work === cursor.work && !allowTies)) throw new Error('non-increasing work');
+  if(work === cursor.work && (cursor.bestIds ?? []).includes(certificateId)) throw new Error('duplicate certificate');
+  if(!validSats(fee) || fee<1n) throw new RangeError('invalid cursor fee');
+  if (sponsor && (!isRef(sponsor.ref) || !validSats(sponsor.value) || sponsor.value < fee ||
+      (sponsor.ref.txid===cursor.ref.txid && sponsor.ref.vout===cursor.ref.vout)))
+    throw new RangeError('invalid sponsor input');
+  if(!sponsor && fee>=cursor.budget) throw new RangeError('insufficient cursor value');
   const root = H('BSB/JOURNAL-EXTEND/TEST-ONLY\0'+JSON.stringify([cursor.root,certificateId,work.toString()]));
-  const tx = {version:2,vin:[standardInput(cursor.ref)],
-    vout:[{valueSats:cursor.budget-fee,scriptPubKey:puzzleCommitment(`journal/${root}`)}],lockTime:0};
-  return {tx,ref:spendOf(tx),root,work,budget:cursor.budget-fee};
+  const remaining=sponsor ? cursor.budget : cursor.budget-fee;
+  const outputs=[{valueSats:remaining,scriptPubKey:puzzleCommitment(`journal/${root}`)}];
+  if(sponsor && sponsor.value>fee) outputs.push({valueSats:sponsor.value-fee,scriptPubKey:'51'});
+  const tx = {version:2,vin:[standardInput(cursor.ref),...(sponsor?[standardInput(sponsor.ref)]:[])],
+    vout:outputs,lockTime:0};
+  const bestIds=work>cursor.work?[certificateId]:[...(cursor.bestIds??[]),certificateId];
+  return {tx,ref:spendOf(tx),root,work,budget:remaining,bestIds};
 }
 /**
  * Binohash-style input pinning is assumed but never executed. A true legacy
