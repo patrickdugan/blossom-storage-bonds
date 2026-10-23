@@ -45,7 +45,7 @@ import { keyFromSeed } from "../model/schnorr.ts";
 import { sentinelSurvival } from "../model/storage_bonds.ts";
 import { BondTool, rpc } from "./bondtool.ts";
 import { findOffers, proposeDeal, type ProviderOffer } from "./deals.ts";
-import { advance, confirm, partySeed, storageSecret, untilHeight, useNetwork, waitHeight } from "./net.ts";
+import { advance, confirm, partySeed, storageSecret, txConfirmations, untilHeight, useNetwork, waitHeight } from "./net.ts";
 import { ChannelPayer } from "./channel.ts";
 import type { Payer } from "./lightning.ts";
 import { LndNode, LndPayer, lndExe } from "./lnd.ts";
@@ -272,12 +272,19 @@ try {
     for (let j = 0; j < n && !forfeit; j++) {
       const c = await tool.run("bond-challenge", deals[i], String(j), kept[i][j].r);
       await mine(1, me.fee_address);
+      // Respond_j's txid is fixed by the deal, so on regtest each block asks the node directly instead of
+      // spawning bsb-bond bond-status (a process and a TCP connection per block).
+      const respondTxid: string = (await tool.run("bond-status", deals[i])).states[j].respond_txid;
       let answeredAt = -1, dropped: number | undefined;
       for (let b = 1; b < DELTA; b++) {
         await sleep(SLOW ? 1000 : 150);
+        if (!SLOW) {
+          if (((await txConfirmations(respondTxid)) ?? 0) >= 1) { answeredAt = b; break; }
+          await mine(1, me.fee_address);
+          continue;
+        }
         const st = await tool.run("bond-status", deals[i]);
         if ((st.states[j].respond ?? 0) >= 1) { answeredAt = b; break; }
-        if (!SLOW) { await mine(1, me.fee_address); continue; }
         // Off regtest: wait for blocks, and count them from the challenge's own confirmations. A challenge
         // a reorg dropped is sent again; if that keeps failing, its input is gone and there is nothing to
         // enforce.

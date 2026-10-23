@@ -335,10 +335,34 @@ Four things lnd does that the code has to allow for:
    failed partway through, when `bsb-bond` could not connect to bitcoind (Windows error 10048): 13,806
    sockets to the RPC port were in TIME_WAIT. The polling interval barely matters, since the cost is
    per block. So the market closes the channels when pay per proof ends, and stops every node before
-   the bond phase and the ~1,500-block jump to `t_end`. The bond phase is near the limit on its own: a
-   channel-mode run with no lnd at all ends with about 14,000 sockets in TIME_WAIT, from `bsb-bond`
-   polling. With a block every ten minutes none of this arises. It comes from five nodes on one host
-   following a chain mined every 150 ms.
+   the bond phase and the ~1,500-block jump to `t_end`. With a block every ten minutes none of this
+   arises. It comes from five nodes on one host following a chain mined every 150 ms.
+
+   The bond phase was near the limit on its own, from the parties' own polling. Two fixes:
+   - `bsb-bond` reuses one connection per call (phase 7). Before that, a channel-mode run with no lnd
+     ended with about 14,000 sockets in TIME_WAIT.
+   - The provider agent no longer spawns `bsb-bond bond-respond` every 150 ms tick for every bond.
+     Each tick now asks only for the tip, over the process's own kept-alive connection. Once per new tip
+     it checks the next sentinel's Challenge_i and Respond_i txids, which the deal fixes, the same way,
+     and spawns `bsb-bond` only when one of them is on chain. A confirmed challenge whose output is
+     spent without the provider's answer is a forfeit, and the agent stops watching that bond; before
+     the change, a forfeited bond was retried forever. The market's regtest enforcement loop likewise
+     asks the node for Respond_j's confirmations instead of spawning `bond-status` once per block.
+
+   Measured on fresh chains with the same outcomes (bitcoind's HTTP log counted the connections, and
+   `netstat` sampled TIME_WAIT on the RPC port every 2 s):
+
+   | Run | Connections | Peak TIME_WAIT | Time |
+   | --- | --- | --- | --- |
+   | channel, before | 2,683 to 3,230 | 2,498 to 2,689 | 124 to 195 s |
+   | channel, after | 368 to 390 | 360 to 385 | 110 to 124 s |
+   | `--pay ln`, before | 6,625 to 6,980 | 6,135 to 6,308 | 143 to 200 s |
+   | `--pay ln`, after | 3,769 | 3,802 | 128 s |
+
+   Base and patched runs were interleaved, because the host's load varied a lot. The patched runs were
+   no slower, and their epochs were faster (7 s against 14 to 30 s in channel mode): the stream of
+   `bsb-bond` spawns had been slowing everything else. With Lightning, the remaining peak is lnd's own
+   startup rescans and per-block fetches before the bond phase.
 2. A fundee that is behind refuses the channel, and tells the funder only "funding failed due to
    internal error". This happened once, when the client opened a channel right after mining a block.
    Before each open, the provider's node now confirms it has reached the current height
