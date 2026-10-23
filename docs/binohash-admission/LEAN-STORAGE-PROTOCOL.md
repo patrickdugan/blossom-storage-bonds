@@ -102,3 +102,29 @@ Lean reproduction additionally includes:
 ```sh
 LEAN_PATH=formal lean formal/PaymentChannel.lean
 ```
+
+## BIP341 transaction evidence and the limits of fixed-recipient refinement
+
+Two more Lean modules now run in `.github/workflows/blossom-formal.yml`: `formal/PresignedParents.lean` and `formal/RecipientAuthority.lean`.
+
+**Exact parent economics.** `regtest/src/bin/formal_vectors.rs` constructs deterministic two-generation challenge and response transactions through the actual Rust `common.rs` Taproot builder, under public test keys and fabricated funding outpoints. A separate Node parser (`model/verify_formal_evidence.mjs`) independently checks raw Bitcoin serialization, txids/wtxids, chained prevouts, zero-fee v3 parents, the 100,000,000-sat successor, and the zero-value P2A anchor. The CPFP fee wallet is separate from the bond. Lean's `valid_parent_has_zero_fee`, `valid_parent_preserves_bond`, `package_step_conserves_all_funds`, and `any_parent_cpfp_history_conserves_initial` establish the package accounting consequences of those template properties over arbitrary modeled histories. Witness-only substitutions preserve txid in the model; their witness evidence still requires independent Script authentication.
+
+**Actual Core 26 Taproot Script evaluation.** `research/consensus-check/src/bin/taproot-evidence.rs` checks the serialized, witnessed P2TR spends against vendored Bitcoin Core 26's `libbitcoinconsensus`. The verifier passes a populated **spent-output array** to `bitcoinconsensus::verify()`. This is essential: its Rust binding selects `VERIFY_ALL_PRE_TAPROOT` when spent outputs are `None`, silently skipping native v1 witness rules; `Some(&[Utxo])` activates BIP341/BIP342. The earlier 24-case all-accept failure was retained in CI history as a negative control for test-harness soundness.
+
+[Passing 39-case Taproot run](https://github.com/patrickdugan/blossom-storage-bonds/actions/runs/39877272463): four honest challenge/response parents and two terminal exits accepted; 24 corrupted parents and seven terminal negatives rejected; two terminal payouts redirected with **fresh valid signatures by their authorized parties** also accepted. Tampered output recipients with **stale** signatures failed. The terminal negatives additionally show that a fresh signer cannot waive the refund CLTV threshold, the forfeit CSV sequence requirement, or the correct signer requirement.
+
+**Fixed-recipient counterexample.** `formal/RecipientAuthority.lean` proves that a forfeit output directed elsewhere by the client and a refund output directed elsewhere by the provider can satisfy the modeled signature/timelock checks while violating `UTXORefinement.recipientExpected`. Its theorem `signer_discretion_refutes_fixed_recipient_coverage` falsifies `ConsensusCoverage` for an explicit Script-style validator that permits unilateral authorized redirection. The real Core-positive tests are external evidence matching those counterexamples. A revised protocol specification must model **signer-authorized disposal** of terminal payouts, or add an enforceable covenant/pre-signed binding if payout to a fixed destination is part of the security requirement. `Recipient` in the current accounting proof must not be presented as a universally Bitcoin-enforced output address.
+
+**What the Core check still cannot establish.** The spent outputs are synthetic and supplied by the test. The library validates each Taproot input's Script, and its CLTV/CSV opcode conditions, but does not establish a real funded UTXO, active-chain membership, BIP68 relative-age finality at a particular block, block-height finality for a CLTV transaction, fee/relay policy, miner inclusion, or consensus rules governing a complete block. The sentinel chain's pre-signed parent amounts are validated on the fixed two-generation fixture, not all possible future transactions or all Taproot keypaths.
+
+**Reproduction:**
+
+```sh
+cargo run --locked --release --manifest-path regtest/Cargo.toml --bin bsb-formal-evidence > /tmp/bsb-taproot-evidence.json
+node --experimental-strip-types model/verify_formal_evidence.mjs /tmp/bsb-taproot-evidence.json
+cargo run --release --manifest-path research/consensus-check/Cargo.toml --bin taproot-evidence < /tmp/bsb-taproot-evidence.json
+LEAN_PATH=formal lean formal/PresignedParents.lean
+LEAN_PATH=formal lean formal/RecipientAuthority.lean
+```
+
+To compile the importing Lean module, first produce `formal/Blossom.olean` and `formal/UTXORefinement.olean` using the commands in the preceding reproduction section.
