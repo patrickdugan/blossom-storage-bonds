@@ -8,7 +8,7 @@ name: Phase 7C pilot end-to-end (regtest)
 
 on:
   push:
-    branches: [phase-7c-pilot]
+    branches: [phase-7c-pilot, phase-7c-testnet4]
   pull_request:
   workflow_dispatch:
 

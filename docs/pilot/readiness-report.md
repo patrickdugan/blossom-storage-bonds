@@ -20,6 +20,13 @@ is active on Bitcoin.
 - **Step 3 (2026-10-23):** fresh pilot keys and fee addresses were made (runbook §4). Funding is blocked:
   every working signet faucet requires a CAPTCHA, which an agent may not solve. A person funds the four
   addresses (about 220,000 sats with `--pay onchain` at bond 20,000), or a signet signer does.
+- **Testnet4 route (2026-10-24, branch `phase-7c-testnet4`, `20347f8`):** because signet faucets are
+  CAPTCHA-gated, the pilot can now run on public testnet4 (`BSB_NETWORK=testnet4`, local Core 31.1 node,
+  RPC 48332) with `--pay onchain` or `--pay channel`; Lightning is refused there until lnd's testnet4
+  support is checked. `HeaderChain` gained the BIP94 rules, and all 157,409 testnet4 headers from the local
+  node validate through it (tip hash matches `getbestblockhash`). The only testnet4 wallet on this machine
+  (`utxoref-testnet`) holds 0 coins (scantxoutset over 1,000 addresses of all 8 descriptors), so funding
+  is again a person's step: about 0.003 tBTC to `tb1p48njta6evz09zkx430f7p7x64txyj0cj9l8hgte60en4aleypxmsg6qnmk` (runbook, "Running the pilot on testnet4").
 - Starting parties and adding machines still wait for explicit approval. Mainnet value at risk stays **NO GO**
   until the pilot has run.
 
@@ -48,6 +55,8 @@ executable test. The GO is conditional on the five pilot conditions in §7. Main
 | `a387fbe` | sentinel budget discipline; the forfeit fee policy (`forfeitWithPolicy`); harness S1 RBF war (26 checks) |
 | `9c03ea0` | fixes for the nine findings of the first independent review |
 | `f1875dd` | fixes for the second review's two new defects and three partials |
+| `df2edec` | signet pilot step 3: fresh pilot keys and fee addresses (faucets CAPTCHA-gated) |
+| `20347f8` | testnet4 as a pilot network; BIP94 header rules checked against the whole testnet4 chain |
 
 ## 2. Phase 1: signet recovered and verified
 
