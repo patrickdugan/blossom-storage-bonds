@@ -11,6 +11,7 @@ on:
     paths:
       - experiments/storage-bond-ab/a-sentinel/regtest/matched/**
       - experiments/storage-bond-ab/a-sentinel/regtest/run_matched.sh
+      - experiments/storage-bond-ab/shared/**
       - experiments/storage-bond-ab/b-layertree/regtest/surrogate.mjs
       - experiments/storage-bond-ab/compare-funded*
       - .github/workflows/layertree-combined-core-regtest.yml
@@ -55,6 +56,7 @@ jobs:
           BITCOIND_EXEC: ${{ runner.temp }}/core/bitcoin-30.3/bin/bitcoind
           BITCOIN_CLI_EXEC: ${{ runner.temp }}/core/bitcoin-30.3/bin/bitcoin-cli
           BSB_A_AB_RECEIPT_DIR: ${{ runner.temp }}/combined-A
+          BSB_A_SHARED_PDP: "1"
         run: |
           set -euo pipefail
           bash experiments/storage-bond-ab/a-sentinel/regtest/run_matched.sh
@@ -77,6 +79,9 @@ jobs:
           const r=JSON.parse(fs.readFileSync(process.argv[2]));
           if(r.network!=="regtest" || !r.matchedCapital ||
               r.matchedFullScenarios!==false ||
+              r.sharedPdpWitnessAligned!==true ||
+              r.A.actualSourceMerkleWitnessesVerified!==true ||
+              r.A.deletedWindowNonavailabilityProven!==false ||
               r.feeComparisonPermitted!==false ||
               r.securityRankPermitted!==false ||
               r.A.checksPassed!==42 ||
@@ -93,6 +98,7 @@ jobs:
           name: core-real-both-A-and-B-capital-matched-not-FROST
           path: |
             ${{ runner.temp }}/combined-A/*.json
+            ${{ runner.temp }}/combined-A/pdp/*.json
             ${{ runner.temp }}/combined-B/p2wsh-surrogate.json
             ${{ runner.temp }}/combined-comparison.json
           if-no-files-found: error
