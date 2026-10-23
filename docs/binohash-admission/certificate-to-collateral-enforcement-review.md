@@ -176,9 +176,13 @@ See [ADR-016](cat-refutation-verifier.md). There are 13 real-transaction cases:
 
 The whole file has 25 cases with 0 mismatches. Stock Core shows 11 counterexamples, and the BIP347 build shows 0.
 
-## 9. Remaining items, characterized
+## 9. Remaining items
 
-These two are not built. Each is stated precisely enough to be the next experiment.
+Status after [ADR-019](pinned-difficulty-schedule.md):
+- **Retargets are built** for forks on a schedule pinned at setup. Real mainnet headers 32251–32262 cross the 32256 retarget, with 0 mismatches across Core 26 + BIP347, Inquisition and the Node consensus check. Exact work is computed at setup, and `sched_leaf_sound` makes it sound. A fork that retargets differently is refused; that is a completeness limit, not a counterexample.
+- **Timeliness is characterized.** `no_expiry` (Lean) proves that no Bitcoin timelock expires, and a trusted anchor needs a covenant (`fixed_graph_misses`). Timeliness therefore needs a covenant or oracle beyond OP_CAT's verifier, or it accepts the A4 race.
+
+The original text follows for the record.
 
 1. **Retargets (mainnet).** A header's work is `2^256 / (target + 1)` from its nBits. Exact cumulative work in one tapscript needs that 256-bit division for every header, plus the retarget rule (a timestamp difference over 2016 blocks). Either can be written with OP_CAT limb arithmetic, but neither is measured. The cheaper sound variant has the leaf pin nBits per difficulty period at setup, as ADR-016 does for one period. That admits forks only on the pinned schedule: it is sound, but incomplete for forks that retarget differently. Lean's `exactN_leaf_sound` covers the fixed-difficulty case only.
 2. **Timeliness.** Bitcoin has no "valid only before height h" timelock. The refutation window is closed only by the refund spending the output after the deadline, which is A4 (`late_refutation_can_lose`). Proving that the fork *existed* by the cutoff needs an anchor: for example, the fork tip committed in a transaction confirmed on the claimed chain before the cutoff, proven in the leaf by a Merkle path, which is possible with OP_CAT. That makes the refutation depend on main-chain headers too. Header timestamps alone don't establish it, because miners choose them within the median-time-past and two-hour rules.

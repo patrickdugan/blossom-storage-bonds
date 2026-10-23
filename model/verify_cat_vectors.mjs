@@ -62,7 +62,41 @@ export function designVerdict(c, clientSpk, freeze) {
     return listed && w[0].length > 0;
   }
   if (check.kind === 'cltv') return tx.lockTime >= check.t && !check.wrong_signer;
+  if (check.kind === 'fork_sched') {
+    if (w.length < 3) return false;
+    return isScheduledFork(w.slice(0, -3), check.schedule, Buffer.from(check.checkpoint, 'hex')) && tx.outs[0].script.equals(clientSpk);
+  }
   throw new Error(`unknown check ${check.kind}`);
+}
+
+/** The consensus target for compact nBits (exponent e, mantissa m): m * 256^(e-3). */
+export function targetOf(bits) {
+  const e = bits[3];
+  const m = BigInt(bits[0] | (bits[1] << 8) | (bits[2] << 16));
+  return e >= 3 ? m << BigInt(8 * (e - 3)) : m >> BigInt(8 * (3 - e));
+}
+
+/** ADR-019: exactly schedule.length linked headers from `checkpoint`, header i using nBits
+ * schedule[i], each hash <= its target under the real consensus rule. Witness per header, top first:
+ * version, tail, nonce, lo(e-3), m3(3), z(32-e) when e < 32. */
+export function isScheduledFork(items, schedule, checkpoint) {
+  let at = items.length;
+  let prev = checkpoint;
+  for (const bitsHex of schedule) {
+    const bits = Buffer.from(bitsHex, 'hex');
+    const e = bits[3];
+    const take = () => { if (at === 0) throw new Error('short'); return items[--at]; };
+    let version, tail, nonce, lo, m3, z;
+    try {
+      version = take(); tail = take(); nonce = take(); lo = take(); m3 = take(); z = e < 32 ? take() : Buffer.alloc(0);
+    } catch { return false; }
+    if (version.length !== 4 || tail.length !== 36 || nonce.length !== 4 || lo.length !== e - 3 || m3.length !== 3 || z.length !== 32 - e) return false;
+    const hash = hash256(Buffer.concat([version, prev, tail, bits, nonce]));
+    if (!hash.equals(Buffer.concat([lo, m3, z]))) return false;
+    if (le(hash) > targetOf(bits)) return false;
+    prev = hash;
+  }
+  return at === 0;
 }
 
 if (process.argv[1]?.endsWith('verify_cat_vectors.mjs')) {

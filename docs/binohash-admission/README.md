@@ -27,6 +27,7 @@ No bitcoind, block mining, GPU proofs, or funded pilot runs are invoked by these
 - **[ADR-016](cat-refutation-verifier.md):** on Core 26 with a local BIP347 patch, a one-transaction OP_CAT refutation leaf accepts real stronger regtest forks and rejects all 10 attacks (19,428 WU at 151 headers). On stock Core all 10 attacks are valid. Activation is the missing primitive.
 - **[ADR-017](dynamic-claim-freeze.md):** dynamic frozen claims via a presigned freeze set, a CLTV forfeit if the provider never freezes, and a CLTV refund. 12 more cases match under BIP347.
 - **[ADR-018](inquisition-crosscheck.md):** Bitcoin Inquisition v29.4-inq's own interpreter reproduces every verdict, with and without its OP_CAT flag (41 cases, 0 mismatches).
+- **[ADR-019](pinned-difficulty-schedule.md):** real mainnet headers across the 32256 retarget, checked by a pinned-schedule leaf (31 cases in the file, 0 mismatches everywhere). Timeliness is proved to need a covenant beyond OP_CAT (`no_expiry`).
 
 ## Two protocol directions
 

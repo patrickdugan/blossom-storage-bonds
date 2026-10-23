@@ -126,6 +126,73 @@ fn leaf(setup: &bitcoin::XOnlyPublicKey, checkpoint: &[u8; 32], n: usize) -> Scr
     b.push_opcode(OP_DROP).push_int(1).into_script()
 }
 
+const MAINNET_32250_32262: [&str; 13] = [
+    "01000000bfeeabd547eb6fc8fa4152725030d8ca0e03ce03f912700601fa3ad2000000000cfc1c060eea439947fb50b9f082ef626f66608cd32b2c93604e8c05caabda96f1e13a4bffff001d5a661f02", // 32250 000000002931f8c7a9fe1a6f122dd5777d09d81dc107e051d7f78efef09c1719
+    "0100000019179cf0fe8ef7d751e007c11dd8097d77d52d126f1afea9c7f83129000000003c5e7fd03948b4e413c69bcbf6208d407910d9d3e0bdde65c572d46e14b526f146e23a4bffff001d9e369a01", // 32251 00000000360d826e18e72b3f5f3a05a43989131e512319a3b24aaa24b1010aa9
+    "01000000a90a01b124aa4ab2a31923511e138939a4053a5f3f2be7186e820d3600000000fb6e3ed118edc6171a2e50a8484ba7c33fe6bd6efb49e90b8b7d0b0ea5e800b862e23a4bffff001d6db69d00", // 32252 000000003d5eb2328f71644f2540cf6acc343f90d1594b2ef916ad4d4a7f5d2d
+    "010000002d5d7f4a4dad16f92e4b59d1903f34cc6acf40254f64718f32b25e3d00000000c2a630dbfefd5a55a939d39388d1daad1ff2ca22de59ddfd1464b494e61acb0410e93a4bffff001de3c38c1e", // 32253 000000000e27ee2a3899aec79a8aa08f138e320a66fa7fa3f2e4b9fd05e42a67
+    "01000000672ae405fdb9e4f2a37ffa660a328e138fa08a9ac7ae99382aee270e00000000342fedae2d72975552ac0797556817d11006ec322e2bf97ce88f91caf39525794fe93a4bffff001d94282401", // 32254 000000006baebaa74cecde6c6787c26ee0a616a3c333261bff36653babdac149
+    "0100000049c1daab3b6536ff1b2633c3a316a6e06ec287676cdeec4ca7baae6b00000000ac10b36b8f354b3353207de15940a5edbc05bb8364af75b4b5409e7823f2b48923ec3a4bffff001dbd5fa412", // 32255 00000000984f962134a7291e3693075ae03e521f0ee33378ec30a334d860034b
+    "010000004b0360d834a330ec7833e30e1f523ee05a0793361e29a73421964f980000000027b64a020af294e903feed93768705336a20090612a043f47af462a2f5e5b564f8ee3a4b6ad8001dd3a43707", // 32256 000000004f2886a170adb7204cb0c7a824217dd24d11a74423d564c4e0904967
+    "01000000674990e0c464d52344a7114dd27d2124a8c7b04c20b7ad70a186284f000000003423d663d7a4e64f42d403f8e054201a70acdb973219787803b3081f9888144d70f23a4b6ad8001d13365f10", // 32257 0000000078bb40a0a5aae645f86e144cab79209726b98d74e2f311c6d31aa52e
+    "010000002ea51ad3c611f3e2748db926972079ab4c146ef845e6aaa5a040bb7800000000fbcc9a38285f50868401f6bc51078b4579f951af590e5e8f418e285dde420a1c29f73a4b6ad8001d1acf3906", // 32258 000000006e35246abda2e8f2ab945780ea7619c74a3ee5db5ca6ff0f4d5b88c6
+    "01000000c6885b4d0fffa65cdbe53e4ac71976ea805794abf2e8a2bd6a24356e00000000ffdb82a1bb8bd3063972628aab966d9c8a08521e334107461473beb550ccde8b24fb3a4b6ad8001de6e47107", // 32259 000000008a5b32a0610b2b0eeb5390e30e157324bf28c09ab83ccbb99184c38b
+    "010000008bc38491b9cb3cb89ac028bf2473150ee39053eb0e2b0b61a0325b8a00000000219837e507d74c270c47e099ed1f6abbce4d30cb80942684f29a57a914c5f004c3fb3a4b6ad8001de2b0cf02", // 32260 0000000007bfbe7ec5510ccf80c5a291bf8fc603dd79f5d6a69fae6039f8a35e
+    "010000005ea3f83960ae9fa6d6f579dd03c68fbf91a2c580cf0c51c57ebebf0700000000081bea146b8337ea402d3c8e466d61d3f7b53ffb066fcd8def70781bcd35882c60ff3a4b6ad8001dbcaaed02", // 32261 0000000078f9b45db32ef92aaa94778984971cede7488ae502632399a91b2e7d
+    "010000007d2e1ba999236302e58a48e7ed1c9784897794aa2af92eb35db4f978000000000d6d9d56c25650f5735fb201766c23d332b727687d557ee2e4556fbe994922a3dc003b4b6ad8001dfb631608", // 32262 00000000ac0ed7590ab09965d1f477df5588485944aee4797c13ef2b09f62089
+];
+
+/// ADR-019: the refutation leaf for a difficulty schedule pinned at setup, one nBits per header.
+/// Take nBits with exponent e and mantissa m. A hash (as a little-endian 256-bit number) meets the
+/// target m * 256^(e-3) when its top 32-e bytes are zero and the 3 bytes below them, read as a
+/// non-negative script number, are below m. The equality edge is excluded, as in ADR-016.
+/// Witness per header, top first: version, tail, nonce, lo(e-3), m3(3), z(32-e) when e < 32.
+fn leaf_sched(setup: &bitcoin::XOnlyPublicKey, checkpoint: &[u8; 32], schedule: &[[u8; 4]]) -> ScriptBuf {
+    let cat = Opcode::from(CAT);
+    let mut b = push(Builder::new(), &setup.serialize()).push_opcode(OP_CHECKSIGVERIFY);
+    b = push(b, checkpoint);
+    for bits in schedule {
+        let e = bits[3] as usize;
+        let m = u32::from_le_bytes([bits[0], bits[1], bits[2], 0]);
+        assert!((3..=32).contains(&e) && m < 0x80_0000, "nBits outside the supported encoding");
+        b = b.push_opcode(OP_SWAP).push_opcode(OP_SIZE).push_int(4).push_opcode(OP_EQUALVERIFY)
+            .push_opcode(OP_SWAP).push_opcode(cat)
+            .push_opcode(OP_SWAP).push_opcode(OP_SIZE).push_int(36).push_opcode(OP_EQUALVERIFY)
+            .push_opcode(cat);
+        b = push(b, bits).push_opcode(cat) // nBits for this height, pinned at setup
+            .push_opcode(OP_SWAP).push_opcode(OP_SIZE).push_int(4).push_opcode(OP_EQUALVERIFY)
+            .push_opcode(cat).push_opcode(OP_HASH256) // [.. (z) m3 lo H]
+            .push_opcode(OP_TOALTSTACK) // [.. (z) m3 lo]
+            .push_opcode(OP_SWAP) // [.. (z) lo m3]
+            .push_opcode(OP_SIZE).push_int(3).push_opcode(OP_EQUALVERIFY)
+            .push_opcode(OP_DUP).push_opcode(OP_DUP).push_int(0).push_opcode(OP_GREATERTHANOREQUAL).push_opcode(OP_VERIFY)
+            .push_int(m as i64).push_opcode(OP_LESSTHAN).push_opcode(OP_VERIFY)
+            .push_opcode(cat); // [.. (z) lo||m3]
+        if e < 32 {
+            b = b.push_opcode(OP_SWAP).push_opcode(OP_DUP); // [.. lom z z]
+            b = push(b, &vec![0u8; 32 - e]).push_opcode(OP_EQUALVERIFY).push_opcode(cat); // [.. lo||m3||z]
+        }
+        b = b.push_opcode(OP_FROMALTSTACK).push_opcode(OP_TUCK).push_opcode(OP_EQUALVERIFY); // [.. H]
+    }
+    b.push_opcode(OP_DROP).push_int(1).into_script()
+}
+
+/// Witness items for `leaf_sched`, bottom to top, so header 1's items end up on top.
+fn sched_items(hs: &[Hdr], schedule: &[[u8; 4]]) -> Vec<Vec<u8>> {
+    let mut items = Vec::new();
+    for (h, bits) in hs.iter().zip(schedule).rev() {
+        let e = bits[3] as usize;
+        let hash = h.hash();
+        if e < 32 { items.push(hash[e..].to_vec()); }
+        items.push(hash[e - 3..e].to_vec());
+        items.push(hash[..e - 3].to_vec());
+        items.push(h.nonce());
+        items.push(h.tail());
+        items.push(h.version());
+    }
+    items
+}
+
 struct Case { name: String, attack: &'static str, tx: Transaction, spent: Vec<TxOut>, core: bool, bip347: bool, design: bool, note: &'static str, extra: Value }
 fn row(c: &Case) -> Value {
     json!({
@@ -362,6 +429,75 @@ fn main() {
     let rse = script_sig(&secp, &refund_early, &f5_out, &refund_leaf, &provider);
     fcase("refund_claim5_early", "provider refunds before the deadline", with_w(refund_early, vec![rse, refund_leaf.to_bytes(), rcb2.clone()]),
         vec![f5_out.clone()], false, false, false, "CLTV keeps the refutation window open", json!({"kind": "cltv", "t": T_DEADLINE}));
+
+    // ── ADR-019: a pinned difficulty schedule across a real mainnet retarget ──
+    // These are Bitcoin mainnet blocks 32251..32262, rooted at block 32250's hash. nBits moves from
+    // 1d00ffff to 1d00d86a at 32256, the first difficulty change.
+    let mhs: Vec<Hdr> = MAINNET_32250_32262.iter().map(|h| Hdr { bytes: unhex(h) }).collect();
+    for w in mhs.windows(2) { assert_eq!(&w[1].bytes[4..36], &w[0].hash()[..], "mainnet headers link"); }
+    for h in &mhs {
+        let hd: Header = deserialize(&h.bytes).unwrap();
+        hd.validate_pow(hd.target()).expect("real mainnet header meets its own target");
+    }
+    let mcp = mhs[0].hash();
+    let fork = &mhs[1..];
+    let real_sched: Vec<[u8; 4]> = fork.iter().map(|h| [h.bytes[72], h.bytes[73], h.bytes[74], h.bytes[75]]).collect();
+    assert_eq!(real_sched[4], [0xff, 0xff, 0x00, 0x1d]);
+    assert_eq!(real_sched[5], [0x6a, 0xd8, 0x00, 0x1d]);
+    let sched_hex = |s: &[[u8; 4]]| s.iter().map(|b| hex(b)).collect::<Vec<_>>();
+    let msched_case = |leaf_sched_bits: &[[u8; 4]], who: &Party, hs: &[Hdr], items: Option<Vec<Vec<u8>>>| {
+        let lf = leaf_sched(&setup.x, &mcp, leaf_sched_bits);
+        let st = state(&secp, nums(), &[&lf]);
+        let prev = TxOut { value: VALUE, script_pubkey: st.spk.clone() };
+        let cb = control(&st, &lf);
+        let base = Transaction {
+            version: Version(2), lock_time: LockTime::ZERO,
+            input: vec![TxIn { previous_output: OutPoint { txid: Txid::from_byte_array([0x19; 32]), vout: 0 },
+                script_sig: ScriptBuf::new(), sequence: Sequence::MAX, witness: Witness::new() }],
+            output: vec![TxOut { value: VALUE - Amount::from_sat(2_000), script_pubkey: p2tr_spk(&secp, &client) }],
+        };
+        let lh = TapLeafHash::from_script(&lf, LeafVersion::TapScript);
+        let sh = SighashCache::new(&base)
+            .taproot_script_spend_signature_hash(0, &Prevouts::One(0, prev.clone()), lh, TapSighashType::SinglePlusAnyoneCanPay)
+            .unwrap();
+        let mut sig = secp.sign_schnorr_no_aux_rand(&Message::from_digest(sh.to_byte_array()), &setup.kp).serialize().to_vec();
+        sig.push(TapSighashType::SinglePlusAnyoneCanPay as u8);
+        let mut tx = base.clone();
+        tx.output[0].script_pubkey = p2tr_spk(&secp, who);
+        let mut w = items.unwrap_or_else(|| sched_items(hs, leaf_sched_bits));
+        w.push(sig);
+        w.push(lf.to_bytes());
+        w.push(cb);
+        tx.input[0].witness = Witness::from_slice(&w);
+        (tx, prev, lf.len())
+    };
+    let mut mcase = |name: &str, attack: &'static str, sched: &[[u8; 4]], who: &Party, hs: &[Hdr], items: Option<Vec<Vec<u8>>>, ok: bool, note: &'static str| {
+        let (tx, prev, leaf_len) = msched_case(sched, who, hs, items);
+        let n = sched.len();
+        cases.push(Case { name: format!("M/{name}"), attack, tx, spent: vec![prev], core: true, bip347: ok, design: ok, note,
+            extra: json!({"kind": "fork_sched", "checkpoint": hex(&mcp), "schedule": sched_hex(sched), "n": n, "leaf_bytes": leaf_len}) });
+    };
+    mcase("honest_mainnet_retarget", "none", &real_sched, &client, fork, None, true,
+        "12 real mainnet headers across the 32256 retarget, each checked against its pinned nBits");
+    let flat = vec![[0xffu8, 0xff, 0x00, 0x1d]; 12];
+    mcase("pinned_without_retarget", "a schedule that misses the retarget (completeness limit)", &flat, &client, fork, None, false,
+        "the leaf rebuilds header 32256 with nBits 1d00ffff, so its hash no longer matches; a fork off the pinned schedule is refused");
+    mcase("truncated_11_of_12", "one header short", &real_sched, &client, &fork[..11],
+        Some(sched_items(&fork[..11], &real_sched[..11])), false, "the leaf demands every pinned height");
+    let mut weak = fork.to_vec();
+    let last = weak.len() - 1;
+    weak[last].bytes[76] ^= 0x01; // nonce change: the tip no longer meets its target
+    let wh: Header = deserialize(&weak[last].bytes).unwrap();
+    assert!(wh.validate_pow(wh.target()).is_err(), "the altered tip fails mainnet PoW");
+    mcase("weak_tip", "tip header above its target (truthful limbs)", &real_sched, &client, &weak, None, false,
+        "its top bytes are not zero, or the mantissa limb is too large");
+    let mut lie = sched_items(fork, &real_sched);
+    let top = lie.len() - 1;
+    lie[top - 4] = vec![0, 0, 0]; // header 1's m3 limb
+    mcase("forged_mantissa_limb", "header 1's mantissa limb replaced by zero", &real_sched, &client, fork, Some(lie), false,
+        "lo||m3||z must equal the computed HASH256");
+    mcase("redirect_output0", "honest headers, output 0 redirected", &real_sched, &attacker, fork, None, false,
+        "the SINGLE|ANYONECANPAY setup signature binds output 0");
     let out = json!({
         "schema": "bsb/cat-verifier-vectors/v1", "adr": "ADR-016",
         "checkpoint_display": hex(&display),

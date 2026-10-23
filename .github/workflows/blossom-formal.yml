@@ -49,7 +49,7 @@ jobs:
           LEAN_PATH=formal lean formal/ContextualFinality.lean
           LEAN_PATH=formal lean -o formal/CertificateAdmission.olean formal/CertificateAdmission.lean
           LEAN_PATH=formal lean formal/CertificateAdmissionAxioms.lean | tee /tmp/bsb-axioms.txt
-          test "$(grep -c "axioms" /tmp/bsb-axioms.txt)" -eq 16
+          test "$(grep -c "axioms" /tmp/bsb-axioms.txt)" -eq 19
           ! grep -vE "does not depend on any axioms|depends on axioms: \[(propext|Classical.choice|Quot.sound)(, (propext|Classical.choice|Quot.sound))*\]$" /tmp/bsb-axioms.txt
 
   taproot-templates:

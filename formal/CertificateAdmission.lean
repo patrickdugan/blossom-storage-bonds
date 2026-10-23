@@ -368,6 +368,68 @@ theorem exactN_leaf_sound (E : Env) (G : Graph) (w N : Nat) (hw : 0 < w) (hN : 0
   obtain ⟨hv, ht⟩ := valid_timely c hc
   exact ⟨hv, by rw [work_of_leaf c hc]; exact exactN_stronger w N hw hN, ht⟩
 
+/-! ## Pinned difficulty schedules (ADR-019)
+
+With retargets, header `i` past the checkpoint carries work `w i = 2^256 / (target_i + 1)`, which is
+exact and computed at setup for the schedule the leaf pins, never in Script. A fork of `n` headers has
+work `schedWork w n`. The ADR-019 leaf accepts exactly `N` linked headers, each meeting its pinned
+target. This was observed on real mainnet headers 32251..32262 across the 32256 retarget, in Core 26
+with the BIP347 patch and in Inquisition. It is a premise here. -/
+
+def schedWork (w : Nat → Nat) : Nat → Nat
+  | 0 => 0
+  | n + 1 => schedWork w n + w n
+
+theorem schedWork_succ_gt (w : Nat → Nat) (hw : ∀ i, 0 < w i) (n : Nat) :
+    schedWork w n < schedWork w (n + 1) :=
+  Nat.lt_add_of_pos_right (hw n)
+
+/-- More headers on the pinned schedule always means strictly more exact work. -/
+theorem schedWork_strictMono (w : Nat → Nat) (hw : ∀ i, 0 < w i) {m n : Nat} (h : m < n) :
+    schedWork w m < schedWork w n := by
+  induction n with
+  | zero => exact absurd h (Nat.not_lt_zero _)
+  | succ n ih =>
+    cases Nat.lt_or_ge m n with
+    | inl hlt => exact Nat.lt_trans (ih hlt) (schedWork_succ_gt w hw n)
+    | inr hge =>
+      have : m = n := Nat.le_antisymm (Nat.le_of_lt_succ h) hge
+      subst this
+      exact schedWork_succ_gt w hw m
+
+/-- The ADR-019 leaf is sound for the frozen claim `schedWork w (N - 1)`. Fixed difficulty
+(`exactN_leaf_sound`) is the special case where `w` is constant. -/
+theorem sched_leaf_sound (E : Env) (G : Graph) (w : Nat → Nat) (hw : ∀ i, 0 < w i) (N : Nat) (hN : 0 < N)
+    (work_of_leaf : ∀ c, G.leaf c → c.work = schedWork w N)
+    (valid_timely : ∀ c, G.leaf c → E.valid c ∧ c.time ≤ E.cutoff) :
+    ∀ c, G.leaf c → TimelyStronger E (schedWork w (N - 1)) c := by
+  intro c hc
+  obtain ⟨hv, ht⟩ := valid_timely c hc
+  refine ⟨hv, ?_, ht⟩
+  rw [work_of_leaf c hc]
+  exact schedWork_strictMono w hw (Nat.sub_lt hN Nat.one_pos)
+
+/-! ## Why no leaf can close the refutation window (timeliness)
+
+Bitcoin's height conditions are all "not before": nLockTime with CLTV (BIP65), and nSequence with
+CSV (BIP68/112). A transaction that is final at height `h` is final at every later height. Model a
+leaf's height condition as a lower bound on height. Then no leaf accepts at the deadline and rejects
+after it. The refutation window can only be closed by another spend consuming the output (A4,
+`late_refutation_can_lose`). -/
+
+/-- Spendability by height, under a "not before `lock`" condition. -/
+def NotBefore (lock : Nat) (h : Nat) : Prop := lock ≤ h
+
+theorem notBefore_upward (lock h h' : Nat) (hh : h ≤ h') : NotBefore lock h → NotBefore lock h' :=
+  fun hl => Nat.le_trans hl hh
+
+/-- **No absolute expiry.** Combining any number of "not before" conditions (a list of locks, all
+required) never yields a spend that is valid at `d` and invalid at `d + 1`. -/
+theorem no_expiry (locks : List Nat) (d : Nat) :
+    ¬ ((∀ l ∈ locks, NotBefore l d) ∧ ¬ (∀ l ∈ locks, NotBefore l (d + 1))) := by
+  intro ⟨hd, hnot⟩
+  exact hnot (fun l hl => notBefore_upward l d (d + 1) (Nat.le_succ d) (hd l hl))
+
 /-! ## Incentives (economic layer, distinct from safety and liveness) -/
 
 /-- Provider payoff from the settlement: the bond `B` on refund, nothing otherwise. -/

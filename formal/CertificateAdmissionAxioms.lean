@@ -18,3 +18,6 @@ open BSB.Admission
 #print axioms underclaim_forfeits
 #print axioms exactN_stronger
 #print axioms exactN_leaf_sound
+#print axioms schedWork_strictMono
+#print axioms sched_leaf_sound
+#print axioms no_expiry
