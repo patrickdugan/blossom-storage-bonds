@@ -9,6 +9,7 @@ on:
       - "regtest/Cargo.toml"
       - "regtest/Cargo.lock"
       - "model/verify_formal_evidence.mjs"
+      - "research/consensus-check/**"
       - "lean-toolchain"
       - ".github/workflows/blossom-formal.yml"
   pull_request:
@@ -18,6 +19,7 @@ on:
       - "regtest/Cargo.toml"
       - "regtest/Cargo.lock"
       - "model/verify_formal_evidence.mjs"
+      - "research/consensus-check/**"
       - "lean-toolchain"
       - ".github/workflows/blossom-formal.yml"
 
@@ -58,3 +60,5 @@ jobs:
         run: cargo run --locked --release --manifest-path regtest/Cargo.toml --bin bsb-formal-evidence > /tmp/bsb-taproot-evidence.json
       - name: Independently decode real Rust transaction serialization and output constraints
         run: node --experimental-strip-types model/verify_formal_evidence.mjs /tmp/bsb-taproot-evidence.json
+      - name: Verify real Taproot P2TR witnesses and adversarial mutations in Bitcoin Core 26 Script
+        run: cargo run --release --manifest-path research/consensus-check/Cargo.toml --bin taproot-evidence < /tmp/bsb-taproot-evidence.json

@@ -56,6 +56,27 @@ export function verifyEvidence(e){
       'mutated_amount_provider_sig_valid',
       'mutated_prevout_provider_sig_valid'
     ]) assert.equal(item[key],false,'signed-field mutation must fail');
+    const attackNames=[
+      'redirect_successor','reduce_successor','replace_prevout',
+      'wrong_sentinel_opening','wrong_control_block','wrong_leaf_script'
+    ];
+    assert.deepEqual(Object.keys(item.adversarial_raw_hex??{}).sort(),
+      [...attackNames].sort(),'full adversarial evidence set required');
+    for(const [attack,hex] of Object.entries(item.adversarial_raw_hex)){
+      assert.ok(validHex(hex),'attack must contain real serialized transaction bytes');
+      const attackRaw=Buffer.from(hex,'hex');
+      const mutated=parseTx(attackRaw);
+      if(attack==='wrong_sentinel_opening'||attack==='wrong_control_block'||
+         attack==='wrong_leaf_script'){
+        assert.equal(mutated.txid,tx.txid,
+          'witness-only substitution must preserve txid');
+        assert.notEqual(wtxid(attackRaw),item.wtxid,
+          'witness-only substitution changes full transaction witness digest');
+      } else {
+        assert.notEqual(mutated.txid,tx.txid,
+          'prevout and output mutations must alter the txid');
+      }
+    }
     records.set(item.name,tx);
   }
   for(let round=0;round<2;round++){
@@ -84,6 +105,10 @@ export function verifyEvidence(e){
   assert.equal(rt.outputs[0].value,99_999_000n);
   assert.equal(f.fee_sat,1000);
   assert.equal(r.fee_sat,1000);
+  assert.equal(f.spent_value,100_000_000);
+  assert.equal(r.spent_value,100_000_000);
+  assert.match(f.spent_script,/^5120[0-9a-f]{64}$/);
+  assert.match(r.spent_script,/^5120[0-9a-f]{64}$/);
   assert.equal(f.valid_client_sig,true);
   assert.equal(r.valid_provider_sig,true);
   return {ok:true,parents:4,terminals:2,certificate:'UNFUNDED'};

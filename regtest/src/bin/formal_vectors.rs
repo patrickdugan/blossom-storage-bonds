@@ -54,8 +54,21 @@ fn pair_row(
     let mut changed_prevout=tx.clone();
     changed_prevout.input[0].previous_output.txid=Txid::from_byte_array([0x7f;32]);
     assert!(!verify_script_sig(secp,&changed_prevout,prev,leaf,&p.x,&sig_p));
-    let tx_with_witness=with_witness(tx.clone(),witness);
+    let tx_with_witness=with_witness(tx.clone(),witness.clone());
     assert_eq!(tx_with_witness.compute_txid(),tx.compute_txid());
+    let mut wrong_opening=witness.clone();
+    wrong_opening[0]=vec![0xfau8;wrong_opening[0].len()];
+    let wrong_witness=with_witness(tx.clone(),wrong_opening);
+    assert_eq!(wrong_witness.compute_txid(),tx.compute_txid());
+    assert_ne!(wrong_witness.compute_wtxid(),tx_with_witness.compute_wtxid());
+    let mut wrong_control=witness.clone();
+    wrong_control.last_mut().unwrap()[0]^=1;
+    let wrong_control_tx=with_witness(tx.clone(),wrong_control);
+    assert_eq!(wrong_control_tx.compute_txid(),tx.compute_txid());
+    let mut wrong_leaf=witness.clone();
+    let leaf_idx=wrong_leaf.len()-2;
+    wrong_leaf[leaf_idx]=vec![0x51u8];
+    let wrong_leaf_tx=with_witness(tx.clone(),wrong_leaf);
     json!({
        "name":name, "txid":tx.compute_txid().to_string(),
        "wtxid":tx_with_witness.compute_wtxid().to_string(),
@@ -74,7 +87,15 @@ fn pair_row(
        "mutated_output_client_sig_valid":false,
        "mutated_amount_provider_sig_valid":false,
        "mutated_prevout_provider_sig_valid":false,
-       "witness_keeps_txid":true
+       "witness_keeps_txid":true,
+       "adversarial_raw_hex":{
+           "redirect_successor":serialize_hex(&with_witness(changed_dest,witness.clone())),
+           "reduce_successor":serialize_hex(&with_witness(changed_amount,witness.clone())),
+           "replace_prevout":serialize_hex(&with_witness(changed_prevout,witness.clone())),
+           "wrong_sentinel_opening":serialize_hex(&wrong_witness),
+           "wrong_control_block":serialize_hex(&wrong_control_tx),
+           "wrong_leaf_script":serialize_hex(&wrong_leaf_tx)
+       }
     })
 }
 fn main() {
@@ -169,6 +190,8 @@ fn main() {
        "transactions":rows,
        "forfeit":{
            "txid":tx_forfeit.compute_txid().to_string(),"raw_hex":serialize_hex(&forfeit_signed),
+           "spent_script":forfeit_prev.script_pubkey.to_hex_string(),
+           "spent_value":forfeit_prev.value.to_sat(),
            "input_sequence":tx_forfeit.input[0].sequence.to_consensus_u32(),
            "expected_csv":DELTA,"valid_client_sig":true,
            "output_value":tx_forfeit.output[0].value.to_sat(),"fee_sat":CLOSE_FEE.to_sat(),
@@ -176,6 +199,8 @@ fn main() {
        },
        "refund":{
            "txid":tx_refund.compute_txid().to_string(),"raw_hex":serialize_hex(&refund_signed),
+           "spent_script":refund_prev.script_pubkey.to_hex_string(),
+           "spent_value":refund_prev.value.to_sat(),
            "lock_time":tx_refund.lock_time.to_consensus_u32(),"valid_provider_sig":true,
            "output_value":tx_refund.output[0].value.to_sat(),"fee_sat":CLOSE_FEE.to_sat(),
            "output_script":tx_refund.output[0].script_pubkey.to_hex_string()
