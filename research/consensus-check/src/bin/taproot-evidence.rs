@@ -19,7 +19,16 @@ fn decode_hex(hex:&str)->Result<Vec<u8>,String>{
 fn check(name:&str,raw:&str,spent_script:&str,spent_value:u64,should_accept:bool)->Result<bool,String>{
     let raw=decode_hex(raw)?;
     let script=decode_hex(spent_script)?;
-    let result=bitcoinconsensus::verify(&script,spent_value,&raw,None,0);
+    // bitcoinconsensus::verify(Some(spent_outputs)) selects
+    // VERIFY_ALL_PRE_TAPROOT | VERIFY_TAPROOT. Passing None silently uses
+    // PRE-TAPROOT rules and accepts malformed witness-v1 transactions!
+    // This fixture has exactly one input, so its UTXO array has one entry.
+    let utxo=bitcoinconsensus::Utxo{
+        script_pubkey:script.as_ptr(),
+        script_pubkey_len:script.len() as u32,
+        value:i64::try_from(spent_value).map_err(|_|"spent value exceeds i64")?
+    };
+    let result=bitcoinconsensus::verify(&script,spent_value,&raw,Some(&[utxo]),0);
     let accepted=result.is_ok();
     println!("{}  {:<48} expected={} actual={} {:?}",
         if accepted==should_accept{"ok"}else{"FAIL"},
