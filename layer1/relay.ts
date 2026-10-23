@@ -6,11 +6,13 @@
 //
 // RelayPool is what the parties use: any number of relay URLs as one (publish to all, subscribe on all,
 // events de-duplicated by id, dropped connections reopened). The bundled relay is one URL among them; a
-// pilot names public ones with --relays.
+// pilot names public ones with --relays. `node layer1/relay.ts [port]` runs the bundled relay on its own,
+// on 127.0.0.1, for rehearsals with parties in separate processes.
 
 import { createHash, randomBytes } from "node:crypto";
 import { createServer, type Server } from "node:http";
 import type { Duplex } from "node:stream";
+import { fileURLToPath } from "node:url";
 import { verifyEvent, type NostrEvent } from "./nostr.ts";
 
 export interface Filter {
@@ -389,4 +391,11 @@ export class RelayPool implements Relays {
     if (this.probe) clearInterval(this.probe);
     for (const c of this.conns.values()) c?.close();
   }
+}
+
+if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+  const r = await startRelay(Number(process.argv[2] ?? 0));
+  console.log(JSON.stringify({ ready: true, relay: r.url, pid: process.pid }));
+  process.on("SIGTERM", () => void r.close().then(() => process.exit(0)));
+  process.on("SIGINT", () => void r.close().then(() => process.exit(0)));
 }

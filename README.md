@@ -45,6 +45,7 @@ The full design, findings and plan are in [docs/design.md](docs/design.md).
 | `results/market-ln.json` | The same, for the last run paid over Lightning (`--pay ln`) |
 | `layer1/net.ts`, `deals.ts`, `relay-probe.ts`, `signet.test.ts` | Phase 7: the network profile (regtest or signet: RPC, prefixes, confirmation depth, waiting for blocks, fees, fresh party keys), offers and deals as Nostr events, a probe for public relays, and their tests. `relay.ts` gained a relay pool |
 | `docs/signet-pilot.md` | Phase 7: the runbook for a signet pilot |
+| `layer1/private-signet.ts`, `docs/signet-rehearsal.md`, `results/full-stack-*-signet.json` | Phase 7b: a private signet for rehearsals (its own challenge, no peers, a miner and a faucet in one process; `node layer1/relay.ts <port>` runs a standalone relay), and the whole stack rehearsed on it in signet mode, paid on chain and over Lightning |
 
 ## Run
 

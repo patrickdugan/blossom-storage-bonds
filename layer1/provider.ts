@@ -361,7 +361,9 @@ const admin = createServer(async (req, res) => {
       if (!chainPayee) throw new Error("not paid on chain");
       const evs = await rc.query({ kinds: [KIND_PAYMENT_RECEIPT], "#p": [nostrKey.x] });
       const receipts = evs.map((e) => JSON.parse(e.content) as PaymentReceipt);
-      const wallet = `bsb-${NAME}-paid`;
+      // Named after this provider's pay key, so two runs (or two providers called alike) on one long-lived
+      // node never share a sweep wallet. Regtest keeps the earlier name.
+      const wallet = NET.canMine ? `bsb-${NAME}-paid` : `bsb-paid-${chainPayee.payKey.x.slice(0, 16)}`;
       const s = await chainPayee.sweep((m, p) => rpc(m, p, RPC), (m, p) => rpc(m, p, `${RPC}/wallet/${wallet}`), wallet, receipts, me.fee_address, Number(body.fee_rate ?? 5));
       log({ event: "onchain-sweep", ...s, receipts: receipts.length });
       return json(res, 200, s);

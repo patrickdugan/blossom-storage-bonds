@@ -10,6 +10,7 @@
 // (LndConfig.network, from net.ts) it runs with --bitcoin.signet, takes bitcoind's login from the same
 // environment as everything else (net.ts rpcAuth), polls every 5 s, and can listen on a public address
 // so that peers on other machines reach it. Its wallet is a fresh random one per node, as on regtest.
+// On a private signet (layer1/private-signet.ts) set BSB_SIGNET_CHALLENGE to its challenge in hex.
 //
 // Load on bitcoind: lnd opens a new TCP connection for every RPC, and fetches every block (a new wallet
 // also rescans the chain, since every regtest block looks recent). Each connection then sits in
@@ -92,13 +93,22 @@ export class LndNode {
       return { host: new URL(process.env.BSB_RPC ?? defaultRpcUrl(net)).host, user, pass: pass.join(":") };
     })();
     const slow = net !== "regtest";
+    // BSB_LND_NEUTRINO=<host:port> makes lnd follow that node over P2P with compact filters instead of
+    // bitcoind RPC: needed on a private signet (layer1/private-signet.ts --local-p2p), where lnd v0.21
+    // refuses a bitcoind backend whose chain name ("signet") does not match a custom challenge's magic.
+    const neutrino = net === "signet" ? process.env.BSB_LND_NEUTRINO : undefined;
+    const backend = neutrino
+      ? ["--bitcoin.node=neutrino", `--neutrino.connect=${neutrino}`]
+      : [
+        "--bitcoin.node=bitcoind", `--bitcoind.rpchost=${btc.host}`, `--bitcoind.rpcuser=${btc.user}`, `--bitcoind.rpcpass=${btc.pass}`,
+        "--bitcoind.rpcpolling", `--bitcoind.blockpollinginterval=${cfg.blockPollMs ?? (slow ? 5000 : 500)}ms`, `--bitcoind.txpollinginterval=${cfg.txPollMs ?? (slow ? 10000 : 2000)}ms`,
+      ];
     const args = [
-      `--lnddir=${cfg.dir}`, `--alias=${cfg.alias}`, `--bitcoin.${net}`, "--bitcoin.node=bitcoind",
-      `--bitcoind.rpchost=${btc.host}`, `--bitcoind.rpcuser=${btc.user}`, `--bitcoind.rpcpass=${btc.pass}`,
-      "--bitcoind.rpcpolling", `--bitcoind.blockpollinginterval=${cfg.blockPollMs ?? (slow ? 5000 : 500)}ms`, `--bitcoind.txpollinginterval=${cfg.txPollMs ?? (slow ? 10000 : 2000)}ms`,
+      `--lnddir=${cfg.dir}`, `--alias=${cfg.alias}`, `--bitcoin.${net}`, ...backend,
       "--noseedbackup", "--nobootstrap", `--bitcoin.defaultchanconfs=${cfg.chanConfs ?? 1}`, "--trickledelay=50",
       `--listen=${cfg.listen ?? `127.0.0.1:${p2p}`}`, `--rpclisten=127.0.0.1:${rpcPort}`, `--restlisten=127.0.0.1:${rest}`,
       "--tlsextraip=127.0.0.1", "--debuglevel=info", ...(cfg.externalHost ? [`--externalip=${cfg.externalHost}`] : []),
+      ...(net === "signet" && process.env.BSB_SIGNET_CHALLENGE ? [`--bitcoin.signetchallenge=${process.env.BSB_SIGNET_CHALLENGE}`] : []),
     ];
     const out = openSync(join(cfg.dir, "lnd.out"), "a");
     const child = spawn(cfg.bin ?? lndExe(), args, { stdio: ["ignore", out, out] });

@@ -440,21 +440,27 @@ try {
 
   // ── epochs ──
   say(`\nepochs: providers prove on their own at each boundary; the client verifies and pays ${ONCHAIN ? `on chain every ${PAY_EVERY} epoch(s)` : "over Lightning"}`);
+  const misbehave = async (e: number) => {
+    for (const k of SIZES.keys()) {
+      await post(`${procs[1].admin}/admin/misbehave`, { kind: "delete", sha: reps[1][k].sha256, indices: pick(reps[1][k].n, 0.1, `lazy ${k}`) }, { "x-admin-token": token });
+      await post(`${procs[2].admin}/admin/misbehave`, { kind: "outsource", sha: reps[2][k].sha256, from: { url: procs[0].url, sha256: reps[0][k].sha256 } }, { "x-admin-token": token });
+    }
+    say(`  from epoch ${e}: "deletes 10%" zeroes a tenth of each replica; "outsources" reads the honest provider's copies`);
+  };
   for (let e = 1; e <= EPOCHS; e++) {
     const b = FIRST + (e - 1) * EPOCH;
-    if (e === FROM_EPOCH && !REMOTE.length) {
-      for (const k of SIZES.keys()) {
-        await post(`${procs[1].admin}/admin/misbehave`, { kind: "delete", sha: reps[1][k].sha256, indices: pick(reps[1][k].n, 0.1, `lazy ${k}`) }, { "x-admin-token": token });
-        await post(`${procs[2].admin}/admin/misbehave`, { kind: "outsource", sha: reps[2][k].sha256, from: { url: procs[0].url, sha256: reps[0][k].sha256 } }, { "x-admin-token": token });
-      }
-      say(`  from epoch ${e}: "deletes 10%" zeroes a tenth of each replica; "outsources" reads the honest provider's copies`);
-    }
+    // On regtest the cheaters start just before their epoch's boundary is mined. Off regtest that
+    // boundary can pass while the client still waits for the previous payment to be deep, and a provider
+    // proves from whatever it holds when the boundary is --confs deep; so there they start as soon as the
+    // previous epoch's proofs are in (found on a private signet, 2026-10-23).
+    if (e === FROM_EPOCH && !REMOTE.length && (!SLOW || e === 1)) await misbehave(e);
     await untilHeight(NET, b, me.fee_address, SLOW ? waiting(`epoch ${e} boundary`) : undefined);
     say(`  epoch ${e}: boundary block ${b}, seed ${String(await rpc("getblockhash", [b])).slice(0, 16)}…`);
     if (!REMOTE.length) {
       // On signet the proof comes once the boundary is --confs deep, and proving takes minutes.
       const said = await Promise.all(procs.map((p) => waitLog(p, (ev) => ev.event === "zk-epoch" && ev.height === b, SLOW ? 6 * 3_600_000 : 900_000)));
       said.forEach((ev, i) => { row(i, b).providerSays = ev.proved ? "proved" : "could not prove"; });
+      if (SLOW && e + 1 === FROM_EPOCH) await misbehave(e + 1);
     }
     await mine(DEADLINE, me.fee_address, `epoch ${e} deadline`);
     await pending;
@@ -485,7 +491,14 @@ try {
     for (const [i, p] of procs.entries()) {
       if (payer.paidMsatTo(payees[i]) === 0) { sweeps.push(null); say(`  ${ROLES[i].name.padEnd(12)} paid nothing; nothing to sweep`); continue; }
       if (!p.admin) { sweeps.push(null); say(`  ${ROLES[i].name.padEnd(12)} runs elsewhere: its operator sweeps (POST /admin/sweep on its own machine)`); continue; }
-      const s = await post(`${p.admin}/admin/sweep`, { fee_rate: SLOW ? await feeRate(NET, FEE_RATE) : FEE_RATE }, { "x-admin-token": token });
+      let s: any;
+      try { s = await post(`${p.admin}/admin/sweep`, { fee_rate: SLOW ? await feeRate(NET, FEE_RATE) : FEE_RATE }, { "x-admin-token": token }); }
+      catch (e) {
+        // A payment can be worth less than its own spend at any rate: a provider's loss, not the run's.
+        sweeps.push(null);
+        say(`  ${ROLES[i].name.padEnd(12)} could not sweep: ${(e as Error).message.slice(0, 120)}`);
+        continue;
+      }
       await confirm(NET, s.txid, me.fee_address);
       sweeps.push(s);
       say(`  ${ROLES[i].name.padEnd(12)} sweep ${s.txid.slice(0, 16)}… spends ${s.outputs.length} payment output(s), ${s.sats} sats, to its fee address at ${s.feeRate} sat/vB${s.uneconomicAt ? ` (worth less than its spend at ${s.uneconomicAt} sat/vB)` : ""}`);
@@ -506,6 +519,15 @@ try {
   /** Challenge sentinel after sentinel until one goes unanswered for Δ blocks, then forfeit. On regtest
    *  each step mines one block, as in phases 4 to 6; elsewhere it waits for blocks, rebroadcasts a
    *  challenge or forfeit that a reorg dropped, and counts the forfeit at the network's depth. */
+  // A challenge's CPFP child spends one of the client's fee coins. Bonds enforced at once would race for
+  // the same coin (each bsb-bond picks the largest one no mempool transaction spends yet), so the client
+  // sends one challenge at a time; the next then sees the first coin spent in the mempool.
+  let feeCoins = Promise.resolve();
+  const challenge = (i: number, j: number) => {
+    const run = feeCoins.then(() => tool.run("bond-challenge", deals[i], String(j), kept[i][j].r));
+    feeCoins = run.then(() => undefined, () => undefined);
+    return run;
+  };
   async function enforce(i: number) {
     const role = ROLES[i];
     const cause = adverse.get(i)!;
@@ -514,7 +536,7 @@ try {
     let forfeit: string | null = null;
     let gone = "";          // off regtest: why this bond can no longer be enforced, if it cannot
     for (let j = 0; j < K && !forfeit && !gone; j++) {
-      const c = await tool.run("bond-challenge", deals[i], String(j), kept[i][j].r);
+      const c = await challenge(i, j);
       if (!SLOW) await mine(1, me.fee_address);
       let answeredAt = -1, resendFails = 0;
       for (let b = 1; ; b++) {
@@ -524,7 +546,7 @@ try {
         if (SLOW && st.states[j].challenge === null) {
           // Dropped by a reorg: send it again. If its input is gone for good (the provider refunded at
           // t_end first), there is nothing left to enforce.
-          try { await tool.run("bond-challenge", deals[i], String(j), kept[i][j].r); resendFails = 0; say(`    ${role.name}: sentinel ${j}'s challenge was dropped (reorg?); sent again`); }
+          try { await challenge(i, j); resendFails = 0; say(`    ${role.name}: sentinel ${j}'s challenge was dropped (reorg?); sent again`); }
           catch (e) { if (++resendFails >= 3) { gone = `challenge ${j} cannot be sent again: ${(e as Error).message.slice(0, 120)}`; break; } }
         }
         if (!SLOW ? b >= DELTA : (st.states[j].challenge ?? 0) >= DELTA) break;

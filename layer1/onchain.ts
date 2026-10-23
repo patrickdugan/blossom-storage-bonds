@@ -263,7 +263,12 @@ export class OnchainPayee implements Payee {
    *  its own as rawtr(), let the wallet find the coins, and send them all to `to`. Shows the payments
    *  are the payee's to spend, by a path nobody else has the key for. */
   async sweep(node: Rpc, wallet: Rpc, walletName: string, receipts: PaymentReceipt[], to: string, feeRate: number) {
-    try { await node("createwallet", [walletName, false, true]); } catch (e) { if (!/already exists/.test((e as Error).message)) throw e; }
+    // A long-lived node keeps the wallet from an earlier sweep but does not load it after a restart.
+    try { await node("createwallet", [walletName, false, true]); }
+    catch (e) {
+      if (!/already exists/.test((e as Error).message)) throw e;
+      try { await node("loadwallet", [walletName]); } catch (l) { if (!/already loaded/.test((l as Error).message)) throw l; }
+    }
     const outs: { txid: string; vout: number; sats: number }[] = [];
     const descs: { desc: string; timestamp: number }[] = [];
     for (const r of receipts) for (const o of r.outputs) {
@@ -281,10 +286,12 @@ export class OnchainPayee implements Payee {
     if (missing.length) throw new Error(`wallet does not see ${missing.map((m) => `${m.txid.slice(0, 12)}…:${m.vout}`).join(", ")}`);
     // Spending a taproot output costs 57.5 vB, so at 5 sat/vB one 512-sat payment is worth less than
     // its own spend (111 vB alone, 555 sats). Then sweep at Core's 1 sat/vB relay floor, and say so.
+    // Core says so in one of two ways: the fee is more than the coins ("too low"), or what is left is
+    // below the dust limit (at 2 sat/vB, 512 - 222 = 290 sats; seen on a private signet, 2026-10-23).
     let used = feeRate, s: any;
     try { s = await wallet("sendall", [[to], null, "unset", feeRate]); }
     catch (e) {
-      if (!/too low/.test((e as Error).message) || feeRate <= 1) throw e;
+      if (!/too low|dust/.test((e as Error).message) || feeRate <= 1) throw e;
       used = 1;
       s = await wallet("sendall", [[to], null, "unset", used]);
     }

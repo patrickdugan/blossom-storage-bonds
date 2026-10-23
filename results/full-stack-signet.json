@@ -1,0 +1,588 @@
+{
+  "generated": "2026-10-23T06:07:11.099Z",
+  "note": "One signet run: every party a separate process with its own keys, wallet and lnd. Offers and deals as Nostr events. Public STARK epoch proofs seeded by block hashes; each verified epoch paid by BOLT 11 over Lightning; a missing or invalid watchtower attestation triggers on-chain sentinel challenges; every txid here was read back from bitcoind.",
+  "params": {
+    "network": "signet",
+    "confs": 3,
+    "relays": [
+      "ws://127.0.0.1:7801",
+      "ws://127.0.0.1:7802"
+    ],
+    "remoteProviders": false,
+    "epochs": 3,
+    "misbehaviourFromEpoch": 2,
+    "q": 16,
+    "epochBlocks": 50,
+    "deadline": 40,
+    "firstBoundary": 800,
+    "term": 400,
+    "deals": [
+      256,
+      128,
+      64
+    ],
+    "bondSats": 100000,
+    "sentinels": {
+      "M": 64,
+      "k": 4,
+      "windows": 16
+    },
+    "delta": 144,
+    "priceSatsPerEpoch": 512,
+    "pay": "ln",
+    "channelSats": 50000,
+    "lnOpen": "direct"
+  },
+  "signet": {
+    "heightBefore": 728,
+    "heightAfter": 1153
+  },
+  "summary": [
+    {
+      "role": "honest",
+      "pid": 24684,
+      "nostr": "24dd992dcd31d60ced02b79608b2dcc8ec8138940438b773fcea53b9ba0c3293",
+      "offer": "0a836d17bb871eedaf0cef59db4c660ced50717c5a86c58a392b4a8024b03757",
+      "deal_events": {
+        "propose": "21d2b472283bb00ad854fc2486dec3d5343020960938f9b0ecdc1f93a379058b",
+        "accept": "c47299765b1f04c7c767c7417b77e352fb91e5fa39b78901680a8607d2239e34",
+        "seal": "c1fcae41568de72dacb3e2587f56da8446dd22fa72a6a548e25f8ffe4e7aa813",
+        "live": "887e8909183e77c6a524f222d30a079a5c1bcc9b368d1af76233dcf0f4988f91"
+      },
+      "epochs": [
+        {
+          "epoch": 1,
+          "height": 800,
+          "proof": "a3c004d479ea520b7f2cbfbfe043a09a59061fc6362f9383a0a9705fa024503f",
+          "providerSays": "proved",
+          "client": "verified",
+          "paidSats": 512,
+          "payment": {
+            "hash": "9cc43410eead73191f784b858de567e51cbb0884d44dcf7a3c2250a4b6ea754d",
+            "preimage": "c4860b7c9d33868732a2c07381cd4897e7d71df5bf6e99649603278c2fb60740"
+          },
+          "tower": "valid",
+          "towerEvent": "f3d9a65ec6bd927867e1a26d310090ce50e856f77e0410eb588478182fc3658d"
+        },
+        {
+          "epoch": 2,
+          "height": 850,
+          "proof": "3b7918f16f29a6d03cb7639f3e5da01b4bae29b59edd99363345728fa4def502",
+          "providerSays": "proved",
+          "client": "verified",
+          "paidSats": 512,
+          "payment": {
+            "hash": "40d1237bf9eb4977b9e75f60a4471dd6ebd38056e0f78f870a006283d6f2f850",
+            "preimage": "740b1cb97f1786666755a1806f147073184713036a442c2edc17e3565cd7a42a"
+          },
+          "tower": "valid",
+          "towerEvent": "61b4f01609cca882c7fcb4ab2b4e047e4a66a9c6dd52cc958f65468c1e0121e7"
+        },
+        {
+          "epoch": 3,
+          "height": 900,
+          "proof": "a1827b906abd55c1f6a00cd339ec967bb900fc35ed338e07729743f0f3cd84af",
+          "providerSays": "proved",
+          "client": "verified",
+          "paidSats": 512,
+          "payment": {
+            "hash": "52b68ea1545781ee583cdb2fd35c5f62e6de7f567d1ebb9b07d1ed45e83f1bb7",
+            "preimage": "83d980e31738d967efa075cd01593cbfa508c6c184108f964929f508a213d39d"
+          },
+          "tower": "valid",
+          "towerEvent": "8b0de49c54006ce0b77f9cd01cd4bfbfb6255fc32f2e55fefaa7766d4f646645"
+        }
+      ],
+      "lightning": {
+        "channel_point": "7a4e9acd28881fefe7792e5dd3d291f5c0900759dc2e0c911d8b0956f0c78fd5:0",
+        "close_txid": "efa266cff5467127c7f38891b117c5f374da369e2d5e974bcf43c5f6d5171c45",
+        "close_confirmations": 205,
+        "close_outputs_sats": [
+          1536,
+          46865
+        ],
+        "paid_sats": 1536
+      },
+      "bond": {
+        "fund_txid": "1fb9c9863aa0fef989819d2510825b61bdcb88e3a76a1410e245ccd28a71f679",
+        "value_sats": 100000,
+        "settled_by": "647620654eacbeae6ba655b218577bbb8c1abb365d40334521e447db587da1b3",
+        "settle_confirmations": 3,
+        "leaf": "refund leaf (CLTV t_end), to the provider",
+        "to": "provider"
+      },
+      "enforcement": {
+        "cause": null,
+        "challenges": []
+      },
+      "p_detect_10pct_per_epoch": 0,
+      "p_forfeit_given_challenge": 0,
+      "providerLog": [
+        {
+          "t": 1792732442040,
+          "provider": "honest",
+          "event": "ln-channel",
+          "channel_point": "7a4e9acd28881fefe7792e5dd3d291f5c0900759dc2e0c911d8b0956f0c78fd5:0",
+          "capacity_sats": 50000
+        },
+        {
+          "t": 1792732442080,
+          "provider": "honest",
+          "event": "zk-epoch",
+          "height": 750,
+          "proved": true,
+          "proof": "a4236cebdacf975ceaffe20316f8869a0e515f6953d5e22793de6a61d04f4af0",
+          "bytes": 11381213,
+          "seconds": 30.856,
+          "published": true,
+          "id": "475602f81f16ee574b79ec4974ed9972f2f5422a4669c2f1179baf1b2180fec1"
+        },
+        {
+          "t": 1792732899079,
+          "provider": "honest",
+          "event": "zk-epoch",
+          "height": 800,
+          "proved": true,
+          "proof": "a3c004d479ea520b7f2cbfbfe043a09a59061fc6362f9383a0a9705fa024503f",
+          "bytes": 11079520,
+          "seconds": 89.084,
+          "published": true,
+          "id": "3608b1d242f83ebc74bb7919d060ea7c08a03f3bdf998fbca6b42f9acfbbbb5a"
+        },
+        {
+          "t": 1792733257259,
+          "provider": "honest",
+          "event": "zk-epoch",
+          "height": 850,
+          "proved": true,
+          "proof": "3b7918f16f29a6d03cb7639f3e5da01b4bae29b59edd99363345728fa4def502",
+          "bytes": 11496954,
+          "seconds": 40.711,
+          "published": true,
+          "id": "71a6053ce3de958f3b6bcff994ff98192c00b390bfcb503fe2cd3daa3a4784c3"
+        },
+        {
+          "t": 1792733664356,
+          "provider": "honest",
+          "event": "zk-epoch",
+          "height": 900,
+          "proved": true,
+          "proof": "a1827b906abd55c1f6a00cd339ec967bb900fc35ed338e07729743f0f3cd84af",
+          "bytes": 11337749,
+          "seconds": 44.165,
+          "published": true,
+          "id": "78a730609dd13971248734d011f0da7518684fd5eb32812e75ac7165ed2e9c57"
+        },
+        {
+          "t": 1792735604954,
+          "provider": "honest",
+          "event": "bond-refund",
+          "sha": "906a3ce46061",
+          "fee_sats": 276,
+          "txid": "647620654eacbeae6ba655b218577bbb8c1abb365d40334521e447db587da1b3",
+          "vsize": 138
+        }
+      ]
+    },
+    {
+      "role": "deletes 10%",
+      "pid": 24740,
+      "nostr": "ad1ddeba92d605d024979a2e10b045179d17cdf8cad24330bf96191968636e84",
+      "offer": "3eaa03319598c58ac9a780481afc685c8a56232a86364e39b06c7fd018e05242",
+      "deal_events": {
+        "propose": "136d049cd54c71303e3772a4916bc27205825aacd86f6532988abe833f29cb79",
+        "accept": "2d7e1100844c1c248ea4154de2e3d7d418d664e67b11f55dc7d5d6ab47dc135e",
+        "seal": "a1d4789c817e46f2b27c5f01af84db139eb1a880310c59aa1b2f086406c94d40",
+        "live": "251bb72171e541397b6960b220ec961f3056c94ed1b93792e64b5646a9bae671"
+      },
+      "epochs": [
+        {
+          "epoch": 1,
+          "height": 800,
+          "providerSays": "proved",
+          "proof": "6db26f3f70cd9d7cbae532f3037191a0275e9fd16dcff319e60adb70bfda179f",
+          "client": "verified",
+          "paidSats": 512,
+          "payment": {
+            "hash": "2f0b40b006d033912239ce5fcd40c8ef33a9b564bc5a8d65fd6704330b9e3363",
+            "preimage": "480bbeb768e2ff7280032c509240d4ab1113b58353f63c6166f2e1c6eb5affec"
+          },
+          "tower": "valid",
+          "towerEvent": "d0ae1068bd67fefbe37a197d05306f7e37d8cd3f3e6900f826e8c14ddf2aa7dd"
+        },
+        {
+          "epoch": 2,
+          "height": 850,
+          "providerSays": "could not prove",
+          "tower": "missing",
+          "towerEvent": "c994f4ea3a4b75eeed15cff89bf9bc60de1d8249d990a11a5ad87bd3aa267e84"
+        },
+        {
+          "epoch": 3,
+          "height": 900,
+          "providerSays": "could not prove",
+          "tower": "missing",
+          "towerEvent": "5adae5b0af6d02f0dd64ab3a37aa7d5ba933174a07b54f8bc62559376253bc58"
+        }
+      ],
+      "lightning": {
+        "channel_point": "7e756cd54365a4d84019189838466b52f9fd2ec6026cc0f9b4b450125c4b72b7:0",
+        "close_txid": "e5a8d511297f3570c49ddefe5b9a6b8405a2ee12458408bebe36b27f70f5f694",
+        "close_confirmations": 201,
+        "close_outputs_sats": [
+          512,
+          47889
+        ],
+        "paid_sats": 512
+      },
+      "bond": {
+        "fund_txid": "221935e832b9f7918a915925e206f76dd0f6c9b7787a2685c88c4f5e09633bf9",
+        "value_sats": 100000,
+        "settled_by": "7eb697d9cf1a6fc932b2f0387951dc36b0565a64a7e2590fd3c7df39d3efb483",
+        "settle_confirmations": 51,
+        "leaf": "forfeit leaf (CSV 144), to the client",
+        "to": "client"
+      },
+      "enforcement": {
+        "cause": {
+          "height": 850,
+          "result": "missing",
+          "event": "c994f4ea3a4b75eeed15cff89bf9bc60de1d8249d990a11a5ad87bd3aa267e84",
+          "why": "no proof 40 blocks after the boundary"
+        },
+        "challenges": [
+          {
+            "sentinel": 0,
+            "challenge_txid": "4d18aa4439bd816034d8224ab596a5e9662d34236b7f6964d387d13435b1d303",
+            "answered_after_blocks": null,
+            "forfeit_txid": "7eb697d9cf1a6fc932b2f0387951dc36b0565a64a7e2590fd3c7df39d3efb483",
+            "challenge_confirmations": 195,
+            "revealed_r": "1cb60f73b46b6152a184af65ab34baaa"
+          }
+        ]
+      },
+      "p_detect_10pct_per_epoch": 0.8146979811148158,
+      "p_forfeit_given_challenge": 0.9988209815422261,
+      "providerLog": [
+        {
+          "t": 1792732487066,
+          "provider": "deletes10",
+          "event": "ln-channel",
+          "channel_point": "7e756cd54365a4d84019189838466b52f9fd2ec6026cc0f9b4b450125c4b72b7:0",
+          "capacity_sats": 50000
+        },
+        {
+          "t": 1792732933729,
+          "provider": "deletes10",
+          "event": "zk-epoch",
+          "height": 800,
+          "proved": true,
+          "proof": "6db26f3f70cd9d7cbae532f3037191a0275e9fd16dcff319e60adb70bfda179f",
+          "bytes": 11550663,
+          "seconds": 125.101,
+          "published": true,
+          "id": "5bcb2d893df882a2a1b69698f8900e9d383b29da34be529d5857444bf8132156"
+        },
+        {
+          "t": 1792733224040,
+          "provider": "deletes10",
+          "event": "zk-epoch",
+          "height": 850,
+          "proved": false,
+          "why": "program rejected the witness: Error at pc=0:15:",
+          "seconds": 8.896
+        },
+        {
+          "t": 1792733664534,
+          "provider": "deletes10",
+          "event": "zk-epoch",
+          "height": 900,
+          "proved": false,
+          "why": "program rejected the witness: Error at pc=0:15:",
+          "seconds": 43.744
+        },
+        {
+          "t": 1792734072044,
+          "provider": "deletes10",
+          "event": "bond-respond",
+          "sha": "d8f6efa96745",
+          "i": 0,
+          "error": "transaction failed: mempool-script-verify-flag-failed (Script failed an OP_EQUALVERIFY operation)",
+          "r": "1cb60f73b46b6152a184af65ab34baaa",
+          "status": "rejected"
+        },
+        {
+          "t": 1792735223953,
+          "provider": "deletes10",
+          "event": "bond-respond",
+          "sha": "d8f6efa96745",
+          "i": 0,
+          "error": "transaction failed: bad-txns-inputs-missingorspent; bad-txns-inputs-missingorspent",
+          "r": "1cb60f73b46b6152a184af65ab34baaa",
+          "status": "rejected"
+        }
+      ]
+    },
+    {
+      "role": "outsources",
+      "pid": 9960,
+      "nostr": "d1509fde5482a88fc7132d2a4b1149aecb26912154d480819c912c7d3a436c86",
+      "offer": "a01f7b2098ccaaa6f67c80dace617bbb7da0db2367d3df7efb879b4d78aacede",
+      "deal_events": {
+        "propose": "791a1f58880af3f62e3fb971987685f0c886287f7c0877c05c073f03825c8996",
+        "accept": "880dc15ec57194564b191dff68252c58a9aa0216711288ea0b81abc9619905bc",
+        "seal": "e28c3685fd14e4b753587fa0b6b90a0c3a98cd45aea931a8e488a9060935d881",
+        "live": "06b1ab9a75be517cb980f750aae5c9e1c0ff8ff8882e27c70f8efd611670933c"
+      },
+      "epochs": [
+        {
+          "epoch": 1,
+          "height": 800,
+          "proof": "11ab0d0880cd05d8b27003feca7d05944043be9693e810e6444624d347148be8",
+          "client": "verified",
+          "paidSats": 512,
+          "payment": {
+            "hash": "cfaa6786cf7021415d76b08c62d7e94dbb203f9f116b3aa8a4ce2033d60aa84e",
+            "preimage": "e1fa51b9132ce66c03853df7a15aaf00d31fd10c17fd17d08cf333fd9fbac5ff"
+          },
+          "tower": "valid",
+          "towerEvent": "e09c175cd5b6b921090fa8a16a5086b5e138c29e7a5146acb2c49b91b8b68d35",
+          "providerSays": "proved"
+        },
+        {
+          "epoch": 2,
+          "height": 850,
+          "providerSays": "could not prove",
+          "tower": "missing",
+          "towerEvent": "c04bcb9b82ecee89c31c3495f3ca95e58e434fb2d124838e5fcf5f1177164bd0"
+        },
+        {
+          "epoch": 3,
+          "height": 900,
+          "providerSays": "could not prove",
+          "tower": "missing",
+          "towerEvent": "36d52d2af7a014fd925c33064b0302ed10ede9de64be8c0aaff2b3c555d8d011"
+        }
+      ],
+      "lightning": {
+        "channel_point": "46e3a988782991da79d078dcc03e9523585ede4541f8de2008397186b64e899c:1",
+        "close_txid": "2b0541970fb6b5b827adaacca36ba89b55992fb395f29a2724341fa17c43c083",
+        "close_confirmations": 198,
+        "close_outputs_sats": [
+          512,
+          47889
+        ],
+        "paid_sats": 512
+      },
+      "bond": {
+        "fund_txid": "cd9977f255f1ca7be26df271a8215a57895d8177c529565e7f08c61883c534f1",
+        "value_sats": 100000,
+        "settled_by": "d6bfb1038933f3b5f095e3e8af74e2b45b6e4f65784affc4a2d5b2a0a59018b2",
+        "settle_confirmations": 51,
+        "leaf": "forfeit leaf (CSV 144), to the client",
+        "to": "client"
+      },
+      "enforcement": {
+        "cause": {
+          "height": 850,
+          "result": "missing",
+          "event": "c04bcb9b82ecee89c31c3495f3ca95e58e434fb2d124838e5fcf5f1177164bd0",
+          "why": "no proof 40 blocks after the boundary"
+        },
+        "challenges": [
+          {
+            "sentinel": 0,
+            "challenge_txid": "b034d6316f142b12ff1057b46033f669fc55e57ab0b72af6dcaa5fdcf4376a18",
+            "answered_after_blocks": null,
+            "forfeit_txid": "d6bfb1038933f3b5f095e3e8af74e2b45b6e4f65784affc4a2d5b2a0a59018b2",
+            "challenge_confirmations": 195,
+            "revealed_r": "ad2fca3fa6c147de92e7ce6b14f4d088"
+          }
+        ]
+      },
+      "p_detect_10pct_per_epoch": 1,
+      "p_forfeit_given_challenge": 1,
+      "providerLog": [
+        {
+          "t": 1792732536416,
+          "provider": "outsources",
+          "event": "ln-channel",
+          "channel_point": "46e3a988782991da79d078dcc03e9523585ede4541f8de2008397186b64e899c:1",
+          "capacity_sats": 50000
+        },
+        {
+          "t": 1792732856408,
+          "provider": "outsources",
+          "event": "zk-epoch",
+          "height": 800,
+          "proved": true,
+          "proof": "11ab0d0880cd05d8b27003feca7d05944043be9693e810e6444624d347148be8",
+          "bytes": 11252645,
+          "seconds": 47.702,
+          "published": true,
+          "id": "504bcd9ea31401cad29d93d5a3ca23276bef21a560ceda246c1a085df9ad2242"
+        },
+        {
+          "t": 1792733223426,
+          "provider": "outsources",
+          "event": "zk-epoch",
+          "height": 850,
+          "proved": false,
+          "why": "program rejected the witness: Error at pc=0:15:",
+          "seconds": 10.144
+        },
+        {
+          "t": 1792733663824,
+          "provider": "outsources",
+          "event": "zk-epoch",
+          "height": 900,
+          "proved": false,
+          "why": "program rejected the witness: Error at pc=0:15:",
+          "seconds": 43.216
+        },
+        {
+          "t": 1792734073942,
+          "provider": "outsources",
+          "event": "bond-respond",
+          "sha": "e15cd4570ce0",
+          "i": 0,
+          "error": "transaction failed: bad-txns-inputs-missingorspent; mempool-script-verify-flag-failed (Script failed an OP_EQUALVERIFY operation)",
+          "r": "ad2fca3fa6c147de92e7ce6b14f4d088",
+          "status": "rejected"
+        },
+        {
+          "t": 1792735223236,
+          "provider": "outsources",
+          "event": "bond-respond",
+          "sha": "e15cd4570ce0",
+          "i": 0,
+          "error": "package RBF failed: insufficient feerate: does not improve feerate diagram: bad-txns-inputs-missingorspent; min relay fee not met, 0 < 64",
+          "r": "ad2fca3fa6c147de92e7ce6b14f4d088",
+          "status": "rejected"
+        },
+        {
+          "t": 1792735228464,
+          "provider": "outsources",
+          "event": "bond-respond",
+          "sha": "e15cd4570ce0",
+          "i": 0,
+          "error": "transaction failed: bad-txns-inputs-missingorspent; bad-txns-inputs-missingorspent",
+          "r": "ad2fca3fa6c147de92e7ce6b14f4d088",
+          "status": "rejected"
+        }
+      ]
+    }
+  ],
+  "watchtower": [
+    {
+      "t": 1792732902809,
+      "watchtower": true,
+      "event": "attest",
+      "provider": "d1509fde5482",
+      "height": 800,
+      "side": "stored",
+      "result": "valid",
+      "proofEvent": "504bcd9ea31401cad29d93d5a3ca23276bef21a560ceda246c1a085df9ad2242",
+      "proof": "11ab0d0880cd05d8b27003feca7d05944043be9693e810e6444624d347148be8",
+      "deals": 3,
+      "q": 16,
+      "verify_s": 45.805
+    },
+    {
+      "t": 1792732936480,
+      "watchtower": true,
+      "event": "attest",
+      "provider": "24dd992dcd31",
+      "height": 800,
+      "side": "stored",
+      "result": "valid",
+      "proofEvent": "3608b1d242f83ebc74bb7919d060ea7c08a03f3bdf998fbca6b42f9acfbbbb5a",
+      "proof": "a3c004d479ea520b7f2cbfbfe043a09a59061fc6362f9383a0a9705fa024503f",
+      "deals": 3,
+      "q": 16,
+      "verify_s": 33.385
+    },
+    {
+      "t": 1792732940450,
+      "watchtower": true,
+      "event": "attest",
+      "provider": "ad1ddeba92d6",
+      "height": 800,
+      "side": "stored",
+      "result": "valid",
+      "proofEvent": "5bcb2d893df882a2a1b69698f8900e9d383b29da34be529d5857444bf8132156",
+      "proof": "6db26f3f70cd9d7cbae532f3037191a0275e9fd16dcff319e60adb70bfda179f",
+      "deals": 3,
+      "q": 16,
+      "verify_s": 3.715
+    },
+    {
+      "t": 1792733261721,
+      "watchtower": true,
+      "event": "attest",
+      "provider": "24dd992dcd31",
+      "height": 850,
+      "side": "stored",
+      "result": "valid",
+      "proofEvent": "71a6053ce3de958f3b6bcff994ff98192c00b390bfcb503fe2cd3daa3a4784c3",
+      "proof": "3b7918f16f29a6d03cb7639f3e5da01b4bae29b59edd99363345728fa4def502",
+      "deals": 3,
+      "q": 16,
+      "verify_s": 4.033
+    },
+    {
+      "t": 1792733517657,
+      "watchtower": true,
+      "event": "attest",
+      "provider": "ad1ddeba92d6",
+      "height": 850,
+      "side": "stored",
+      "result": "missing",
+      "why": "no proof 40 blocks after the boundary"
+    },
+    {
+      "t": 1792733517830,
+      "watchtower": true,
+      "event": "attest",
+      "provider": "d1509fde5482",
+      "height": 850,
+      "side": "stored",
+      "result": "missing",
+      "why": "no proof 40 blocks after the boundary"
+    },
+    {
+      "t": 1792733669657,
+      "watchtower": true,
+      "event": "attest",
+      "provider": "24dd992dcd31",
+      "height": 900,
+      "side": "stored",
+      "result": "valid",
+      "proofEvent": "78a730609dd13971248734d011f0da7518684fd5eb32812e75ac7165ed2e9c57",
+      "proof": "a1827b906abd55c1f6a00cd339ec967bb900fc35ed338e07729743f0f3cd84af",
+      "deals": 3,
+      "q": 16,
+      "verify_s": 4.725
+    },
+    {
+      "t": 1792733918330,
+      "watchtower": true,
+      "event": "attest",
+      "provider": "ad1ddeba92d6",
+      "height": 900,
+      "side": "stored",
+      "result": "missing",
+      "why": "no proof 40 blocks after the boundary"
+    },
+    {
+      "t": 1792733918428,
+      "watchtower": true,
+      "event": "attest",
+      "provider": "d1509fde5482",
+      "height": 900,
+      "side": "stored",
+      "result": "missing",
+      "why": "no proof 40 blocks after the boundary"
+    }
+  ]
+}
