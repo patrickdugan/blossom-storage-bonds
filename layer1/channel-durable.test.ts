@@ -251,3 +251,50 @@ test("DU12: reconcile refuses a provider claim outside what the client acknowled
     await assert.rejects(payer.reconcile(`bsbch:${providerX}`, `${base}/channel/state`), /outside/);
   } finally { server.close(); }
 });
+
+// ── fixes from the second independent review (Codex verifying 9c03ea0, 2026-10-23) ──
+
+test("DU13: reconcile refuses a total between two signed ones (it would make the next state overpay)", async () => {
+  const s = setup();
+  const payee = new ChannelPayee(providerX, tool, s.dir, s.pLedger);
+  const { base, server } = await serve(() => payee);
+  try {
+    const payer = await openBoth(s, base, payee);
+    await payer.pay((await payee.createInvoice(512_000, "epoch 1")).paymentRequest, 1_000_000);
+    const inv = await payee.createInvoice(512_000, "epoch 2", 1);
+    new Ledger(s.cLedger).append({ t: "intent", h: inv.paymentHash, pr: inv.paymentRequest, payee: `bsbch:${providerX}`, paid: 1024, sig: "sig-1024" });
+    const back = new ChannelPayer(clientX, tool, s.cLedger);
+    payee.channels.get(clientX)!.paid = 768;   // inside [512, 1024] but never signed
+    await assert.rejects(back.reconcile(`bsbch:${providerX}`, `${base}/channel/state`), /never signed/);
+    assert.equal(back.paidTo(`bsbch:${providerX}`), 1024, "nothing changed");
+  } finally { server.close(); }
+});
+
+test("DU14: a resumed payment raises the acknowledged floor, so reconcile cannot roll it back", async () => {
+  const s = setup();
+  const payee = new ChannelPayee(providerX, tool, s.dir, s.pLedger);
+  const { base, server } = await serve(() => payee);
+  try {
+    const payer = await openBoth(s, base, payee);
+    await payer.pay((await payee.createInvoice(512_000, "epoch 1")).paymentRequest, 1_000_000);
+    const inv = await payee.createInvoice(512_000, "epoch 2");
+    new Ledger(s.cLedger).append({ t: "intent", h: inv.paymentHash, pr: inv.paymentRequest, payee: `bsbch:${providerX}`, paid: 1024, sig: "sig-1024" });
+    const back = new ChannelPayer(clientX, tool, s.cLedger);
+    assert.equal((await back.resume()).resumed.length, 1);
+    payee.channels.get(clientX)!.paid = 512;   // the provider now claims the old total
+    await assert.rejects(back.reconcile(`bsbch:${providerX}`, `${base}/channel/state`), /outside/);
+  } finally { server.close(); }
+});
+
+test("DU15: a channel file damaged by a crash (not just missing) is restored from the ledger", async () => {
+  const s = setup();
+  const payee = new ChannelPayee(providerX, tool, s.dir, s.pLedger);
+  const { base, server } = await serve(() => payee);
+  try {
+    await openBoth(s, base, payee);
+    const good = readFileSync(s.chanPath, "utf8");
+    writeFileSync(s.chanPath, good.slice(0, 10)); // a torn rewrite
+    new ChannelPayer(clientX, tool, s.cLedger);
+    assert.equal(readFileSync(s.chanPath, "utf8"), good);
+  } finally { server.close(); }
+});

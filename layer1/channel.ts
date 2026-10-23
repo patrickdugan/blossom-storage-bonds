@@ -30,6 +30,13 @@ export function decodeChannelInvoice(pr: string): Invoice & { payUrl: string } {
   return { paymentRequest: pr, paymentHash: v.h, amountMsat: v.a, payee: v.p, memo: String(v.m ?? ""), expiresAt: v.x, payUrl: v.u };
 }
 
+/** Phase 7C: the ledger holds each channel file's content. A file that is missing, or that differs (torn
+ *  or rewritten without fsync before a crash), is restored from it. */
+function restoreChannelFile(path: string, content: unknown): void {
+  if (typeof content !== "string") return;
+  if (!existsSync(path) || readFileSync(path, "utf8") !== content) writeFileDurable(path, content);
+}
+
 export interface ChannelFile { provider_x: string; client_x: string; capacity_sats: number; t_refund: number; funding_txid?: string; funding_vout?: number }
 
 /** The provider's side. It lives in the provider process and serves POST /channel/open and /channel/pay. */
@@ -58,7 +65,7 @@ export class ChannelPayee implements Payee {
           this.pending.set(inv.paymentHash, { inv, preimage: String(r.preimage), paid: false });
         } else if (r.t === "open") {
           // The ledger holds the channel's terms, so a channel file lost in a crash is rebuilt.
-          if (r.ch && !existsSync(String(r.path))) writeFileDurable(String(r.path), String(r.ch));
+          restoreChannelFile(String(r.path), r.ch);
           this.channels.set(String(r.client_x), { path: String(r.path), paid: 0 });
         } else if (r.t === "paid") {
           const ch = this.channels.get(String(r.client_x));
@@ -162,6 +169,9 @@ export class ChannelPayer implements Payer {
   private readonly ledger?: Ledger;
   /** Signed states handed out but not yet acknowledged (a crash or lost reply interrupted them). */
   readonly unsettled = new Map<string, { pr: string; payee: string; paid: number; sig: string }>();
+  /** Every total this client ever signed, per payee: the only totals reconcile() will accept. */
+  private readonly signed = new Map<string, Set<number>>();
+  private noteSigned(payee: string, paid: number) { if (!this.signed.has(payee)) this.signed.set(payee, new Set([0])); this.signed.get(payee)!.add(paid); }
 
   /** With `ledgerPath`, every signed state is written ahead. After a restart the client counts each
    *  as possibly delivered (so it never signs a lower total or pays an invoice twice), and `resume()`
@@ -172,13 +182,14 @@ export class ChannelPayer implements Payer {
       this.ledger = new Ledger(ledgerPath);
       for (const r of this.ledger.replay()) {
         if (r.t === "open") {
-          if (r.ch && !existsSync(String(r.path))) writeFileDurable(String(r.path), String(r.ch));
+          restoreChannelFile(String(r.path), r.ch);
           this.chans.set(String(r.payee), { path: String(r.path), paid: 0, done: 0 });
         }
         else if (r.t === "intent") {
           const ch = this.chans.get(String(r.payee));
           if (!ch) throw new Error(`${ledgerPath}: payment on an unknown channel`);
           ch.paid = Math.max(ch.paid, Number(r.paid));
+          this.noteSigned(String(r.payee), Number(r.paid));
           this.paidInvoiceHashes.add(String(r.h));
           this.unsettled.set(String(r.h), { pr: String(r.pr), payee: String(r.payee), paid: Number(r.paid), sig: String(r.sig) });
         } else if (r.t === "done") {
@@ -205,6 +216,8 @@ export class ChannelPayer implements Payer {
         const { preimage } = (await r.json()) as { preimage: string };
         if (!preimageMatches(inv.paymentHash, preimage)) throw new Error("payee returned a wrong preimage");
         this.ledger?.append({ t: "done", h, preimage });
+        const ch = this.chans.get(u.payee);
+        if (ch) ch.done = Math.max(ch.done, u.paid);
         this.unsettled.delete(h);
         resumed.push(h);
       } catch (e) { failed.push({ h, why: (e as Error).message }); }
@@ -224,6 +237,9 @@ export class ChannelPayer implements Payer {
     if (r.status !== 200) throw new Error(`payee refused: ${r.status} ${r.headers.get("x-reason") ?? ""}`);
     const { paid } = (await r.json()) as { paid: number };
     if (!Number.isSafeInteger(paid) || paid < ch.done || paid > ch.paid) throw new Error(`provider claims ${paid} sats, outside [${ch.done}, ${ch.paid}]`);
+    // Only a total this client signed: a provider naming any other total (say, between two signed
+    // ones) would make the next state over- or under-pay (second independent review, 2026-10-23).
+    if (!(this.signed.get(payee)?.has(paid) ?? paid === 0)) throw new Error(`provider claims ${paid} sats, a total this client never signed`);
     this.ledger?.append({ t: "reconciled", payee, paid });
     ch.paid = paid; ch.done = paid;
     for (const [h, u] of [...this.unsettled]) if (u.payee === payee && u.paid > paid) this.unsettled.delete(h);
@@ -234,7 +250,9 @@ export class ChannelPayer implements Payer {
   async open(path: string, ch: ChannelFile): Promise<ChannelFile> {
     writeFileDurable(path, JSON.stringify(ch));
     const v = (await this.tool.run("chan-open", path)) as ChannelFile;
-    this.ledger?.append({ t: "open", payee: `bsbch:${ch.provider_x}`, path, ch: readFileSync(path, "utf8") });
+    const content = readFileSync(path, "utf8");
+    writeFileDurable(path, content); // bsb-bond rewrote it without fsync
+    this.ledger?.append({ t: "open", payee: `bsbch:${ch.provider_x}`, path, ch: content });
     this.chans.set(`bsbch:${ch.provider_x}`, { path, paid: 0, done: 0 });
     return v;
   }
@@ -257,6 +275,7 @@ export class ChannelPayer implements Payer {
       const { sig } = await this.tool.run("chan-sign", ch.path, String(paid));
       // Write ahead: from here the provider may hold this state, so the client counts it as paid.
       this.ledger?.append({ t: "intent", h: inv.paymentHash, pr, payee: inv.payee, paid, sig: String(sig) });
+      this.noteSigned(inv.payee, paid);
       ch.paid = paid;
       this.paidInvoiceHashes.add(inv.paymentHash);
       this.unsettled.set(inv.paymentHash, { pr, payee: inv.payee, paid, sig: String(sig) });
