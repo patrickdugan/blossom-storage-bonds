@@ -1,0 +1,31 @@
+name: LayerTree storage-bond research model
+
+on:
+  push:
+    branches:
+      - research/layertree-storage-bond-overlay-2026-10-23
+    paths:
+      - model/layertree_bond_overlay.mjs
+      - model/layertree_bond_overlay.test.mjs
+      - docs/LAYERTREE_STORAGE_BOND_OVERLAY.md
+      - .github/workflows/layertree-bond-model.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  abstract-bond-model:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Run 60k/40k carrier, payout, stale-state, quorum and trust-boundary tests
+        run: |
+          node --check model/layertree_bond_overlay.mjs
+          node --test model/layertree_bond_overlay.test.mjs
+      - name: Confirm clean whitespace
+        run: git diff --check
