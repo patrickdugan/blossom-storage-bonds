@@ -176,6 +176,14 @@ Commit `ba8138d`. All three workflows passed, as read from the public API:
 - [Binohash model #39891395830](https://github.com/patrickdugan/blossom-storage-bonds/actions/runs/39891395830): the Node research suite, including the new AV tests, the TypeScript tests and the offline Core legacy suites.
 - [Full-node regtest #39891395713](https://github.com/patrickdugan/blossom-storage-bonds/actions/runs/39891395713): unchanged settlement harness, still green.
 
+Commit `3a8c698` (ADR-016). All three workflows passed:
+- [Lean #39893706998](https://github.com/patrickdugan/blossom-storage-bonds/actions/runs/39893706998):
+  - Lean 4.15.0: all modules, and the axiom gate with 16 theorems.
+  - The Taproot job's ADR-015 steps.
+  - The four ADR-016 steps: generator; independent verdicts with the real PoW rule; stock Core 26, where all 13 cases are valid; Core 26 + BIP347 patch, where the 3 honest cases are valid and the 10 attacks invalid.
+- [Binohash model #39893706990](https://github.com/patrickdugan/blossom-storage-bonds/actions/runs/39893706990): Node suite, 425 tests locally.
+- [Full-node regtest #39893707005](https://github.com/patrickdugan/blossom-storage-bonds/actions/runs/39893707005).
+
 The issues and PR could not be updated from here: comments need auth, and this flow has none. The text for #2 and #3 is below.
 
 ## Tracking issue update (text for #2 and #3)
