@@ -37,7 +37,8 @@ jobs:
           node --test model/layertree_bond_overlay.test.mjs \
             experiments/storage-bond-ab/run.test.mjs \
             experiments/storage-bond-ab/testnet/observe.test.mjs \
-            experiments/storage-bond-ab/compare-funded.test.mjs
+            experiments/storage-bond-ab/compare-funded.test.mjs \
+            experiments/storage-bond-ab/shared/export_sentinels.test.mjs
       - name: Produce reproducible scenario A/B receipts
         run: |
           node experiments/storage-bond-ab/run.mjs --out ab-results
