@@ -206,6 +206,11 @@ ADR-017 (`1561509`, docs fix `2ecff90`). The 1561509 runs were superseded by 2ec
 - [Binohash model #39894483434](https://github.com/patrickdugan/blossom-storage-bonds/actions/runs/39894483434).
 - [Full-node regtest #39894483293](https://github.com/patrickdugan/blossom-storage-bonds/actions/runs/39894483293).
 
+ADR-018 (commit 1656574). All passed:
+- [Lean #39907229241](https://github.com/patrickdugan/blossom-storage-bonds/actions/runs/39907229241): its new job, ADR-018 Bitcoin Inquisition v29.4-inq interpreter cross-check, built Inquisition from source on the runner and reproduced every verdict with and without SCRIPT_VERIFY_OP_CAT.
+- [Binohash model #39907229214](https://github.com/patrickdugan/blossom-storage-bonds/actions/runs/39907229214).
+- [Full-node regtest #39907229207](https://github.com/patrickdugan/blossom-storage-bonds/actions/runs/39907229207).
+
 The issues and PR could not be updated from here: comments need auth, and this flow has none. The text for #2 and #3 is below.
 
 ## Tracking issue update (text for #2 and #3)
