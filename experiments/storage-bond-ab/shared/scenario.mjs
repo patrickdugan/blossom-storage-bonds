@@ -83,6 +83,9 @@ export function challenge(event) {
     throw new Error('invalid claimed storage outcome');
   }
   const response = sentinelResponse(sen.r, tree.n, held);
+  const neighbor = chunks[(missingChunk + 1) % chunks.length];
+  const offset = (sen.idx % 64) * 64;
+  const wrong = Buffer.concat([sen.r, neighbor.subarray(offset, offset + 64)]);
   const evidenceHash = sha(JSON.stringify({
     id: event.id, epoch: event.epoch, root: tree.root.toString('hex'),
     nonce: nonce.toString('hex'), selected: sampled,
@@ -95,7 +98,7 @@ export function challenge(event) {
     evidenceHash, checkpoint: sha('ab/pdp-checkpoint|' + event.epoch),
     finalizedEpoch: event.epoch, nonce: nonce.toString('hex'), selected: sampled,
     deletedChunk: event.storage === 'deleted' ? missingChunk : null,
-    witness: { sentinel: sen, response },
+    witness: { sentinel: sen, response, wrong },
     // Bitcoin node and consensus verification remain independent stages.
     evidenceClass: 'real-sha256-merkle-reference-proof-model',
   };
