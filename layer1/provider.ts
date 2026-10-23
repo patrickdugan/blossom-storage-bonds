@@ -91,8 +91,8 @@ const lnNode = PAY === "ln"
   ? await LndNode.start({ bin: arg("lnd", lndExe()), dir: join(DIR, "lnd"), alias: `bsb-${NAME}`, network: NET.name, listen: opt("ln-listen"), externalHost: opt("ln-external"), chanConfs: NET.confs })
   : undefined;
 const lnPayee = lnNode && new LndPayee(lnNode, !NET.canMine);
-const chainPayee = PAY === "onchain" ? new OnchainPayee(nostrKey, keyFromSeed(`onchain|${SEED}`), NET.name) : undefined;
-const chanPayee = PAY === "channel" ? new ChannelPayee(me.x, tool, DIR) : undefined;
+const chainPayee = PAY === "onchain" ? new OnchainPayee(nostrKey, keyFromSeed(`onchain|${SEED}`), NET.name, join(DIR, "onchain-invoices.ledger")) : undefined;
+const chanPayee = PAY === "channel" ? new ChannelPayee(me.x, tool, DIR, join(DIR, "channel-payments.ledger")) : undefined;
 const payee: Payee = lnPayee ?? chainPayee ?? chanPayee!;
 
 /** A funded bond: its deal file and term; once sealed, the next sentinel it may be challenged on; and

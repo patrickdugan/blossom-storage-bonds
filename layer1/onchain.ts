@@ -39,6 +39,7 @@ import { randomBytes } from "node:crypto";
 import { G, N, add, be32, int, liftX, mul, schnorrSign, schnorrVerify, sha256, taggedHash, type Key } from "../model/schnorr.ts";
 import { fromDisplay, parseHeader, sha256d, toDisplay, type HeaderSource } from "./headerchain.ts";
 import type { Invoice, Payee, Payer } from "./lightning.ts";
+import { Ledger } from "./ledger.ts";
 
 // ── transactions ──
 
@@ -241,8 +242,19 @@ export class OnchainPayee implements Payee {
   readonly network: string;
   private readonly key: Key;
   readonly issued = new Map<string, OnchainInvoice>();
-  constructor(nostrKey: Key, payKey: Key, network: string) {
+  private readonly ledger?: Ledger;
+  /** Phase 7C: with `ledgerPath`, every invoice is written ahead, so a restarted provider can still
+   *  derive the key for, and sweep, payments made to invoices it issued before the crash. */
+  constructor(nostrKey: Key, payKey: Key, network: string, ledgerPath?: string) {
     this.key = nostrKey; this.payKey = payKey; this.network = network; this.nodeId = nostrKey.x;
+    if (ledgerPath) {
+      this.ledger = new Ledger(ledgerPath);
+      for (const r of this.ledger.replay()) if (r.t === "invoice") {
+        const inv = decodeOnchainInvoice(String(r.pr));
+        if (inv.payee !== this.key.x || inv.payKey !== this.payKey.x) throw new Error(`${ledgerPath}: invoice of another payee`);
+        this.issued.set(inv.paymentHash, inv);
+      }
+    }
   }
   async createInvoice(amountMsat: number, memo: string, ttlSec = 3600): Promise<OnchainInvoice> {
     if (!Number.isSafeInteger(amountMsat) || amountMsat <= 0 || amountMsat % 1000 !== 0) throw new Error("amount must be a positive whole number of sats");
@@ -250,6 +262,7 @@ export class OnchainPayee implements Payee {
     const v = { h: sha256(randomBytes(32)).toString("hex"), a: amountMsat, p: this.key.x, k: this.payKey.x, n: this.network, m: memo, x: Math.floor(Date.now() / 1000) + ttlSec };
     const s = schnorrSign(invoiceDigest(v), this.key.d, randomBytes(32)).toString("hex");
     const inv = decodeOnchainInvoice(PREFIX + Buffer.from(JSON.stringify({ ...v, s })).toString("base64url"));
+    this.ledger?.append({ t: "invoice", pr: inv.paymentRequest });
     this.issued.set(inv.paymentHash, inv);
     return inv;
   }
@@ -332,9 +345,37 @@ export class OnchainPayer implements Payer {
   private readonly rpc: Rpc;
   private readonly paid = new Set<string>();
   private readonly paidTo = new Map<string, number>();
-  /** `rpc` talks to the payer's wallet (…/wallet/<name>); `feeRate` is in sat/vB. */
-  constructor(rpc: Rpc, network: string, feeRate: number | (() => Promise<number>) = 5, nodeId = "onchain-wallet") {
+  private readonly ledger?: Ledger;
+  /** Signed payments written ahead, by txid: rebroadcast after a restart, never re-paid. */
+  readonly sent = new Map<string, string>();
+  /** `rpc` talks to the payer's wallet (…/wallet/<name>); `feeRate` is in sat/vB. With `ledgerPath`,
+   *  each signed payment is written ahead before it is broadcast (phase 7C), so a restarted client
+   *  never pays an invoice twice and can rebroadcast a payment the node may not have relayed. */
+  constructor(rpc: Rpc, network: string, feeRate: number | (() => Promise<number>) = 5, nodeId = "onchain-wallet", ledgerPath?: string) {
     this.rpc = rpc; this.network = network; this.feeRate = feeRate; this.nodeId = nodeId;
+    if (ledgerPath) {
+      this.ledger = new Ledger(ledgerPath);
+      for (const r of this.ledger.replay()) if (r.t === "send") {
+        for (const o of r.outputs as { payee: string; hashes: string[]; sats: number }[]) {
+          for (const h of o.hashes) this.paid.add(h);
+          this.paidTo.set(o.payee, (this.paidTo.get(o.payee) ?? 0) + o.sats * 1000);
+        }
+        this.sent.set(String(r.txid), String(r.hex));
+      }
+    }
+  }
+
+  /** Re-send every written-ahead payment. Idempotent: a confirmed or known transaction is fine. */
+  async rebroadcast(): Promise<{ txid: string; ok: boolean; why?: string }[]> {
+    const out: { txid: string; ok: boolean; why?: string }[] = [];
+    for (const [txid, hex] of this.sent) {
+      try { await this.rpc("sendrawtransaction", [hex]); out.push({ txid, ok: true }); }
+      catch (e) {
+        const why = (e as Error).message;
+        out.push({ txid, ok: /already|known|in chain|txn-already/i.test(why), why });
+      }
+    }
+    return out;
   }
   decode(pr: string): OnchainInvoice { return decodeOnchainInvoice(pr); }
 
@@ -379,13 +420,17 @@ export class OnchainPayer implements Payer {
       if (vout < 0 || tx.outputs[vout].value !== BigInt(p.sats)) throw new Error("funded transaction lost an output");
       return { vout, payee: p.payee, payKey: p.payKey, invoices: p.invs.map((i) => i.paymentRequest), hashes: p.hashes, sats: p.sats };
     });
-    const txid: string = await this.rpc("sendrawtransaction", [signed.hex]);
-    if (txid !== tx.txid) throw new Error("node reports a different txid");
-    const d = await this.rpc("decoderawtransaction", [signed.hex]);
+    // Write ahead: once this record is on disk, these invoices count as paid even if the broadcast
+    // or this process fails, and a restart rebroadcasts the same transaction instead of paying again.
+    this.ledger?.append({ t: "send", txid: tx.txid, hex: signed.hex, outputs: outputs.map((o) => ({ payee: o.payee, hashes: o.hashes, sats: o.sats })) });
     for (const p of plan) {
       for (const h of p.hashes) this.paid.add(h);
       this.paidTo.set(p.payee, (this.paidTo.get(p.payee) ?? 0) + p.sats * 1000);
     }
+    this.sent.set(tx.txid, signed.hex);
+    const txid: string = await this.rpc("sendrawtransaction", [signed.hex]);
+    if (txid !== tx.txid) throw new Error("node reports a different txid");
+    const d = await this.rpc("decoderawtransaction", [signed.hex]);
     const feeSats = Math.round(f.fee * 1e8);
     return { txid, hex: signed.hex, vsize: d.vsize, feeSats, feeRate: feeSats / d.vsize, outputs };
   }

@@ -301,7 +301,7 @@ try {
     await clientLn?.waitSynced(await rpc("getblockcount"));
   }
 
-  const payer = ONCHAIN ? new OnchainPayer(wallet, NET.name, SLOW ? () => feeRate(NET, FEE_RATE) : FEE_RATE, WALLET) : new LndPayer(clientLn!, NET.lnHrp);
+  const payer = ONCHAIN ? new OnchainPayer(wallet, NET.name, SLOW ? () => feeRate(NET, FEE_RATE) : FEE_RATE, WALLET, join(dir, "client-onchain.ledger")) : new LndPayer(clientLn!, NET.lnHrp);
   const client = new StorageClient({ key: nostrKey, secret, payer });
 
   // ── deals, bonds, channels ──

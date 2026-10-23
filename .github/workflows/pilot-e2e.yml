@@ -74,7 +74,9 @@ jobs:
           key: bsb-zk-${{ hashFiles('zk/prover/Cargo.lock', 'zk/prover/src/**', 'zk/prover/rust-toolchain.toml') }}
       - name: Install the pinned nightly
         run: rustup toolchain install "$(sed -n 's/^channel = "\(.*\)"/\1/p' zk/prover/rust-toolchain.toml)" --profile minimal
-      - run: cargo build --release --manifest-path zk/prover/Cargo.toml
+      - name: Build bsb-zk (rust-toolchain.toml is read from the working directory)
+        working-directory: zk/prover
+        run: cargo build --release
       - name: Install Scarb
         run: curl --proto '=https' --tlsv1.2 -sSf https://docs.swmansion.com/scarb/install.sh | sh -s -- -v "$SCARB_VERSION"
       - name: Build zk_pdp (Blake2s holdings mode)

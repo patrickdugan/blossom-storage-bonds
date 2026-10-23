@@ -176,7 +176,7 @@ try {
 
   const rc = await RelayPool.connect(relayList.split(","));
   const offers = await findOffers(rc, NET.name, procs.map((p) => p.nostr), SLOW ? 300_000 : 30_000);
-  const chanPayer = clientLn ? undefined : new ChannelPayer(me.x, tool);
+  const chanPayer = clientLn ? undefined : new ChannelPayer(me.x, tool, join(dir, "client-payments.ledger"));
   const lnPayer = clientLn && new LndPayer(clientLn);
   const payer: Payer = lnPayer ?? chanPayer!;
   /** sats paid to a provider so far, by either backend. */

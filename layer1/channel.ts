@@ -15,6 +15,7 @@ import { sha256 } from "../model/schnorr.ts";
 import { fail, json, readBody } from "./blossom.ts";
 import type { BondTool } from "./bondtool.ts";
 import { preimageMatches, type Invoice, type Payee, type Payer } from "./lightning.ts";
+import { Ledger } from "./ledger.ts";
 
 const PREFIX = "bsbch1";
 
@@ -41,9 +42,32 @@ export class ChannelPayee implements Payee {
   private readonly inFlightChannelClients = new Set<string>();
   /** Per client: the channel file and the latest state the client has signed. */
   readonly channels = new Map<string, { path: string; paid: number; sig?: string }>();
+  /** Phase 7C: what was paid by whom, so an exact retry after a lost reply gets the same preimage. */
+  private readonly paidBy = new Map<string, { client_x: string; paid: number; sig: string }>();
+  private readonly ledger?: Ledger;
 
-  constructor(providerX: string, tool: BondTool, dir: string) {
+  /** With `ledgerPath`, invoices, channel opens and accepted payments are written ahead and replayed on
+   *  restart. Without one, state is in memory only (the phase 2 behaviour, kept for the model tests). */
+  constructor(providerX: string, tool: BondTool, dir: string, ledgerPath?: string) {
     this.nodeId = `bsbch:${providerX}`; this.tool = tool; this.dir = dir;
+    if (ledgerPath) {
+      this.ledger = new Ledger(ledgerPath);
+      for (const r of this.ledger.replay()) {
+        if (r.t === "invoice") {
+          const inv = decodeChannelInvoice(String(r.pr));
+          this.pending.set(inv.paymentHash, { inv, preimage: String(r.preimage), paid: false });
+        } else if (r.t === "open") {
+          this.channels.set(String(r.client_x), { path: String(r.path), paid: 0 });
+        } else if (r.t === "paid") {
+          const ch = this.channels.get(String(r.client_x));
+          const p = this.pending.get(String(r.h));
+          if (!ch || !p) throw new Error(`${ledgerPath}: payment for an unknown channel or invoice`);
+          if (Number(r.paid) <= ch.paid) throw new Error(`${ledgerPath}: payments must increase`);
+          ch.paid = Number(r.paid); ch.sig = String(r.sig); p.paid = true;
+          this.paidBy.set(String(r.h), { client_x: String(r.client_x), paid: Number(r.paid), sig: String(r.sig) });
+        }
+      }
+    }
   }
   setBaseUrl(url: string) { this.payUrl = `${url}/channel/pay`; }
 
@@ -54,6 +78,7 @@ export class ChannelPayee implements Payee {
     const h = sha256(Buffer.from(preimage, "hex")).toString("hex");
     const pr = PREFIX + Buffer.from(JSON.stringify({ h, a: amountMsat, p: this.nodeId, m: memo, x: Math.floor(Date.now() / 1000) + ttlSec, u: this.payUrl })).toString("base64url");
     const inv = decodeChannelInvoice(pr);
+    this.ledger?.append({ t: "invoice", h, pr, preimage });
     this.pending.set(h, { inv, preimage, paid: false });
     return inv;
   }
@@ -70,14 +95,23 @@ export class ChannelPayee implements Payee {
         const path = `${this.dir}/channel-${ch.client_x.slice(0, 16)}.json`;
         writeFileSync(path, JSON.stringify(ch));
         const check = await this.tool.run("chan-check", path);
-        this.channels.set(ch.client_x, { path, paid: 0 });
+        if (!this.channels.has(ch.client_x)) {
+          this.ledger?.append({ t: "open", client_x: ch.client_x, path });
+          this.channels.set(ch.client_x, { path, paid: 0 });
+        }
         json(res, 200, check);
       } else {
         const { paymentRequest, client_x, paid, sig } = body as { paymentRequest: string; client_x: string; paid: number; sig: string };
         const inv = decodeChannelInvoice(String(paymentRequest));
         const p = this.pending.get(inv.paymentHash);
         if (!p || p.inv.paymentRequest !== paymentRequest) throw new Error("unknown invoice");
-        if (p.paid) throw new Error("invoice already paid");
+        if (p.paid) {
+          // An exact retry (same client, total and signature) after a lost reply: return the same
+          // preimage, count nothing twice. Anything else for a paid invoice is a replay.
+          const prior = this.paidBy.get(inv.paymentHash);
+          if (prior && prior.client_x === client_x && prior.paid === paid && prior.sig === sig) { json(res, 200, { preimage: p.preimage, retry: true }); return true; }
+          throw new Error("invoice already paid");
+        }
         if (Math.floor(Date.now() / 1000) >= p.inv.expiresAt) throw new Error("invoice expired");
         const ch = this.channels.get(client_x);
         if (!ch) throw new Error("no channel with this client");
@@ -88,7 +122,10 @@ export class ChannelPayee implements Payee {
           if (!Number.isSafeInteger(expectedPaid) || paid !== expectedPaid)
             throw new Error(`state pays ${paid} sats, expected ${expectedPaid}`);
           await this.tool.run("chan-verify", ch.path, String(paid), String(sig));
+          // Write ahead: the payment is on disk before the preimage leaves.
+          this.ledger?.append({ t: "paid", h: inv.paymentHash, client_x, paid, sig: String(sig) });
           ch.paid = paid; ch.sig = sig; p.paid = true;
+          this.paidBy.set(inv.paymentHash, { client_x, paid, sig: String(sig) });
           json(res, 200, { preimage: p.preimage });
         } finally {
           this.inFlightChannelClients.delete(client_x);
@@ -114,13 +151,53 @@ export class ChannelPayer implements Payer {
   private readonly chans = new Map<string, { path: string; paid: number }>();
   private readonly paidInvoiceHashes = new Set<string>();
   private readonly inFlightChannels = new Set<string>();
+  private readonly ledger?: Ledger;
+  /** Signed states handed out but not yet acknowledged (a crash or lost reply interrupted them). */
+  readonly unsettled = new Map<string, { pr: string; payee: string; paid: number; sig: string }>();
 
-  constructor(clientX: string, tool: BondTool) { this.nodeId = `bsbch:${clientX}`; this.clientX = clientX; this.tool = tool; }
+  /** With `ledgerPath`, every signed state is written ahead. After a restart the client counts each
+   *  as possibly delivered (so it never signs a lower total or pays an invoice twice), and `resume()`
+   *  completes the interrupted ones. */
+  constructor(clientX: string, tool: BondTool, ledgerPath?: string) {
+    this.nodeId = `bsbch:${clientX}`; this.clientX = clientX; this.tool = tool;
+    if (ledgerPath) {
+      this.ledger = new Ledger(ledgerPath);
+      for (const r of this.ledger.replay()) {
+        if (r.t === "open") this.chans.set(String(r.payee), { path: String(r.path), paid: 0 });
+        else if (r.t === "intent") {
+          const ch = this.chans.get(String(r.payee));
+          if (!ch) throw new Error(`${ledgerPath}: payment on an unknown channel`);
+          ch.paid = Math.max(ch.paid, Number(r.paid));
+          this.paidInvoiceHashes.add(String(r.h));
+          this.unsettled.set(String(r.h), { pr: String(r.pr), payee: String(r.payee), paid: Number(r.paid), sig: String(r.sig) });
+        } else if (r.t === "done") this.unsettled.delete(String(r.h));
+      }
+    }
+  }
+
+  /** Re-send each interrupted payment exactly as signed. The provider counts an exact retry once. */
+  async resume(): Promise<{ resumed: string[]; failed: { h: string; why: string }[] }> {
+    const resumed: string[] = [], failed: { h: string; why: string }[] = [];
+    for (const [h, u] of [...this.unsettled]) {
+      try {
+        const inv = decodeChannelInvoice(u.pr);
+        const r = await fetch(inv.payUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ paymentRequest: u.pr, client_x: this.clientX, paid: u.paid, sig: u.sig }) });
+        if (r.status !== 200) throw new Error(`payee refused: ${r.status} ${r.headers.get("x-reason") ?? ""}`);
+        const { preimage } = (await r.json()) as { preimage: string };
+        if (!preimageMatches(inv.paymentHash, preimage)) throw new Error("payee returned a wrong preimage");
+        this.ledger?.append({ t: "done", h, preimage });
+        this.unsettled.delete(h);
+        resumed.push(h);
+      } catch (e) { failed.push({ h, why: (e as Error).message }); }
+    }
+    return { resumed, failed };
+  }
 
   /** Fund the channel on chain (the caller mines and then tells the provider). */
   async open(path: string, ch: ChannelFile): Promise<ChannelFile> {
     writeFileSync(path, JSON.stringify(ch));
     const v = (await this.tool.run("chan-open", path)) as ChannelFile;
+    this.ledger?.append({ t: "open", payee: `bsbch:${ch.provider_x}`, path });
     this.chans.set(`bsbch:${ch.provider_x}`, { path, paid: 0 });
     return v;
   }
@@ -141,12 +218,17 @@ export class ChannelPayer implements Payer {
       const paid = ch.paid + inv.amountMsat / 1000;
       if (!Number.isSafeInteger(paid) || paid <= ch.paid) throw new Error("channel payment total overflow");
       const { sig } = await this.tool.run("chan-sign", ch.path, String(paid));
+      // Write ahead: from here the provider may hold this state, so the client counts it as paid.
+      this.ledger?.append({ t: "intent", h: inv.paymentHash, pr, payee: inv.payee, paid, sig: String(sig) });
+      ch.paid = paid;
+      this.paidInvoiceHashes.add(inv.paymentHash);
+      this.unsettled.set(inv.paymentHash, { pr, payee: inv.payee, paid, sig: String(sig) });
       const r = await fetch(inv.payUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ paymentRequest: pr, client_x: this.clientX, paid, sig }) });
       if (r.status !== 200) throw new Error(`payee refused: ${r.status} ${r.headers.get("x-reason") ?? ""}`);
       const { preimage } = (await r.json()) as { preimage: string };
       if (!preimageMatches(inv.paymentHash, preimage)) throw new Error("payee returned a wrong preimage");
-      ch.paid = paid;
-      this.paidInvoiceHashes.add(inv.paymentHash);
+      this.ledger?.append({ t: "done", h: inv.paymentHash, preimage });
+      this.unsettled.delete(inv.paymentHash);
       return { preimage };
     } finally {
       this.inFlightChannels.delete(inv.payee);

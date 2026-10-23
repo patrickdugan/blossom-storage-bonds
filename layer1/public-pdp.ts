@@ -130,7 +130,7 @@ try {
   await mine(100, me.fee_address);
 
   const rc = await RelayClient.connect(relay.url);
-  const payer = new ChannelPayer(me.x, tool);
+  const payer = new ChannelPayer(me.x, tool, join(dir, "client-payments.ledger"));
   const client = new StorageClient({ key: nostrKey, secret, payer });
 
   // ── storage and channels ──
