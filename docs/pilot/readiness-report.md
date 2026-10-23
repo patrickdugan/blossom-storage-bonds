@@ -142,8 +142,12 @@ Deployment and recovery: `docs/pilot/deployment.md`.
 
    The orchestrators' epoch loops restart only through the payment ledgers. An epoch missed while the
    client is down goes unproved and unpaid, which costs nothing; the part with a deadline is
-   enforcement, and that no longer depends on memory. `full-stack.ts` writes no enforcer state files
-   yet; wiring it is mechanical, and `market.ts` shows it.
+   enforcement, and that no longer depends on memory. `full-stack.ts`, the pilot's client, writes the same
+   state file for every bond and flags it when the watchtower attests against the provider
+   (`f5a51d1`). CI asserts this in both full-stack modes
+   ([run 39952606606](https://github.com/patrickdugan/blossom-storage-bonds/actions/runs/39952606606)).
+   Operator recovery after a client crash:
+   `BSB_SEED=<client bond seed> node layer1/enforce.ts --state <dir>/enforce-<slug>.json`.
 2. **Met: a forfeit fee policy** (`a387fbe`). `forfeitWithPolicy` bids at the first eligible block and
    re-bids one step higher each unconfirmed block, capped so the fee stays below half the bond
    (FP01–FP05; the market uses it). Harness S1 on Core 31.1 shows what it does and does not buy:
