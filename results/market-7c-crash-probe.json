@@ -1,5 +1,5 @@
 {
-  "generated": "2026-10-23T09:02:21.027Z",
+  "generated": "2026-10-23T09:21:09.579Z",
   "note": "Every party is a separate process with its own keys and wallet. Payments are a one-way Bitcoin payment channel per provider, not Lightning. Nonces are seeded.",
   "params": {
     "pay": "channel",
@@ -22,8 +22,9 @@
   "summary": [
     {
       "role": "honest",
-      "pid": 36116,
+      "pid": 26504,
       "failedEpochs": 0,
+      "unpaidEpochs": 0,
       "paidSats": 5120,
       "paidOnChainSats": 5120,
       "channel": {
@@ -40,14 +41,14 @@
         {
           "i": 0,
           "challenge_txid": "abaee00d727c4f5129ea348b43530e2b0a26db255b9a2d8e9675bd199f43da24",
-          "answered_after_blocks": 2,
+          "answered_after_blocks": 3,
           "forfeit_txid": null
         }
       ],
       "pForfeitIfAllChallenged": 0,
       "providerAgentLog": [
         {
-          "t": 1792746044910,
+          "t": 1792747172739,
           "provider": "honest",
           "event": "bond-respond",
           "sha": "347450468be2",
@@ -61,8 +62,9 @@
     },
     {
       "role": "deletes 10%",
-      "pid": 27192,
+      "pid": 34032,
       "failedEpochs": 2,
+      "unpaidEpochs": 0,
       "paidSats": 4096,
       "paidOnChainSats": 4096,
       "channel": {
@@ -73,7 +75,7 @@
         "funding": "d1c099a8c57060d27450904b745ccd882e42925ea86f72116c75721c89a0de21",
         "settlement": "851613a2e97a0073122befe1c36af5f25bdba754af9b6b75e8e560b9fa94f46a",
         "to": "client",
-        "confirmations": 1347
+        "confirmations": 1346
       },
       "enforcement": [
         {
@@ -92,7 +94,7 @@
       "pForfeitIfAllChallenged": 0.9988209815422261,
       "providerAgentLog": [
         {
-          "t": 1792746045495,
+          "t": 1792747173364,
           "provider": "deletes10",
           "event": "bond-respond",
           "sha": "671ab1228037",
@@ -103,7 +105,7 @@
           "vsize": 639
         },
         {
-          "t": 1792746045990,
+          "t": 1792747173818,
           "provider": "deletes10",
           "event": "bond-respond",
           "sha": "671ab1228037",
@@ -116,8 +118,9 @@
     },
     {
       "role": "deletes 50%",
-      "pid": 34436,
+      "pid": 23908,
       "failedEpochs": 7,
+      "unpaidEpochs": 0,
       "paidSats": 1536,
       "paidOnChainSats": 1536,
       "channel": {
@@ -128,7 +131,7 @@
         "funding": "19325cc8ffbf25bb9d036f31b6f34645c9c58fcecbea5d1f3ec752488da8e830",
         "settlement": "ccd2dd63fb5b8a47973b2cf4076d07306d91d1ac758d27667dcaf800f3361ed4",
         "to": "client",
-        "confirmations": 1202
+        "confirmations": 1201
       },
       "enforcement": [
         {
@@ -141,7 +144,7 @@
       "pForfeitIfAllChallenged": 1,
       "providerAgentLog": [
         {
-          "t": 1792746072426,
+          "t": 1792747200543,
           "provider": "deletes50",
           "event": "bond-respond",
           "sha": "ac64d8568938",
@@ -154,8 +157,9 @@
     },
     {
       "role": "outsources",
-      "pid": 33688,
+      "pid": 31556,
       "failedEpochs": 7,
+      "unpaidEpochs": 0,
       "paidSats": 1536,
       "paidOnChainSats": 1536,
       "channel": {
@@ -166,7 +170,7 @@
         "funding": "b277864b667c276029f5f054ef226218c19698ac34f7f8470fe5f707529a43dc",
         "settlement": "0a913fc7a1847f69e9c05e26a694829d5da6fcfd7cd5080f4c086a57c0072461",
         "to": "client",
-        "confirmations": 1057
+        "confirmations": 1056
       },
       "enforcement": [
         {
@@ -179,7 +183,7 @@
       "pForfeitIfAllChallenged": 1,
       "providerAgentLog": [
         {
-          "t": 1792746099166,
+          "t": 1792747227246,
           "provider": "outsources",
           "event": "bond-respond",
           "sha": "9b2fc6f3d897",
@@ -189,7 +193,7 @@
           "status": "rejected"
         },
         {
-          "t": 1792746125595,
+          "t": 1792747253696,
           "provider": "outsources",
           "event": "bond-respond",
           "sha": "9b2fc6f3d897",
@@ -202,8 +206,9 @@
     },
     {
       "role": "withholds",
-      "pid": 36128,
-      "failedEpochs": 7,
+      "pid": 31192,
+      "failedEpochs": 0,
+      "unpaidEpochs": 7,
       "paidSats": 1536,
       "paidOnChainSats": 1536,
       "channel": {
@@ -212,7 +217,7 @@
       },
       "bond": {
         "funding": "30bbf93646422575daf8ba3485bf37ab0b7ffd52729c0984bdb047c21bc4a5c4",
-        "settlement": "2f99c87d30de4178199510e3e1189ac7ff46f940cfe982b2cf663ab248581118",
+        "settlement": "c6e642ce58a57cc297825292651705b7b72923ae35d71fecd24682736854cf53",
         "to": "provider",
         "confirmations": 1
       },
@@ -222,30 +227,12 @@
           "challenge_txid": "131edc617f5cd0598eb030a4395ea0d55fa5ffa785e622d805b463ca40b18524",
           "answered_after_blocks": 2,
           "forfeit_txid": null
-        },
-        {
-          "i": 1,
-          "challenge_txid": "aadd7a959bbc2d06f322b7fc8699b2b1b2714405d8261c949a3615c716d0ac52",
-          "answered_after_blocks": 2,
-          "forfeit_txid": null
-        },
-        {
-          "i": 2,
-          "challenge_txid": "256b3d6fb4b49aec5c3f58c6e8e1ea7b0d23ce1f377e3bf757fad7349fe2b473",
-          "answered_after_blocks": 2,
-          "forfeit_txid": null
-        },
-        {
-          "i": 3,
-          "challenge_txid": "100986018297a88a82c8b58f7aa4beedb0fcbb4b52a0bc3fd632daf6e0adcb16",
-          "answered_after_blocks": 3,
-          "forfeit_txid": null
         }
       ],
       "pForfeitIfAllChallenged": 0,
       "providerAgentLog": [
         {
-          "t": 1792746125503,
+          "t": 1792747253843,
           "provider": "withholds",
           "event": "bond-respond",
           "sha": "53c0543499cc",
@@ -254,39 +241,6 @@
           "status": "responded",
           "txid": "bcff79e6aa89b76d21f398aa6033eb0293cc4dda610c88fbb7cb640defc35185",
           "vsize": 639
-        },
-        {
-          "t": 1792746125996,
-          "provider": "withholds",
-          "event": "bond-respond",
-          "sha": "53c0543499cc",
-          "i": 1,
-          "r": "9b6555446dbf73642802dbb99fb45a7a",
-          "status": "responded",
-          "txid": "d1d0a32783909e24e8dc44157b372f30761d0440bf046ec810db185b38c917ef",
-          "vsize": 639
-        },
-        {
-          "t": 1792746126473,
-          "provider": "withholds",
-          "event": "bond-respond",
-          "sha": "53c0543499cc",
-          "i": 2,
-          "r": "9edfd9d5789ae28eae60ebb2b2992018",
-          "status": "responded",
-          "txid": "814ee3861b4748a7d7d24161d4f7375c555a6bc1de3db8ec310f3e36fda06018",
-          "vsize": 639
-        },
-        {
-          "t": 1792746126958,
-          "provider": "withholds",
-          "event": "bond-respond",
-          "sha": "53c0543499cc",
-          "i": 3,
-          "r": "903613985102b20638c3470d13bc5fe7",
-          "status": "responded",
-          "txid": "a2c3e02c60bd96d61ee55d08ded394aef05b006cab8d7b2d760d0a104be94ac3",
-          "vsize": 639
         }
       ]
     }
@@ -294,8 +248,8 @@
   "crash": [
     {
       "epoch": 3,
-      "port": "51229",
-      "pid": 36116,
+      "port": "64480",
+      "pid": 26504,
       "bondsResumed": 1
     }
   ],

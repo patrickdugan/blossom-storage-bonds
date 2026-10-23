@@ -9,13 +9,13 @@
 // That costs the client one epoch, and the client stops paying.
 
 import { randomBytes } from "node:crypto";
-import { writeFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { sha256 } from "../model/schnorr.ts";
 import { fail, json, readBody } from "./blossom.ts";
 import type { BondTool } from "./bondtool.ts";
 import { preimageMatches, type Invoice, type Payee, type Payer } from "./lightning.ts";
-import { Ledger } from "./ledger.ts";
+import { Ledger, writeFileDurable } from "./ledger.ts";
 
 const PREFIX = "bsbch1";
 
@@ -57,6 +57,8 @@ export class ChannelPayee implements Payee {
           const inv = decodeChannelInvoice(String(r.pr));
           this.pending.set(inv.paymentHash, { inv, preimage: String(r.preimage), paid: false });
         } else if (r.t === "open") {
+          // The ledger holds the channel's terms, so a channel file lost in a crash is rebuilt.
+          if (r.ch && !existsSync(String(r.path))) writeFileDurable(String(r.path), String(r.ch));
           this.channels.set(String(r.client_x), { path: String(r.path), paid: 0 });
         } else if (r.t === "paid") {
           const ch = this.channels.get(String(r.client_x));
@@ -85,18 +87,24 @@ export class ChannelPayee implements Payee {
 
   /** Routes for the provider's server. */
   async route(req: IncomingMessage, res: ServerResponse, url: URL): Promise<boolean> {
-    if (req.method !== "POST" || (url.pathname !== "/channel/open" && url.pathname !== "/channel/pay")) return false;
+    if (req.method !== "POST" || (url.pathname !== "/channel/open" && url.pathname !== "/channel/pay" && url.pathname !== "/channel/state")) return false;
     let body: any;
     try { body = JSON.parse(String(await readBody(req, 1 << 16))); } catch { fail(res, 400, "body must be JSON"); return true; }
     try {
-      if (url.pathname === "/channel/open") {
+      if (url.pathname === "/channel/state") {
+        // The total this provider holds a client signature for. The client uses it only within bounds
+        // it already knows (ChannelPayer.reconcile), so a lie can only cost the provider.
+        const ch = this.channels.get(String(body.client_x));
+        if (!ch) throw new Error("no channel with this client");
+        json(res, 200, { paid: ch.paid });
+      } else if (url.pathname === "/channel/open") {
         const ch = body as ChannelFile;
         if (ch.provider_x !== this.nodeId.slice(6)) throw new Error("channel names another provider");
         const path = `${this.dir}/channel-${ch.client_x.slice(0, 16)}.json`;
-        writeFileSync(path, JSON.stringify(ch));
+        writeFileDurable(path, JSON.stringify(ch));
         const check = await this.tool.run("chan-check", path);
         if (!this.channels.has(ch.client_x)) {
-          this.ledger?.append({ t: "open", client_x: ch.client_x, path });
+          this.ledger?.append({ t: "open", client_x: ch.client_x, path, ch: readFileSync(path, "utf8") });
           this.channels.set(ch.client_x, { path, paid: 0 });
         }
         json(res, 200, check);
@@ -148,7 +156,7 @@ export class ChannelPayer implements Payer {
   readonly nodeId: string;
   private readonly tool: BondTool;
   private readonly clientX: string;
-  private readonly chans = new Map<string, { path: string; paid: number }>();
+  private readonly chans = new Map<string, { path: string; paid: number; done: number }>();
   private readonly paidInvoiceHashes = new Set<string>();
   private readonly inFlightChannels = new Set<string>();
   private readonly ledger?: Ledger;
@@ -163,14 +171,25 @@ export class ChannelPayer implements Payer {
     if (ledgerPath) {
       this.ledger = new Ledger(ledgerPath);
       for (const r of this.ledger.replay()) {
-        if (r.t === "open") this.chans.set(String(r.payee), { path: String(r.path), paid: 0 });
+        if (r.t === "open") {
+          if (r.ch && !existsSync(String(r.path))) writeFileDurable(String(r.path), String(r.ch));
+          this.chans.set(String(r.payee), { path: String(r.path), paid: 0, done: 0 });
+        }
         else if (r.t === "intent") {
           const ch = this.chans.get(String(r.payee));
           if (!ch) throw new Error(`${ledgerPath}: payment on an unknown channel`);
           ch.paid = Math.max(ch.paid, Number(r.paid));
           this.paidInvoiceHashes.add(String(r.h));
           this.unsettled.set(String(r.h), { pr: String(r.pr), payee: String(r.payee), paid: Number(r.paid), sig: String(r.sig) });
-        } else if (r.t === "done") this.unsettled.delete(String(r.h));
+        } else if (r.t === "done") {
+          const u = this.unsettled.get(String(r.h));
+          if (u) { const ch = this.chans.get(u.payee); if (ch) ch.done = Math.max(ch.done, u.paid); }
+          this.unsettled.delete(String(r.h));
+        } else if (r.t === "reconciled") {
+          const ch = this.chans.get(String(r.payee));
+          if (ch) { ch.paid = Number(r.paid); ch.done = Number(r.paid); }
+          for (const [h, u] of [...this.unsettled]) if (u.payee === r.payee && u.paid > Number(r.paid)) this.unsettled.delete(h);
+        }
       }
     }
   }
@@ -193,12 +212,30 @@ export class ChannelPayer implements Payer {
     return { resumed, failed };
   }
 
+  /** After a resume the provider refused (say, the invoice expired before the client came back), ask
+   *  the provider which total it holds. Accept it only between the last acknowledged total and the
+   *  highest total this client signed. Below that range the provider would be claiming less than it
+   *  acknowledged; above it, more than was ever signed. Either way the answer is refused. Within it, a
+   *  lie only costs the provider: the client never signs below a total the provider could be holding. */
+  async reconcile(payee: string, stateUrl: string): Promise<number> {
+    const ch = this.chans.get(payee);
+    if (!ch) throw new Error("no channel to this payee");
+    const r = await fetch(stateUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ client_x: this.clientX }) });
+    if (r.status !== 200) throw new Error(`payee refused: ${r.status} ${r.headers.get("x-reason") ?? ""}`);
+    const { paid } = (await r.json()) as { paid: number };
+    if (!Number.isSafeInteger(paid) || paid < ch.done || paid > ch.paid) throw new Error(`provider claims ${paid} sats, outside [${ch.done}, ${ch.paid}]`);
+    this.ledger?.append({ t: "reconciled", payee, paid });
+    ch.paid = paid; ch.done = paid;
+    for (const [h, u] of [...this.unsettled]) if (u.payee === payee && u.paid > paid) this.unsettled.delete(h);
+    return paid;
+  }
+
   /** Fund the channel on chain (the caller mines and then tells the provider). */
   async open(path: string, ch: ChannelFile): Promise<ChannelFile> {
-    writeFileSync(path, JSON.stringify(ch));
+    writeFileDurable(path, JSON.stringify(ch));
     const v = (await this.tool.run("chan-open", path)) as ChannelFile;
-    this.ledger?.append({ t: "open", payee: `bsbch:${ch.provider_x}`, path });
-    this.chans.set(`bsbch:${ch.provider_x}`, { path, paid: 0 });
+    this.ledger?.append({ t: "open", payee: `bsbch:${ch.provider_x}`, path, ch: readFileSync(path, "utf8") });
+    this.chans.set(`bsbch:${ch.provider_x}`, { path, paid: 0, done: 0 });
     return v;
   }
   paidTo(payee: string): number { return this.chans.get(payee)?.paid ?? 0; }
@@ -229,6 +266,7 @@ export class ChannelPayer implements Payer {
       if (!preimageMatches(inv.paymentHash, preimage)) throw new Error("payee returned a wrong preimage");
       this.ledger?.append({ t: "done", h: inv.paymentHash, preimage });
       this.unsettled.delete(inv.paymentHash);
+      ch.done = Math.max(ch.done, paid);
       return { preimage };
     } finally {
       this.inFlightChannels.delete(inv.payee);

@@ -48,3 +48,9 @@ test("FP04: a late answer that confirms first is reported, not retried forever",
   const o = await forfeitWithPolicy(s.policy);
   assert.deepEqual(o, { won: false, why: "answered", bids: 2 });
 });
+
+test("FP05: an inherited fee rate above the cap is clamped; no bid can exceed half the bond", () => {
+  const r = forfeitRates(1000, 100_000);
+  assert.deepEqual(r, [362]);
+  assert.ok(r.every((x) => x * 138 <= 50_000));
+});

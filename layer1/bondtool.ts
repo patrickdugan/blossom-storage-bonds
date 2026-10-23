@@ -103,8 +103,8 @@ export async function forfeitWithPolicy(p: ForfeitPolicy): Promise<ForfeitOutcom
 /** A rate schedule from a base rate, doubling up to a cap such that the forfeit's fee stays below a
  *  fraction of the bond (the client never pays more than it stands to recover). */
 export function forfeitRates(base: number, bondSats: number, forfeitVsize = 138, maxShare = 0.5): number[] {
-  const cap = Math.floor((bondSats * maxShare) / forfeitVsize);
+  const cap = Math.max(1, Math.floor((bondSats * maxShare) / forfeitVsize));
   const out: number[] = [];
-  for (let r = Math.max(1, base); r <= cap && out.length < 12; r *= 2) out.push(r);
-  return out.length ? out : [Math.max(1, Math.min(base, cap))];
+  for (let r = Math.min(Math.max(1, base), cap); r <= cap && out.length < 12; r *= 2) out.push(r);
+  return out;
 }

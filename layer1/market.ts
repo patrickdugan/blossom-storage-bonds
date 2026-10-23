@@ -327,7 +327,9 @@ try {
         const rates = forfeitRates(Number(process.env.BSB_FEE_RATE ?? "2"), BOND_SATS);
         const o = await forfeitWithPolicy({
           rates,
-          broadcast: async (rate) => (rate === rates[0] ? await tool.run("bond-forfeit", deals[i], String(j)) : await runWith(tool, { BSB_FEE_RATE: String(rate) }, "bond-forfeit", deals[i], String(j))).txid,
+          // Every bid at an explicit rate from the capped schedule, the first included, so an inherited
+          // BSB_FEE_RATE above the cap can never make the forfeit's fee exceed the bond.
+          broadcast: async (rate) => (await runWith(tool, { BSB_FEE_RATE: String(rate) }, "bond-forfeit", deals[i], String(j))).txid,
           nextBlock: () => mine(1, me.fee_address),
           confirmations: async (t) => (await txConfirmations(t)) ?? 0,
           answered: async () => ((await txConfirmations(respondTxid)) ?? 0) >= 1,

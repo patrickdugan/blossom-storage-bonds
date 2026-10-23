@@ -4,7 +4,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
-import { appendFileSync, mkdtempSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ChannelPayee, ChannelPayer } from "./channel.ts";
@@ -182,5 +182,72 @@ test("DU08: invoices issued before a provider crash stay payable, and only once"
     await payer.pay(inv.paymentRequest, 1_000_000);
     assert.equal(payee.channels.get(clientX)?.paid, 512);
     await assert.rejects(payer.pay(inv.paymentRequest, 1_000_000), /already paid/);
+  } finally { server.close(); }
+});
+
+// ── fixes from the independent review (Codex, 2026-10-23) ──
+
+test("DU09: an append after a torn tail starts on a clean line, and the next restart reads it", () => {
+  const s = setup();
+  const l = new Ledger(s.pLedger);
+  l.append({ t: "open", client_x: clientX, path: s.chanPath });
+  appendFileSync(s.pLedger, '{"t":"paid","h":"00'); // crash mid-append
+  l.append({ t: "open", client_x: "ef".repeat(32), path: s.chanPath });
+  const recs = l.replay();
+  assert.equal(recs.length, 2);
+  assert.equal(recs[1].client_x, "ef".repeat(32));
+});
+
+test("DU10: a channel file lost in a crash is rebuilt from the ledger's copy", async () => {
+  const s = setup();
+  let payee = new ChannelPayee(providerX, tool, s.dir, s.pLedger);
+  const { base, server } = await serve(() => payee);
+  try {
+    await openBoth(s, base, payee);
+    const providerFile = `${s.dir}/channel-${clientX.slice(0, 16)}.json`;
+    const before = readFileSync(providerFile, "utf8");
+    rmSync(providerFile);
+    rmSync(s.chanPath);
+    payee = new ChannelPayee(providerX, tool, s.dir, s.pLedger);
+    new ChannelPayer(clientX, tool, s.cLedger);
+    assert.equal(readFileSync(providerFile, "utf8"), before, "provider's channel file restored");
+    assert.ok(existsSync(s.chanPath), "client's channel file restored");
+  } finally { server.close(); }
+});
+
+test("DU11: an interrupted payment whose invoice expired is reconciled, not stalled", async () => {
+  const s = setup();
+  const payee = new ChannelPayee(providerX, tool, s.dir, s.pLedger);
+  const { base, server } = await serve(() => payee);
+  try {
+    const payer = await openBoth(s, base, payee);
+    await payer.pay((await payee.createInvoice(512_000, "epoch 1")).paymentRequest, 1_000_000);
+    // The client signs epoch 2's state, then crashes before delivering it; the invoice expires.
+    const inv = await payee.createInvoice(512_000, "epoch 2", 1);
+    new Ledger(s.cLedger).append({ t: "intent", h: inv.paymentHash, pr: inv.paymentRequest, payee: `bsbch:${providerX}`, paid: 1024, sig: "sig-1024" });
+    await new Promise((r) => setTimeout(r, 1100));
+    const back = new ChannelPayer(clientX, tool, s.cLedger);
+    assert.equal(back.paidTo(`bsbch:${providerX}`), 1024);
+    const r = await back.resume();
+    assert.match(r.failed[0]?.why ?? "", /expired/);
+    // Without reconciling, the next total (1536) is refused, since the provider expects 1024: a stall.
+    assert.equal(await back.reconcile(`bsbch:${providerX}`, `${base}/channel/state`), 512);
+    await back.pay((await payee.createInvoice(512_000, "epoch 3")).paymentRequest, 1_000_000);
+    assert.equal(payee.channels.get(clientX)?.paid, 1024);
+    assert.equal(new ChannelPayer(clientX, tool, s.cLedger).paidTo(`bsbch:${providerX}`), 1024, "the reconciled total survives a restart");
+  } finally { server.close(); }
+});
+
+test("DU12: reconcile refuses a provider claim outside what the client acknowledged and signed", async () => {
+  const s = setup();
+  const payee = new ChannelPayee(providerX, tool, s.dir, s.pLedger);
+  const { base, server } = await serve(() => payee);
+  try {
+    const payer = await openBoth(s, base, payee);
+    await payer.pay((await payee.createInvoice(512_000, "epoch 1")).paymentRequest, 1_000_000);
+    payee.channels.get(clientX)!.paid = 0;      // a provider lying low (below an acknowledged total)
+    await assert.rejects(payer.reconcile(`bsbch:${providerX}`, `${base}/channel/state`), /outside/);
+    payee.channels.get(clientX)!.paid = 9_999;  // or high (above anything the client signed)
+    await assert.rejects(payer.reconcile(`bsbch:${providerX}`, `${base}/channel/state`), /outside/);
   } finally { server.close(); }
 });

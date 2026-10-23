@@ -77,7 +77,7 @@ export interface Provider {
   outsource(sha: string, from: { url: string; sha256: string }): void;
   /** Phase 7C: keep the bytes and answer every proof, but refuse BUD-01 downloads (GET, HEAD, Range).
    *  The bond only enforces possession, so a withholder keeps it; only a retrieval probe can tell. */
-  withhold(sha: string): void;
+  withhold(sha: string, selective?: boolean): void;
   /** The PDP answer for a nonce, from whatever the provider holds: what the sidecar serves over HTTP and
    *  the provider process sends over NIP-44. */
   pdpAnswer(sha: string, nonce: string, q: number, epoch: number): Promise<PdpAnswer | { error: string }>;
@@ -149,7 +149,9 @@ export async function startProvider(cfg: ProviderConfig): Promise<Provider> {
   const trees = new Map<string, Tree>();
   const zkTrees = new Map<string, ZkTree>();
   const outsourced = new Map<string, { url: string; sha256: string }>();
-  const withheld = new Set<string>();
+  /** Withheld blobs: null refuses every download; a set serves only those chunk indices (the
+   *  "serve only what was just challenged" withholder of the phase 7C review). */
+  const withheld = new Map<string, Set<number> | null>();
   let base = "";
 
   const metaPath = (sha: string) => join(cfg.dir, `${sha}.json`);
@@ -234,7 +236,13 @@ export async function startProvider(cfg: ProviderConfig): Promise<Provider> {
 
   function onGet(req: IncomingMessage, res: ServerResponse, sha: string) {
     const m = meta(sha);
-    if (!m || !existsSync(blobPath(sha)) || withheld.has(sha)) return fail(res, 404, "blob not found");
+    if (!m || !existsSync(blobPath(sha))) return fail(res, 404, "blob not found");
+    if (withheld.has(sha)) {
+      const allow = withheld.get(sha);
+      const rg = /^bytes=(\d+)-(\d+)$/.exec(String(req.headers.range ?? ""));
+      const i = rg ? Math.floor(Number(rg[1]) / CHUNK) : -1;
+      if (!allow || !rg || Number(rg[2]) >= (i + 1) * CHUNK || !allow.has(i)) return fail(res, 404, "blob not found");
+    }
     const head = req.method === "HEAD";
     const headers = { ...CORS, "Content-Type": m.type, "Accept-Ranges": "bytes" };
     const range = /^bytes=(\d*)-(\d*)$/.exec(String(req.headers.range ?? ""));
@@ -268,6 +276,7 @@ export async function startProvider(cfg: ProviderConfig): Promise<Provider> {
     if (!Number.isSafeInteger(epoch) || epoch < 0) return { error: "epoch must be a non-negative integer" };
     const t = tree(sha);
     const indices = epochIndices(Buffer.from(nonce, "hex"), t.n, q);
+    if (withheld.get(sha)) withheld.set(sha, new Set(indices));
     const chunks = await Promise.all(indices.map((i) => readChunk(sha, m.size, i)));
     const invoice = await cfg.payee.createInvoice(cfg.priceMsatPerChunkEpoch * t.n, `bsb epoch ${epoch} ${sha}`);
     const answer: PdpAnswer = {
@@ -391,6 +400,18 @@ export async function startProvider(cfg: ProviderConfig): Promise<Provider> {
         res.writeHead(200, { ...CORS, "Content-Type": "application/json" });
         return res.end(body);
       }
+      // Phase 7C: the Merkle path of any chunk, so a client can check a chunk it downloaded at an index
+      // of its own choosing. The path is public data; serving it says nothing about holding the bytes.
+      const pth = /^\/path\/([0-9a-f]{64})\/(\d+)$/.exec(u.pathname);
+      if (req.method === "GET" && pth) {
+        const m = meta(pth[1]);
+        const i = Number(pth[2]);
+        if (!m) return fail(res, 404, "blob not found");
+        const t = tree(pth[1]);
+        if (!Number.isSafeInteger(i) || i < 0 || i >= t.n) return fail(res, 400, "no such chunk");
+        res.writeHead(200, { ...CORS, "Content-Type": "application/json" });
+        return res.end(JSON.stringify({ n: t.n, i, path: merkleProof(t, i).map((x) => x.toString("hex")) }));
+      }
       const pdp = /^\/pdp\/([0-9a-f]{64})$/.exec(u.pathname);
       if (req.method === "GET" && pdp) return onPdp(res, pdp[1], u.searchParams);
       const sen = /^\/sentinel\/([0-9a-f]{64})$/.exec(u.pathname);
@@ -428,9 +449,9 @@ export async function startProvider(cfg: ProviderConfig): Promise<Provider> {
         }
       } finally { closeSync(fd); }
     },
-    withhold(sha) {
+    withhold(sha, selective = false) {
       if (!meta(sha)) throw new Error("no such blob");
-      withheld.add(sha);
+      withheld.set(sha, selective ? new Set() : null);
     },
     outsource(sha, from) {
       if (!meta(sha)) throw new Error("no such blob");

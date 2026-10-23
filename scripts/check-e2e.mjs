@@ -20,10 +20,17 @@ const paid = (s) => s?.paidSats ?? s?.lightning?.paid_sats ?? s?.onchain?.paid_s
 
 const honest = by('honest');
 if (bondTo(honest) !== 'provider') fails.push(`honest bond went to ${bondTo(honest)}, expected provider (refund)`);
-if (kind === 'market' && honest?.failedEpochs !== 0) fails.push(`honest provider failed ${honest?.failedEpochs} epochs`);
+// Every epoch, not an aggregate (independent review, 2026-10-23): a positive total can hide unpaid epochs.
+if (kind === 'market') {
+  if (honest?.failedEpochs !== 0) fails.push(`honest provider failed ${honest?.failedEpochs} epochs`);
+  if ((honest?.unpaidEpochs ?? 0) !== 0) fails.push(`honest provider went unpaid in ${honest?.unpaidEpochs} epochs`);
+}
+// A full-stack epoch counts only when the client verified it, the tower attested it valid, and it was paid.
+const epochOk = (e) => e.client === 'verified' && e.tower === 'valid' && (e.paidSats ?? 0) > 0;
 if (kind === 'full-stack') {
-  const bad = (honest?.epochs ?? []).length === 0 ? 'no epochs recorded' : null;
-  if (bad) fails.push(`honest: ${bad}`);
+  const eps = honest?.epochs ?? [];
+  if (eps.length !== (r.params?.epochs ?? eps.length) || eps.length === 0) fails.push(`honest: ${eps.length} epochs recorded, expected ${r.params?.epochs}`);
+  for (const e of eps) if (!epochOk(e)) fails.push(`honest epoch ${e.epoch}: client ${e.client}, tower ${e.tower}, paid ${e.paidSats}`);
 }
 if (paid(honest) <= 0) fails.push('honest provider was never paid');
 
@@ -47,6 +54,10 @@ const d10 = by('deletes 10%');
 if (d10) {
   if (bondTo(d10) === 'client') notes.push('deletes 10%: forfeited');
   else {
+    // An escape is acceptable only if sampling really missed every deleted chunk: no failed, missing or
+    // invalid epoch on record. A recorded failure followed by a refund is a defect, whatever the odds.
+    const recorded = kind === 'market' ? (d10.failedEpochs ?? 0) : (d10.epochs ?? []).filter((e) => e.client !== 'verified' || e.tower !== 'valid').length;
+    if (recorded > 0) fails.push(`deletes 10% has ${recorded} failed epoch(s) on record, yet its bond went to ${bondTo(d10)}`);
     const p = d10.p_detect_10pct_per_epoch ?? null;
     const sampled = kind === 'full-stack' ? Math.max(1, (r.params?.epochs ?? 3) - (r.params?.misbehaviourFromEpoch ?? 2) + 1) : null;
     const escape = p === null ? null : (1 - p) ** (sampled ?? 1);

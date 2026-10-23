@@ -301,3 +301,23 @@ test("RT03: the probe never turns a failed proof into a pass (corrupted bytes fa
   assert.equal(r.outcome, "failed");
   assert.equal(r.paidMsat, 0);
 });
+
+test("RT04: a provider that serves only the chunks it was just challenged on fails the randomized probe", async () => {
+  const { p, offer } = await provider("selective");
+  const seq = [0, 9, 17, 23, 31, 36, 5, 12];   // the client's own draws, independent of the nonce
+  let k = 0;
+  const c = new StorageClient({
+    key: ALICE, secret: Buffer.alloc(32, 7), payer: ln.node("ln-alice", 1e9), relay: rc, nonceSeed: "selective-seed",
+    retrievalProbe: true, probeIndex: () => seq[k++ % seq.length],
+  });
+  const rep = await c.store(BLOB, offer, 4);
+  p.withhold(rep.sha256, true);
+  let paid = 0, refused = 0;
+  for (let e = 1; e <= seq.length; e++) {
+    const r = await c.runEpoch(rep, e);
+    const challenged = epochIndices(Buffer.from(r.nonce, "hex"), rep.n, 4);
+    if (challenged.includes(seq[e - 1])) { assert.equal(r.outcome, "proved-paid"); paid++; }
+    else { assert.equal(r.outcome, "proved-unpaid", `epoch ${e}: ${r.detail}`); refused++; }
+  }
+  assert.ok(refused >= 5, `paid ${paid}, refused ${refused}: serving only challenged chunks rarely passes`);
+});

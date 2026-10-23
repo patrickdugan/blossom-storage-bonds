@@ -9,9 +9,9 @@
 // The nonce goes over HTTP to the sidecar here. The design sends it as a NIP-17/NIP-44 DM; that transport
 // is not built (see README).
 
-import { createHash, randomBytes } from "node:crypto";
+import { createHash, randomBytes, randomInt } from "node:crypto";
 import type { Key } from "../model/schnorr.ts";
-import { buildTree, chunk, CHUNK, encryptReplica, epochIndices, makeSentinel, replicaKey, sentinelSecret, verifyEpoch } from "../model/storage_bonds.ts";
+import { buildTree, chunk, CHUNK, encryptReplica, makeSentinel, merkleVerify, replicaKey, sentinelSecret, verifyEpoch } from "../model/storage_bonds.ts";
 import { authHeader, blossomAuth, now, signEvent, tagValue, verifyEvent, type NostrEvent } from "./nostr.ts";
 import { preimageMatches, type Payer } from "./lightning.ts";
 import type { Relays } from "./relay.ts";
@@ -94,6 +94,9 @@ export interface ClientOptions {
    *  (a Range GET), and pay only if its bytes equal the chunk the proof opened. A proof shows
    *  possession; this shows the provider still serves. */
   retrievalProbe?: boolean;
+  /** Where the probe's chunk index comes from: fresh randomness by default, never the disclosed nonce
+   *  (the independent review found a nonce-derived index lets a provider serve just that range). */
+  probeIndex?: (n: number) => number;
 }
 
 export class StorageClient {
@@ -191,7 +194,7 @@ export class StorageClient {
       });
     if (!ok) return { ...base, outcome: "failed", detail: "a chunk did not open against the root" };
     if (this.opts.retrievalProbe) {
-      const why = await this.probeRetrieval(rep, nonce, a.chunks.map((c) => Buffer.from(String(c), "base64")));
+      const why = await this.probeRetrieval(rep);
       if (why) return { ...base, outcome: "proved-unpaid", detail: `retrieval failed: ${why}`, retrieval: "failed" };
     }
 
@@ -208,19 +211,24 @@ export class StorageClient {
     }
   }
 
-  /** Download one chunk the proof opened (chosen from the nonce, so the provider cannot prepare for it)
-   *  over a plain Range GET; null if it matches, else why not. */
-  private async probeRetrieval(rep: Replica, nonce: Buffer, proven: Buffer[]): Promise<string | null> {
-    const idx = epochIndices(nonce, rep.n, rep.q);
-    const j = nonce[31] % idx.length;
-    const start = idx[j] * CHUNK;
+  /** Download one chunk at an index the client draws itself, after the proof (so the provider cannot
+   *  know it in advance), over a plain Range GET. Check it against the replica's root through that
+   *  chunk's Merkle path. Null if it checks, else why not. */
+  private async probeRetrieval(rep: Replica): Promise<string | null> {
+    const i = this.opts.probeIndex ? this.opts.probeIndex(rep.n) : randomInt(rep.n);
+    const start = i * CHUNK;
     try {
       const r = await fetch(`${rep.offer.url}/${rep.sha256}`, { headers: { Range: `bytes=${start}-${start + CHUNK - 1}` }, signal: AbortSignal.timeout(10_000) });
       if (r.status !== 206 && r.status !== 200) return `HTTP ${r.status}`;
       let got = Buffer.from(await r.arrayBuffer());
       if (r.status === 200) got = got.subarray(start, start + CHUNK);
-      const want = proven[j].subarray(0, got.length);
-      if (got.length === 0 || !got.equals(want) || proven[j].subarray(got.length).some((b) => b !== 0)) return "downloaded bytes differ from the proven chunk";
+      if (got.length === 0 || got.length > CHUNK) return "empty or oversized range";
+      const chunkBytes = Buffer.concat([got, Buffer.alloc(CHUNK - got.length)]);
+      const pr = await fetch(`${rep.offer.url}/path/${rep.sha256}/${i}`, { signal: AbortSignal.timeout(10_000) });
+      if (pr.status !== 200) return `path HTTP ${pr.status}`;
+      const { path } = (await pr.json()) as { path: string[] };
+      if (!Array.isArray(path) || !path.every((h) => typeof h === "string" && /^[0-9a-f]{64}$/.test(h))) return "malformed path";
+      if (!merkleVerify(Buffer.from(rep.root, "hex"), rep.n, i, chunkBytes, path.map((h) => Buffer.from(h, "hex")))) return "downloaded chunk does not open against the root";
       return null;
     } catch (e) { return String((e as Error).message ?? e); }
   }
