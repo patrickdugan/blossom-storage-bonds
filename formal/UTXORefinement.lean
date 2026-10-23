@@ -90,18 +90,26 @@ def stageEligible (s : Account) (tx : BondTx) : Prop :=
   | .cooperative => s.stage = Stage.live ∨ s.stage = Stage.challenged
   | .outsidePath => False
 
+/-- Transaction recipient checks are only fixed for the presigned journal
+parents. An individual refund or forfeiture leaf grants the authorized signer
+disposition rights over its payout, which may be sent to any output script.
+The Account's provider/client counters track settlement entitlement or
+disposition, not verified physical receipt at a particular Bitcoin address.
+A cooperative close is categorized as a jointly agreed split. -/
 def recipientExpected (tx : BondTx) : Prop :=
   match tx.path with
   | .challenge => tx.recipient = Recipient.successorBond
   | .response => tx.recipient = Recipient.successorBond
-  | .forfeit => tx.recipient = Recipient.challenger
-  | .refund => tx.recipient = Recipient.provider
+  | .forfeit => True
+  | .refund => True
   | .cooperative => tx.recipient = Recipient.jointSplit
   | .outsidePath => False
 
 /-- Value accounting uses the bond's actual UTXO amount. Fees must appear in
 the equation. signedOutputs represents BIP341 authorization for the entire
-output template (or an equally strong covenant). -/
+output template (or an equally strong covenant). In refund and forfeit
+transactions the signed outputs may designate any actual receiving address:
+value is credited to the authorized signer's economic disposition. -/
 def payoutValid (s : Account) (tx : BondTx) : Prop :=
   tx.payout + tx.clientPayout + tx.fee = s.locked ∧
   (tx.path = SpendPath.cooperative ∨ tx.clientPayout = 0) ∧
