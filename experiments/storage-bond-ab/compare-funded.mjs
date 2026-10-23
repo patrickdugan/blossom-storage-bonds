@@ -68,7 +68,11 @@ export function compare(a,b) {
     insist(proof.classification==='COMMON-MERKLE-WITNESS-BITCOIN-SCRIPT-NOT-PROVIDER-ERASURE'&&
       proof.sourceWitnessesBoundToCoreSignedTransactions===true&&
       proof.productionStorageNonavailabilityProven===false&&
-      proof.epochsAndFeePoliciesFullyMatchedToB===false,
+      proof.realBitcoinCsvDelayBlocks===6&&
+      proof.epochsAndFeePoliciesFullyMatchedToB===false&&
+      a.results.alice.csvBlocks===6&&a.results.bob.csvBlocks===6&&
+      b.challengeWindow?.modelBlocks===6&&
+      b.challengeWindow?.bitcoinConsensusEnforced===false,
       'source PDP Bitcoin witness claimed unsupported security');
     const alice=proof.holderFixtures?.alice,bob=proof.holderFixtures?.bob;
     insist(alice&&bob &&
@@ -108,6 +112,8 @@ export function compare(a,b) {
       matched60k40k:matched,
       actualSourceMerkleWitnessesVerified:sharedPdpWitnessAligned,
       deletedWindowNonavailabilityProven:false,
+      actualCsvDelayBlocks:sharedPdpWitnessAligned?6:null,
+      competingFederationTimeoutBitcoinEnforced:false,
     },
     B:{
       carrierBondSats:b.principalSats,clientEntitlementsSats:{alice:60_000,bob:40_000},
