@@ -24,10 +24,10 @@ jobs:
         run: |
           rustc --version
           cargo --version
-      - name: Generate and pin local build resolution
+      - name: Verify checked-in FROST 3.0.0 dependency lock and compile
         run: |
           set -euo pipefail
-          cargo generate-lockfile --manifest-path experiments/storage-bond-ab/b-layertree/frost-proof/Cargo.toml
+          test -s experiments/storage-bond-ab/b-layertree/frost-proof/Cargo.lock
           cargo test --locked --manifest-path experiments/storage-bond-ab/b-layertree/frost-proof/Cargo.toml
 
       - uses: actions/setup-node@v4
@@ -74,10 +74,3 @@ jobs:
             experiments/storage-bond-ab/b-layertree/frost-proof/Cargo.lock
           retention-days: 7
           if-no-files-found: error
-      - name: Emit Cargo.lock base64 for explicit source pinning
-        if: success()
-        run: |
-          echo "BSB_LOCK_BASE64_START"
-          base64 -w0 experiments/storage-bond-ab/b-layertree/frost-proof/Cargo.lock
-          echo
-          echo "BSB_LOCK_BASE64_END"
