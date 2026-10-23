@@ -134,7 +134,7 @@ jobs:
             ${{ runner.temp }}/node.log
 
   harness:
-    name: Sentinel-bond harness on Core (24 checks, incl. the forfeit-vs-late-respond race)
+    name: Sentinel-bond harness on Core (26 checks, incl. the forfeit-vs-late-respond RBF war)
     needs: bins
     runs-on: ubuntu-latest
     timeout-minutes: 20

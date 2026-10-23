@@ -6,6 +6,17 @@ is active on Bitcoin.
 
 ## Recommendation: **CONDITIONAL GO**, for a small signet pilot
 
+**Final state (118e2df).**
+- Conditions 2 (forfeit fee policy) and 3 (sentinel budget discipline) are met.
+- Three rounds of independent review are fixed and re-verified.
+- Still open:
+  - **condition 1**, a restartable client loop: until it lands, an operator stands by to enforce from
+    the deal files;
+  - **the public signet pilot itself**, which needs explicit approval of each public-network step
+    (runbook §8).
+
+  Mainnet value at risk stays **NO GO** until both are done.
+
 The existing-consensus market works end to end, reproducibly, in CI:
 - Merkle PDP and public Stwo epoch proofs;
 - payment over a Spilman channel, on chain with receipts, or over Lightning;
@@ -58,6 +69,11 @@ file. Runs:
   - **market (Lightning + probe):** the same outcomes.
   - **full stack (on chain), full stack (Lightning):** honest refunded and paid 1,536; deletes 10% and outsources forfeited.
   - **harness:** 24 checks, 0 failed.
+- 118e2df (after all three review rounds): [run 39935888781](https://github.com/patrickdugan/blossom-storage-bonds/actions/runs/39935888781), all 9 jobs green, with the randomized retrieval probe, sentinel discipline, the forfeit fee policy and the 26-check harness:
+  - **market, channel (crash + probe):** honest refunded and paid 5,120; deleters and outsourcer forfeited; the withholder kept its bond and was paid 1,536; the honest provider restarted at epoch 3 with 1 bond resumed.
+  - **market, Lightning:** the same outcomes.
+  - **full stack, on chain and Lightning:** honest refunded and paid 1,536; cheaters forfeited.
+  - **local:** 144 tests, 143 pass, 1 skipped.
 
 ## 3. Phase 2: adversarial results
 
