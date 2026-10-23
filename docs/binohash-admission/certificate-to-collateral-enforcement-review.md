@@ -18,6 +18,23 @@ It also cannot bind a verdict to the payout except through a key presigned at se
 
 On stock Core the same output is anyone-can-spend. The verdict therefore stays **BLOCKED**, and the exact missing primitive is BIP347 activation. The residual items are engineering: retarget-aware work, dynamic claims, timeliness via BIP141 inclusion, and a covenant in place of A5 (§7a).
 
+**Final scoped statement (after ADR-017, 018 and 019).**
+
+*Enforced under BIP347*, as checked with real serialized transactions on Core 26 + the BIP347 patch and on Bitcoin Inquisition v29.4-inq's own interpreter (31 + 16 cases, 0 mismatches):
+- A permissionless challenger holding any stronger fork on a schedule pinned at setup takes the collateral. This covers real mainnet retargets.
+- The payout is bound through a presigned SINGLE|ANYONECANPAY signature.
+- The provider freezes one of an enumerated set of claims, or forfeits.
+- Every attack class tested is rejected at its intended check.
+
+The formal counterpart is `sched_leaf_sound` together with `client_safety`, `provider_safety`, `provider_liveness` and the incentive theorems, under A1–A6.
+
+*Not enforceable by OP_CAT alone*:
+- timeliness: `no_expiry` proves no expiring timelock exists, and an anchor needs a covenant;
+- forks that retarget off the pinned schedule;
+- removing the setup key (A5).
+
+*On Bitcoin mainnet today*, every OP_CAT path is anyone-can-spend (stock-Core column). That is the reason for **BLOCKED**: the missing primitive is BIP347 activation, and timeliness needs a covenant on top of it.
+
 ## 1. Baseline and what was run
 
 **Baseline.** CI was green on `a1a7bda` before this work:
