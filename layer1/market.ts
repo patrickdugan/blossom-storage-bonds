@@ -43,7 +43,7 @@ import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
 import { keyFromSeed } from "../model/schnorr.ts";
 import { sentinelSurvival } from "../model/storage_bonds.ts";
-import { BondTool, rpc } from "./bondtool.ts";
+import { BondTool, forfeitRates, forfeitWithPolicy, rpc, runWith } from "./bondtool.ts";
 import { findOffers, proposeDeal, type ProviderOffer } from "./deals.ts";
 import { advance, confirm, partySeed, storageSecret, txConfirmations, untilHeight, useNetwork, waitHeight } from "./net.ts";
 import { ChannelPayer } from "./channel.ts";
@@ -285,7 +285,12 @@ try {
   console.log(`\nenforcement: the client reveals sentinels; each provider's own process must answer within ${DELTA} blocks`);
   const enforcement = [];
   for (const [i, role] of ROLES.entries()) {
-    const failed = results[i].filter((r) => r.outcome !== "proved-paid").length;
+    // Phase 7C sentinel discipline: each bond has only K sentinels, and every answered challenge spends
+    // one. Spend them only on epochs whose possession proof failed or never came. An epoch that proved
+    // but was not paid (a retrieval-probe failure, an off-deal invoice) is a service problem: the bond
+    // cannot punish it, and the payment gate already handles it.
+    const failed = results[i].filter((r) => r.outcome === "failed" || r.outcome === "unreachable").length;
+    const unpaid = results[i].filter((r) => r.outcome === "proved-unpaid").length;
     const n = failed > 0 ? K : 1;
     const steps = [];
     let forfeit: string | undefined;
@@ -317,16 +322,27 @@ try {
         await waitHeight(NET, st.height + 1);
       }
       if (answeredAt < 0) {
-        try { forfeit = (await tool.run("bond-forfeit", deals[i], String(j))).txid; }
-        catch (e) { console.log(`    forfeit refused (${(e as Error).message}); rechecking`); }
-        await mine(1, me.fee_address);
+        // Phase 7C fee policy: bid at the first eligible block (at the node's rate), then re-bid one
+        // step higher each block the forfeit is unconfirmed, so a late answer must keep outbidding.
+        const rates = forfeitRates(Number(process.env.BSB_FEE_RATE ?? "2"), BOND_SATS);
+        const o = await forfeitWithPolicy({
+          rates,
+          broadcast: async (rate) => (rate === rates[0] ? await tool.run("bond-forfeit", deals[i], String(j)) : await runWith(tool, { BSB_FEE_RATE: String(rate) }, "bond-forfeit", deals[i], String(j))).txid,
+          nextBlock: () => mine(1, me.fee_address),
+          confirmations: async (t) => (await txConfirmations(t)) ?? 0,
+          answered: async () => ((await txConfirmations(respondTxid)) ?? 0) >= 1,
+          maxBlocks: SLOW ? 24 : 6,
+        });
+        if (o.won) forfeit = o.txid;
+        else console.log(`    forfeit not confirmed (${o.why}, ${o.bids} bid(s))`);
+        if (o.won && o.bids > 1) console.log(`    forfeit confirmed after ${o.bids} bids, at ${o.rate} sat/vB`);
         if (forfeit) console.log(`  ${role.name.padEnd(12)} challenge ${j}: no valid answer in ${DELTA} blocks → forfeit ${forfeit.slice(0, 16)}…`);
       } else {
         console.log(`  ${role.name.padEnd(12)} challenge ${j}: answered on chain after ${answeredAt} block(s)`);
       }
       steps.push({ i: j, challenge_txid: c.txid, answered_after_blocks: answeredAt < 0 ? null : answeredAt, forfeit_txid: forfeit ?? null });
     }
-    enforcement.push({ role: role.name, failedEpochs: failed, challenged: steps.length, steps, forfeit });
+    enforcement.push({ role: role.name, failedEpochs: failed, unpaidEpochs: unpaid, challenged: steps.length, steps, forfeit });
   }
 
   // ── settlement ──
@@ -372,7 +388,7 @@ try {
     const pForfeit = role.kept === 1 ? 0 : 1 - sentinelSurvival(role.kept, W, K);
     console.log(`${role.name.padEnd(13)} ${String(en.failedEpochs).padStart(6)}  ${String(paidOnChain).padStart(20)}  ${bondTo.padEnd(34)}  ${pForfeit.toPrecision(4).padStart(14)}`);
     summary.push({
-      role: role.name, pid: procs[i].pid, failedEpochs: en.failedEpochs, paidSats: s.paidSats, paidOnChainSats: paidOnChain,
+      role: role.name, pid: procs[i].pid, failedEpochs: en.failedEpochs, unpaidEpochs: en.unpaidEpochs, paidSats: s.paidSats, paidOnChainSats: paidOnChain,
       channel: { funding: chanTx[i], close: s.channelClose }, bond: { funding: fundTx[i], settlement: bondTxid, to: en.forfeit ? "client" : "provider", confirmations: bt.confirmations },
       enforcement: en.steps, pForfeitIfAllChallenged: pForfeit,
       providerAgentLog: procs[i].log.filter((ev) => ev.event === "bond-respond" || ev.event === "watch-error"),

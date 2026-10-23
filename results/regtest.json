@@ -10,19 +10,19 @@
     {
       "check": "Challenge_0 with the wrong r",
       "expect": "reject containing \"script-verify\"",
-      "node": "transaction failed: mempool-script-verify-flag-failed (Script evaluated without error but finished with a false/empty top stack element), input 0 of ce09a7598e6cdd3a0d8b076969840605bb28214a2e267e65e1ed549f539f20e6 (wtxid 873a5f62cc3d96c55607be28bf060120b0fa92ad18d93cec387b9d210aab6cf0), spending daf41e20b37c64597e5378cd6ac3542a4cf89cf56db6774a78bba1a148c8e1ee:0; bad-txns-inputs-missingorspent",
+      "node": "transaction failed: mempool-script-verify-flag-failed (Script evaluated without error but finished with a false/empty top stack element), input 0 of 00dbc355705e915247ae17cb2caf7862f80da72bbcb2bf7de4163f8827c50bd0 (wtxid b64f5a4ba35ab97700d1cd6046d1ea71e8744308c0b07e96ef2012d1ce784b55), spending 3d4852b191726acac2e629328f95a70e6962febc1f899591670f60cb3fc134fc:0; bad-txns-inputs-missingorspent",
       "pass": true
     },
     {
       "check": "Challenge_0 without the client's signature",
       "expect": "reject containing \"script-verify\"",
-      "node": "transaction failed: mempool-script-verify-flag-failed (Script failed an OP_CHECKSIGVERIFY operation), input 0 of ce09a7598e6cdd3a0d8b076969840605bb28214a2e267e65e1ed549f539f20e6 (wtxid 06f4f7ca1fa5c7a0786602b7a1bcb92e364d84f9cfaba332f9eef07ccf96efb3), spending daf41e20b37c64597e5378cd6ac3542a4cf89cf56db6774a78bba1a148c8e1ee:0; bad-txns-inputs-missingorspent",
+      "node": "transaction failed: bad-txns-inputs-missingorspent; mempool-script-verify-flag-failed (Script failed an OP_CHECKSIGVERIFY operation), input 0 of 00dbc355705e915247ae17cb2caf7862f80da72bbcb2bf7de4163f8827c50bd0 (wtxid 7fa39b37a04ca88c703b76021515e5dd5313a07e562815854bdc21ff817f24b9), spending 3d4852b191726acac2e629328f95a70e6962febc1f899591670f60cb3fc134fc:0",
       "pass": true
     },
     {
       "check": "Challenge_0 with Challenge_1's provider presignature",
       "expect": "reject containing \"script-verify\"",
-      "node": "transaction failed: bad-txns-inputs-missingorspent; mempool-script-verify-flag-failed (Invalid Schnorr signature), input 0 of ce09a7598e6cdd3a0d8b076969840605bb28214a2e267e65e1ed549f539f20e6 (wtxid 6cef1e633c869e9ee5d3ec4f8f5b558ede1ba2d5463771b5389547b4810b5271), spending daf41e20b37c64597e5378cd6ac3542a4cf89cf56db6774a78bba1a148c8e1ee:0",
+      "node": "transaction failed: mempool-script-verify-flag-failed (Invalid Schnorr signature), input 0 of 00dbc355705e915247ae17cb2caf7862f80da72bbcb2bf7de4163f8827c50bd0 (wtxid 54827203068b66753f9e5047099c0bc040a5ff5ef511003890dc4e834529acfe), spending 3d4852b191726acac2e629328f95a70e6962febc1f899591670f60cb3fc134fc:0; bad-txns-inputs-missingorspent",
       "pass": true
     },
     {
@@ -34,7 +34,7 @@
     {
       "check": "Respond_0 with the same window of the next chunk",
       "expect": "reject containing \"script-verify\"",
-      "node": "transaction failed: mempool-script-verify-flag-failed (Script evaluated without error but finished with a false/empty top stack element), input 0 of bd7e2ed281aacf81c34a7d52da523ba2cbf085959b40c18fa637fe3ba96a610d (wtxid 2415e08394756ea1734b4fd50e05ce49f0faeb061797320ed2c8016462478fed), spending ce09a7598e6cdd3a0d8b076969840605bb28214a2e267e65e1ed549f539f20e6:0; bad-txns-inputs-missingorspent",
+      "node": "transaction failed: mempool-script-verify-flag-failed (Script evaluated without error but finished with a false/empty top stack element), input 0 of 812e345aa2381f06fd115d65f069924d674227de691d2ac6658260c73f1c9e81 (wtxid 0a2d8ca081f35cf3b87fbf7211c371b05a604c25b96e6b1f748fff93ee18b516), spending 00dbc355705e915247ae17cb2caf7862f80da72bbcb2bf7de4163f8827c50bd0:0; bad-txns-inputs-missingorspent",
       "pass": true
     },
     {
@@ -69,12 +69,24 @@
     },
     {
       "check": "late Respond_1 at the default fee against a Forfeit_1 in the mempool",
-      "expect": "observe",
-      "node": "package RBF failed: insufficient anti-DoS fees, rejecting replacement daa48e3ded9b3e91b02ce868a843e0f4f127bae02c776becaa18fb2d137f9472, less fees than conflicting txs; 0.00000712 < 0.00001: min relay fee not met, 0 < 21; bad-txns-inputs-missingorspent",
+      "expect": "reject containing \"insufficient\"",
+      "node": "package RBF failed: insufficient anti-DoS fees, rejecting replacement a03abf8d25cdf95b1f450b02b4d0223a4e97c7cfdbcd6d9c8281a1432e38203a, less fees than conflicting txs; 0.00000712 < 0.00001: min relay fee not met, 0 < 21; bad-txns-inputs-missingorspent",
       "pass": true
     },
     {
-      "check": "late Respond_1 bidding 25 sat/vB against the Forfeit_1",
+      "check": "late Respond_1 bidding 25 sat/vB replaces the Forfeit_1",
+      "expect": "accept",
+      "node": null,
+      "pass": true
+    },
+    {
+      "check": "Forfeit_1 re-bid at 70 sat/vB replaces the late Respond_1 package",
+      "expect": "accept",
+      "node": null,
+      "pass": true
+    },
+    {
+      "check": "late Respond_1 outbidding again at 80 sat/vB",
       "expect": "observe",
       "node": "accepted",
       "pass": true
@@ -86,7 +98,7 @@
       "pass": true
     },
     {
-      "check": "fund Bond_0 (term ends at 546)",
+      "check": "fund Bond_0 (term ends at 380)",
       "expect": "accept",
       "node": null,
       "pass": true
@@ -130,13 +142,13 @@
     {
       "check": "Respond_0 with one 520-byte item, through the mempool",
       "expect": "reject containing \"bad-witness-nonstandard\"",
-      "node": "transaction failed: bad-txns-inputs-missingorspent; bad-witness-nonstandard",
+      "node": "transaction failed: bad-witness-nonstandard; bad-txns-inputs-missingorspent",
       "pass": true
     },
     {
       "check": "Respond_0 with a 521-byte item, mined directly",
       "expect": "reject containing \"Push value size limit\"",
-      "node": "TestBlockValidity failed: block-script-verify-flag-failed (Push value size limit exceeded), input 0 of 04b981e8c6a501cabe308628d304d5ac47bfa6055cd17c436014448fb1fd28ae (wtxid 31d94b112a7527cdf1fa29cf561a6394cc57635419bbfcc3c2e211dd33b46714), spending cedb919fafe4c3e5b6d93f8ff3831d0e1bd0705fd3d8455765889dfa05ea06d0:0",
+      "node": "TestBlockValidity failed: block-script-verify-flag-failed (Push value size limit exceeded), input 0 of a15391df698af140283e73700b25f137d72ae3c71be2edc947c2be4f749d031c (wtxid d8f9ec800c8f2b79adf85eda2d676351f2b82f09346aa20bb77887cd96bef23d), spending e34cc9d83081491b54c805a2313f1f8915804c3dbd81f1a39cdd305dc2dee81f:0",
       "pass": true
     },
     {
@@ -160,49 +172,49 @@
     {
       "model": 154,
       "tx": "fund",
-      "txid": "daf41e20b37c64597e5378cd6ac3542a4cf89cf56db6774a78bba1a148c8e1ee",
+      "txid": "3d4852b191726acac2e629328f95a70e6962febc1f899591670f60cb3fc134fc",
       "vsize": 154
     },
     {
       "model": 187,
       "tx": "Challenge_i",
-      "txid": "ce09a7598e6cdd3a0d8b076969840605bb28214a2e267e65e1ed549f539f20e6",
+      "txid": "00dbc355705e915247ae17cb2caf7862f80da72bbcb2bf7de4163f8827c50bd0",
       "vsize": 187
     },
     {
       "model": 153,
       "tx": "CPFP child",
-      "txid": "ab71aefc87d396c120852e353ff3cff45229a3dd6083c3806d69c7b072036d28",
+      "txid": "f09e2f2e61c4c3760b76ebc1765c8ca2f6490afdbb9b38b84428ea9b8b44dc46",
       "vsize": 153
     },
     {
       "model": 203,
       "tx": "Respond_i",
-      "txid": "bd7e2ed281aacf81c34a7d52da523ba2cbf085959b40c18fa637fe3ba96a610d",
+      "txid": "812e345aa2381f06fd115d65f069924d674227de691d2ac6658260c73f1c9e81",
       "vsize": 203
     },
     {
       "model": null,
       "tx": "Refund",
-      "txid": "8d12815515504dadc7f8fd382a6ff6ee415261d065d09601bddebaaec3a375b4",
+      "txid": "a9456c4d8bbd7922f0f498ad12f411d917c5ae4d7678c709ac2ad595eba63dc1",
       "vsize": 138
     },
     {
       "model": 154,
       "tx": "Cooperative close",
-      "txid": "1ed3382412989aa6d0a2665dec88c6c2fe7874abe33f65dceca7546901bdd993",
+      "txid": "1395c98dd53373e30468145fdc6bbc45e0d118988fc61a2d21404ded98bdd6b2",
       "vsize": 154
     },
     {
       "model": 191,
       "tx": "Challenge_i (32-byte r)",
-      "txid": "cedb919fafe4c3e5b6d93f8ff3831d0e1bd0705fd3d8455765889dfa05ea06d0",
+      "txid": "e34cc9d83081491b54c805a2313f1f8915804c3dbd81f1a39cdd305dc2dee81f",
       "vsize": 191
     },
     {
       "model": 314,
       "tx": "Respond_i (520-byte item)",
-      "txid": "04b981e8c6a501cabe308628d304d5ac47bfa6055cd17c436014448fb1fd28ae",
+      "txid": "a15391df698af140283e73700b25f137d72ae3c71be2edc947c2be4f749d031c",
       "vsize": 314
     }
   ],

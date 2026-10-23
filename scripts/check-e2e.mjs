@@ -38,6 +38,7 @@ for (const role of kind === 'market' ? ['outsources', 'deletes 50%'] : ['outsour
 const wh = r.summary.find((s) => s.role === 'withholds');
 if (wh) {
   if (bondTo(wh) !== 'provider') fails.push(`withholds bond went to ${bondTo(wh)}; possession alone should keep it`);
+  if (kind === 'market' && (wh.enforcement?.length ?? 0) > 1) fails.push(`withholds drew ${wh.enforcement.length} sentinel challenges; retrieval failures must not spend sentinels`);
   if (paid(wh) >= paid(honest)) fails.push(`withholds was paid ${paid(wh)} sats, not less than the honest ${paid(honest)}`);
   notes.push(`withholds: bond kept (possession is enforced, retrieval is not), paid ${paid(wh)} of the honest ${paid(honest)} sats`);
 }

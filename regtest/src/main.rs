@@ -213,37 +213,43 @@ fn main() {
     rep.accept("Challenge_1 from Bond_1", node.submit_package(&c1).map(|_| ()));
     node.mine(1);
 
-    // Forfeit: the client alone after Δ confirmations of Challenged_1.
-    let forfeit_tx = {
+    // Forfeit: the client alone after Δ confirmations of Challenged_1, at a chosen fee (phase 7C fee policy).
+    let forfeit_at = |fee: Amount| {
         let mut tx = Transaction {
             version: Version(2),
             lock_time: LockTime::ZERO,
             input: vec![txin(OutPoint { txid: c1.compute_txid(), vout: 0 }, Sequence::from_height(DELTA))],
-            output: vec![TxOut { value: BOND - CLOSE_FEE, script_pubkey: Address::p2tr(secp, c.x, None, Network::Regtest).script_pubkey() }],
+            output: vec![TxOut { value: BOND - fee, script_pubkey: Address::p2tr(secp, c.x, None, Network::Regtest).script_pubkey() }],
         };
         let sig = script_sig(secp, &tx, &challenged_prev(1), &ch.forfeit, &c);
         tx = with_witness(tx, vec![sig, ch.forfeit.to_bytes(), control(&ch.challenged[1], &ch.forfeit)]);
         tx
     };
+    let forfeit_tx = forfeit_at(CLOSE_FEE);
     node.mine(DELTA as u32 - 2); // Challenged_1 now has Δ − 1 confirmations; the next block would be the Δ-th
     rep.reject("Forfeit_1 one block early", node.send(&forfeit_tx), "non-BIP68-final");
     node.mine(1);
     rep.accept("Forfeit_1 after Δ blocks of silence", node.send(&forfeit_tx));
     // Phase 7C: conflicting spends of Challenged_1. After Δ the provider's late Respond_1 is still
     // script-valid (the respond leaf has no deadline), so it races the forfeit for the same outpoint.
+    // Each step is what Core 31.1 decides; together they are a replace-by-fee war between the two.
     let late = respond_tx(1, &sen[1].preimage);
     let low = node.submit_package(&late).map(|_| ());
-    rep.observe("late Respond_1 at the default fee against a Forfeit_1 in the mempool", &low);
-    // The deadline is not absolute: a late provider that outbids the forfeit can replace it (package
-    // RBF), and then the miner's choice decides. A client must forfeit early and keep its fee competitive.
-    let race = if low.is_ok() { low } else { node.submit_package_at(&late, 25).map(|_| ()) };
-    rep.observe("late Respond_1 bidding 25 sat/vB against the Forfeit_1", &race);
+    rep.reject("late Respond_1 at the default fee against a Forfeit_1 in the mempool", low, "insufficient");
+    // The deadline is not absolute: a late provider that outbids the forfeit replaces it (package RBF).
+    rep.accept("late Respond_1 bidding 25 sat/vB replaces the Forfeit_1", node.submit_package_at(&late, 25).map(|_| ()));
+    // The client's fee policy answers: a forfeit paying more than the whole package, at a higher rate.
+    let forfeit_70 = forfeit_at(Amount::from_sat(70 * forfeit_tx.vsize() as u64));
+    rep.accept("Forfeit_1 re-bid at 70 sat/vB replaces the late Respond_1 package", node.send(&forfeit_70));
+    // And the provider can bid again: the war is bounded only by the bond, which each side stands to lose.
+    let war = node.submit_package_at(&late, 80).map(|_| ());
+    rep.observe("late Respond_1 outbidding again at 80 sat/vB", &war);
     node.mine(1);
-    if race.is_ok() {
-        rep.reject("Forfeit_1 after the late Respond_1 confirmed", node.send(&forfeit_tx), "");
+    if war.is_ok() {
+        rep.reject("Forfeit_1 after the late Respond_1 confirmed", node.send(&forfeit_70), "");
     } else {
         rep.reject("late Respond_1 after Forfeit_1 confirmed", node.submit_package(&late).map(|_| ()), "");
-        rep.size(&node, "Forfeit_i", &forfeit_tx, None);
+        rep.size(&node, "Forfeit_i", &forfeit_70, None);
     }
 
     // ════════════ S2: refund at the term's end ════════════

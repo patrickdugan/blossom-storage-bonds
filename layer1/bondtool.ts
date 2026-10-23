@@ -47,3 +47,64 @@ export class BondTool {
     });
   }
 }
+
+/** Run a bsb-bond command with extra environment (e.g. BSB_FEE_RATE for one call). */
+export function runWith(tool: BondTool, env: Record<string, string>, ...args: string[]): Promise<Record<string, any>> {
+  return new Promise((ok, bad) => {
+    execFile(tool.exe, args, { env: { ...process.env, BSB_SEED: tool.seed, BSB_RPC: tool.rpc, ...env }, maxBuffer: 1 << 24, timeout: 900_000 }, (err, stdout) => {
+      const line = String(stdout).trim().split("\n").pop() ?? "";
+      let v: Record<string, any>;
+      try { v = JSON.parse(line); } catch { return bad(new Error(`bsb-bond ${args[0]}: ${err?.message ?? "no output"} ${line}`)); }
+      if (v.error && v.status === undefined) return bad(new Error(`bsb-bond ${args[0]}: ${v.error}`));
+      ok(v);
+    });
+  });
+}
+
+export interface ForfeitPolicy {
+  /** sat/vB to bid, in order; the last one is repeated. Each must exceed the one before (RBF). */
+  rates: number[];
+  /** Broadcast a forfeit at this rate; resolves with its txid. */
+  broadcast: (rate: number) => Promise<string>;
+  /** Wait for the next block. */
+  nextBlock: () => Promise<void>;
+  /** Confirmations of a txid (0 if unconfirmed or unknown). */
+  confirmations: (txid: string) => Promise<number>;
+  /** Whether the provider's answer to this challenge has confirmed (the forfeit lost the race). */
+  answered: () => Promise<boolean>;
+  /** Give up after this many blocks. */
+  maxBlocks?: number;
+}
+
+export type ForfeitOutcome = { won: true; txid: string; rate: number; bids: number } | { won: false; why: "answered" | "timeout"; bids: number };
+
+/** Phase 7C forfeit fee policy. Bid at the first eligible block, then re-bid one step higher after
+ *  every block in which the forfeit has not confirmed, so a late answer must keep outbidding. Harness
+ *  S1 shows both sides can replace each other on Core: this policy defeats a casual late answer, not a
+ *  provider willing to bid up to the bond, which still had to hold the data to answer. */
+export async function forfeitWithPolicy(p: ForfeitPolicy): Promise<ForfeitOutcome> {
+  if (p.rates.length === 0 || p.rates.some((r, i) => i > 0 && r <= p.rates[i - 1])) throw new Error("rates must be non-empty and increasing");
+  let bids = 0, step = 0, txid: string | undefined;
+  const bid = async () => {
+    try { txid = await p.broadcast(p.rates[Math.min(step, p.rates.length - 1)]); bids++; }
+    catch { /* a replacement refused (e.g. outbid already confirmed); the checks below decide */ }
+  };
+  await bid();
+  for (let b = 0; b < (p.maxBlocks ?? 12); b++) {
+    await p.nextBlock();
+    if (txid && (await p.confirmations(txid)) >= 1) return { won: true, txid, rate: p.rates[Math.min(step, p.rates.length - 1)], bids };
+    if (await p.answered()) return { won: false, why: "answered", bids };
+    if (step < p.rates.length - 1) step++;
+    await bid();
+  }
+  return { won: false, why: "timeout", bids };
+}
+
+/** A rate schedule from a base rate, doubling up to a cap such that the forfeit's fee stays below a
+ *  fraction of the bond (the client never pays more than it stands to recover). */
+export function forfeitRates(base: number, bondSats: number, forfeitVsize = 138, maxShare = 0.5): number[] {
+  const cap = Math.floor((bondSats * maxShare) / forfeitVsize);
+  const out: number[] = [];
+  for (let r = Math.max(1, base); r <= cap && out.length < 12; r *= 2) out.push(r);
+  return out.length ? out : [Math.max(1, Math.min(base, cap))];
+}
