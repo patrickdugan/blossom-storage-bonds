@@ -70,3 +70,11 @@ LEAN_PATH=formal lean formal/BitcoinWitnessBinding.lean
 ```
 
 **Next proof obligation:** establish authenticated header-chain provenance and exact cumulative work against a trusted checkpoint/genesis, then connect the witness-bound challenge certificate and a sound BitVM verdict into the *same enforceable collateral payout*. Until then PR #1 remains draft.
+
+## Independent serialized coinbase witness parsing
+
+The latest [Core regtest run #39884628809](https://github.com/patrickdugan/blossom-storage-bonds/actions/runs/39884628809) hardened the BIP141 receipt: [bitcoin_coinbase_witness.mjs](../../model/bitcoin_coinbase_witness.mjs) independently parses the actual witness-bearing serialized coinbase, checks its coinbase prevout, non-witness txid, full output serialization and the highest-index matching commitment script, and extracts the reserved value from its actual witness stack. The auditor checks these byte-derived values against the independent general Bitcoin transaction parser and Bitcoin Core's active-block record.
+
+The exported witness receipt can be verified against the exact raw coinbase and target witnessed transaction, not just caller-supplied strings naming a reserved value and OP_RETURN output. Adversarial tests cover a changed witness nonce that retains the coinbase txid, changed commitment output that changes its txid, invalid coinbase prevout, missing witness, corrupt CompactSize and truncated serialization. All regtest context checks remained green, with **398/398 Node regressions** and **33/33 TypeScript tests**.
+
+**Still not a complete Bitcoin consensus proof:** the byte-level commitment validates inclusion relative to a supplied active header; the most-work chain, full block validity, and UTXO state remain authenticated by the local Bitcoin Core node. Permissionless certificate-to-payout binding remains unimplemented.
