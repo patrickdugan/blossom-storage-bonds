@@ -191,6 +191,11 @@ Commit `3a8c698` (ADR-016). All three workflows passed:
 - [Binohash model #39893706990](https://github.com/patrickdugan/blossom-storage-bonds/actions/runs/39893706990): Node suite, 425 tests locally.
 - [Full-node regtest #39893707005](https://github.com/patrickdugan/blossom-storage-bonds/actions/runs/39893707005).
 
+ADR-017 (`1561509`, docs fix `2ecff90`). The 1561509 runs were superseded by 2ecff90, which re-ran every workflow over the PR diff, and all passed:
+- [Lean #39894483452](https://github.com/patrickdugan/blossom-storage-bonds/actions/runs/39894483452): includes the 25-case ADR-016/017 file on stock and BIP347-patched Core 26.
+- [Binohash model #39894483434](https://github.com/patrickdugan/blossom-storage-bonds/actions/runs/39894483434).
+- [Full-node regtest #39894483293](https://github.com/patrickdugan/blossom-storage-bonds/actions/runs/39894483293).
+
 The issues and PR could not be updated from here: comments need auth, and this flow has none. The text for #2 and #3 is below.
 
 ## Tracking issue update (text for #2 and #3)
