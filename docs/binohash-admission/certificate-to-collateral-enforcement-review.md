@@ -143,7 +143,15 @@ A no-soft-fork alternative to measure alongside it: the script size of BitVM's l
 
 ## 8. Commit and CI record
 
-See the commit that adds this file, and §8a once its CI completes.
+Commit `ba8138d`. All three workflows passed, as read from the public API:
+- [Lean #39891395693](https://github.com/patrickdugan/blossom-storage-bonds/actions/runs/39891395693):
+  - Lean 4.15.0 kernel-checked all ten modules, including `CertificateAdmission.lean`.
+  - The axiom gate passed: 14 `#print axioms` lines, standard axioms only.
+  - The same run's Taproot job passed the three ADR-015 steps: generator, independent Node verdicts, and Core 26 with Taproot flags.
+- [Binohash model #39891395830](https://github.com/patrickdugan/blossom-storage-bonds/actions/runs/39891395830): the Node research suite, including the new AV tests, the TypeScript tests and the offline Core legacy suites.
+- [Full-node regtest #39891395713](https://github.com/patrickdugan/blossom-storage-bonds/actions/runs/39891395713): unchanged settlement harness, still green.
+
+The issues and PR could not be updated from here: comments need auth, and this flow has none. The text for #2 and #3 is below.
 
 ## Tracking issue update (text for #2 and #3)
 
