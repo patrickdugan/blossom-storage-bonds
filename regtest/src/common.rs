@@ -429,10 +429,13 @@ impl Node {
 
     /// CPFP child of a zero-fee parent: spends the P2A anchor plus one fee input. Off regtest the rate is
     /// estimated when the package goes out, so a fee rise during Δ is paid by whoever broadcasts then.
-    pub fn child(&self, parent: &Transaction) -> Transaction {
+    pub fn child(&self, parent: &Transaction) -> Transaction { self.child_at(parent, self.fee_rate()) }
+
+    /// A CPFP child at an explicit fee rate (sat/vB over parent + child): a party bidding to win a race.
+    pub fn child_at(&self, parent: &Transaction, rate: u64) -> Transaction {
         let (op, prev) = self.fee_utxo();
         let anchor = OutPoint { txid: parent.compute_txid(), vout: 1 };
-        let fee = Amount::from_sat(self.fee_rate() * (parent.vsize() as u64 + 153));
+        let fee = Amount::from_sat(rate * (parent.vsize() as u64 + 153));
         let mut tx = Transaction {
             version: Version(3),
             lock_time: LockTime::ZERO,
@@ -445,7 +448,11 @@ impl Node {
     }
 
     pub fn submit_package(&self, parent: &Transaction) -> Result<Transaction, String> {
-        let child = self.child(parent);
+        self.submit_package_at(parent, self.fee_rate())
+    }
+
+    pub fn submit_package_at(&self, parent: &Transaction, rate: u64) -> Result<Transaction, String> {
+        let child = self.child_at(parent, rate);
         let r = self.rpc.call("submitpackage", json!([[serialize_hex(parent), serialize_hex(&child)]]))?;
         if r["package_msg"].as_str() == Some("success") {
             return Ok(child);

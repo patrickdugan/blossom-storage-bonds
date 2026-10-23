@@ -253,3 +253,51 @@ test("end to end: an unreachable provider is recorded as such", async () => {
   assert.equal(r.outcome, "unreachable");
   assert.equal(r.published, true);
 });
+
+// ───────────────────────────── phase 7C: possession is not retrieval ─────────────────────────────
+
+const probing = (seed?: string) => new StorageClient({
+  key: ALICE, secret: Buffer.alloc(32, 7), payer: ln.node("ln-alice", 1e9), relay: rc, nonceSeed: seed, retrievalProbe: true,
+});
+
+test("RT01: a withholding provider passes every possession proof; only a retrieval probe stops paying it", async () => {
+  const { p, offer } = await provider("withholder");
+  const rep = await probing("withhold-seed").store(BLOB, offer, 4);
+  p.withhold(rep.sha256);
+  const blind = client("withhold-blind");
+  for (let e = 1; e <= 3; e++) {
+    const r = await blind.runEpoch(rep, e);
+    assert.equal(r.outcome, "proved-paid", "without a probe, possession alone is paid");
+  }
+  const gated = probing("withhold-gated");
+  for (let e = 4; e <= 8; e++) {
+    const r = await gated.runEpoch(rep, e);
+    assert.equal(r.outcome, "proved-unpaid", `epoch ${e}: ${r.detail}`);
+    assert.equal(r.retrieval, "failed");
+    assert.match(r.detail, /retrieval failed: HTTP 404/);
+  }
+  await assert.rejects(gated.retrieve(rep), /404/);
+});
+
+test("RT02: an honest provider passes the retrieval probe every epoch and is paid", async () => {
+  const { offer } = await provider("probe-honest");
+  const c = probing("probe-honest-seed");
+  const rep = await c.store(BLOB, offer, 4);
+  for (let e = 1; e <= 6; e++) {
+    const r = await c.runEpoch(rep, e);
+    assert.equal(r.outcome, "proved-paid", `epoch ${e}: ${r.detail}`);
+    assert.equal(r.retrieval, "ok");
+  }
+});
+
+test("RT03: the probe never turns a failed proof into a pass (corrupted bytes fail the proof first)", async () => {
+  const { p, offer } = await provider("probe-swap");
+  const c = probing("probe-swap-seed");
+  const rep = await c.store(BLOB, offer, 4);
+  // Corrupt the bytes on disk after the tree was built: proofs fail too, so this is caught as a failed
+  // proof first. The probe must never turn a failed proof into a pass.
+  p.deleteChunks(rep.sha256, Array.from({ length: rep.n }, (_, i) => i));
+  const r = await c.runEpoch(rep, 1);
+  assert.equal(r.outcome, "failed");
+  assert.equal(r.paidMsat, 0);
+});

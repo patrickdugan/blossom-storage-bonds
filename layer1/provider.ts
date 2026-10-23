@@ -380,7 +380,8 @@ const admin = createServer(async (req, res) => {
     if (u.pathname === "/admin/misbehave") {
       if (body.kind === "delete") provider.deleteChunks(body.sha, body.indices);
       else if (body.kind === "outsource") provider.outsource(body.sha, body.from);
-      else throw new Error("kind must be delete or outsource");
+      else if (body.kind === "withhold") provider.withhold(body.sha);
+      else throw new Error("kind must be delete, outsource or withhold");
       log({ event: "misbehave", kind: body.kind });
       return json(res, 200, { ok: true });
     }

@@ -75,6 +75,9 @@ export interface Provider {
   /** Delete the replica's bytes and answer PDP by fetching the same chunk indices from another server's
    *  blob (outsourcing, design finding 3). The leaves of the provider's own replica are kept. */
   outsource(sha: string, from: { url: string; sha256: string }): void;
+  /** Phase 7C: keep the bytes and answer every proof, but refuse BUD-01 downloads (GET, HEAD, Range).
+   *  The bond only enforces possession, so a withholder keeps it; only a retrieval probe can tell. */
+  withhold(sha: string): void;
   /** The PDP answer for a nonce, from whatever the provider holds: what the sidecar serves over HTTP and
    *  the provider process sends over NIP-44. */
   pdpAnswer(sha: string, nonce: string, q: number, epoch: number): Promise<PdpAnswer | { error: string }>;
@@ -146,6 +149,7 @@ export async function startProvider(cfg: ProviderConfig): Promise<Provider> {
   const trees = new Map<string, Tree>();
   const zkTrees = new Map<string, ZkTree>();
   const outsourced = new Map<string, { url: string; sha256: string }>();
+  const withheld = new Set<string>();
   let base = "";
 
   const metaPath = (sha: string) => join(cfg.dir, `${sha}.json`);
@@ -230,7 +234,7 @@ export async function startProvider(cfg: ProviderConfig): Promise<Provider> {
 
   function onGet(req: IncomingMessage, res: ServerResponse, sha: string) {
     const m = meta(sha);
-    if (!m || !existsSync(blobPath(sha))) return fail(res, 404, "blob not found");
+    if (!m || !existsSync(blobPath(sha)) || withheld.has(sha)) return fail(res, 404, "blob not found");
     const head = req.method === "HEAD";
     const headers = { ...CORS, "Content-Type": m.type, "Accept-Ranges": "bytes" };
     const range = /^bytes=(\d*)-(\d*)$/.exec(String(req.headers.range ?? ""));
@@ -423,6 +427,10 @@ export async function startProvider(cfg: ProviderConfig): Promise<Provider> {
           if (end > start) writeSync(fd, Buffer.alloc(end - start), 0, end - start, start);
         }
       } finally { closeSync(fd); }
+    },
+    withhold(sha) {
+      if (!meta(sha)) throw new Error("no such blob");
+      withheld.add(sha);
     },
     outsource(sha, from) {
       if (!meta(sha)) throw new Error("no such blob");

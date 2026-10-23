@@ -120,7 +120,7 @@ jobs:
           BSB_LND: ${{ runner.temp }}/tools/lnd
         run: |
           chmod +x bins/*
-          args=""; [ "${{ matrix.pay }}" = ln ] && args="--pay ln"
+          args="--retrieval-probe --crash-honest 3"; [ "${{ matrix.pay }}" = ln ] && args="--pay ln --retrieval-probe"
           node layer1/market.ts $args --out "$RUNNER_TEMP/market-${{ matrix.pay }}.json" 2>&1 | tee "$RUNNER_TEMP/market.log"
       - name: Check outcomes
         run: node scripts/check-e2e.mjs "$RUNNER_TEMP/market-${{ matrix.pay }}.json" market
@@ -134,7 +134,7 @@ jobs:
             ${{ runner.temp }}/node.log
 
   harness:
-    name: Sentinel-bond harness (21 checks on Core)
+    name: Sentinel-bond harness on Core (24 checks, incl. the forfeit-vs-late-respond race)
     needs: bins
     runs-on: ubuntu-latest
     timeout-minutes: 20

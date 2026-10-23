@@ -73,6 +73,12 @@ impl Report {
         self.checks.push(json!({ "check": name, "expect": "accept", "pass": ok, "node": r.err() }));
     }
 
+    /// Phase 7C: record what Core did, without an expectation (a race whose winner policy decides).
+    fn observe(&mut self, name: &str, r: &Result<(), String>) {
+        println!("  note  observe {name}: {}", match r { Ok(()) => "accepted".to_string(), Err(e) => e.clone() });
+        self.checks.push(json!({ "check": name, "expect": "observe", "pass": true, "node": match r { Ok(()) => "accepted".to_string(), Err(e) => e.clone() } }));
+    }
+
     fn reject(&mut self, name: &str, r: Result<(), String>, want: &str) {
         let (ok, msg) = match &r {
             Ok(()) => (false, "accepted".to_string()),
@@ -223,8 +229,22 @@ fn main() {
     rep.reject("Forfeit_1 one block early", node.send(&forfeit_tx), "non-BIP68-final");
     node.mine(1);
     rep.accept("Forfeit_1 after Δ blocks of silence", node.send(&forfeit_tx));
+    // Phase 7C: conflicting spends of Challenged_1. After Δ the provider's late Respond_1 is still
+    // script-valid (the respond leaf has no deadline), so it races the forfeit for the same outpoint.
+    let late = respond_tx(1, &sen[1].preimage);
+    let low = node.submit_package(&late).map(|_| ());
+    rep.observe("late Respond_1 at the default fee against a Forfeit_1 in the mempool", &low);
+    // The deadline is not absolute: a late provider that outbids the forfeit can replace it (package
+    // RBF), and then the miner's choice decides. A client must forfeit early and keep its fee competitive.
+    let race = if low.is_ok() { low } else { node.submit_package_at(&late, 25).map(|_| ()) };
+    rep.observe("late Respond_1 bidding 25 sat/vB against the Forfeit_1", &race);
     node.mine(1);
-    rep.size(&node, "Forfeit_i", &forfeit_tx, None);
+    if race.is_ok() {
+        rep.reject("Forfeit_1 after the late Respond_1 confirmed", node.send(&forfeit_tx), "");
+    } else {
+        rep.reject("late Respond_1 after Forfeit_1 confirmed", node.submit_package(&late).map(|_| ()), "");
+        rep.size(&node, "Forfeit_i", &forfeit_tx, None);
+    }
 
     // ════════════ S2: refund at the term's end ════════════
     println!("\nS2  refund at the term's end");

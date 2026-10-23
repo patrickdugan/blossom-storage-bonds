@@ -1,0 +1,60 @@
+regtest height 0; relays ws://127.0.0.1:51226
+client (this process, pid 13732): bond key e739ec71224dd5d8…  wallet bcrt1pgq54gujslxl8ka…
+provider honest       pid 34312  http://127.0.0.1:51229  bond key e7e15ccab6c3b4c0…  wallet bcrt1pgt72lmteq548q9…
+provider deletes 10%  pid 27192  http://127.0.0.1:51236  bond key 28bb57fe54686848…  wallet bcrt1pjmyjhyrg6el26t…
+provider deletes 50%  pid 34436  http://127.0.0.1:51242  bond key 0950f0b4689245a0…  wallet bcrt1pgg2lryeg56t2wn…
+provider outsources   pid 33688  http://127.0.0.1:51248  bond key f34beca0b7e0b65f…  wallet bcrt1plr4w0xvktt2d5w…
+provider withholds    pid 36128  http://127.0.0.1:51254  bond key 530424f946e9a573…  wallet bcrt1ppcktp0nt9ujly2…
+
+setup: 1 MiB blob, M = 64 sentinels of 16 windows, k = 4; 1 BTC bonds; 50000-sat payment channels
+  honest       replica 347450468be2…  kept [23, 27, 31, 54]  bond 7f9d9aa94aa4… (4 signatures checked)  channel d2adb29691c9…
+  deletes 10%  replica 671ab1228037…  kept [10, 15, 52, 56]  bond d1c099a8c570… (4 signatures checked)  channel 2724e400ca17…
+  deletes 50%  replica ac64d8568938…  kept [39, 46, 51, 56]  bond 19325cc8ffbf… (4 signatures checked)  channel 41d4b7ef753b…
+  outsources   replica 9b2fc6f3d897…  kept [22, 33, 43, 59]  bond b277864b667c… (4 signatures checked)  channel d288aecaa800…
+  withholds    replica 53c0543499cc…  kept [8, 12, 33, 62]  bond 30bbf9364642… (4 signatures checked)  channel 4b7d46497dc4…
+
+epoch  honest       deletes 10%  deletes 50%  outsources   withholds      (nonce and answer over NIP-44; paid by channel state)
+    1  pass         pass         pass         pass         pass
+    2  pass         pass         pass         pass         pass
+  ← honest provider killed (SIGKILL) and restarted on port 51229 as pid 36116; 1 bond(s) resumed from disk
+    3  pass         pass         pass         pass         pass
+    4  pass         pass         FAIL         FAIL         unpaid        ← misbehaviour starts
+    5  pass         FAIL         FAIL         FAIL         unpaid
+    6  pass         pass         FAIL         FAIL         unpaid
+    7  pass         pass         FAIL         FAIL         unpaid
+    8  pass         pass         FAIL         FAIL         unpaid
+    9  pass         pass         FAIL         FAIL         unpaid
+   10  pass         FAIL         FAIL         FAIL         unpaid
+
+enforcement: the client reveals sentinels; each provider's own process must answer within 144 blocks
+    [honest pid 36116] saw challenge 0 on chain, r = 810384cf…: responded
+  honest       challenge 0: answered on chain after 2 block(s)
+    [deletes10 pid 27192] saw challenge 0 on chain, r = 6fc94129…: responded
+  deletes 10%  challenge 0: answered on chain after 3 block(s)
+    [deletes10 pid 27192] saw challenge 1 on chain, r = a595f107…: rejected (bad-txns-inputs-missingorspent; mempool-script-verify-flag-failed (Script failed an OP_EQU)
+  deletes 10%  challenge 1: no valid answer in 144 blocks → forfeit 851613a2e97a0073…
+    [deletes50 pid 34436] saw challenge 0 on chain, r = 58d2de13…: rejected (mempool-script-verify-flag-failed (Script failed an OP_EQUALVERIFY operation))
+  deletes 50%  challenge 0: no valid answer in 144 blocks → forfeit ccd2dd63fb5b8a47…
+    [outsources pid 33688] saw challenge 0 on chain, r = 101ec656…: rejected (mempool-script-verify-flag-failed (Script failed an OP_EQUALVERIFY operation))
+  outsources   challenge 0: no valid answer in 144 blocks → forfeit 0a913fc7a1847f69…
+    [withholds pid 36128] saw challenge 0 on chain, r = 3441c608…: responded
+    [outsources pid 33688] saw challenge 0 on chain, r = 101ec656…: rejected (bad-txns-inputs-missingorspent; bad-txns-inputs-missingorspent)
+  withholds    challenge 0: answered on chain after 2 block(s)
+    [withholds pid 36128] saw challenge 1 on chain, r = 9b655544…: responded
+  withholds    challenge 1: answered on chain after 2 block(s)
+    [withholds pid 36128] saw challenge 2 on chain, r = 9edfd9d5…: responded
+  withholds    challenge 2: answered on chain after 2 block(s)
+    [withholds pid 36128] saw challenge 3 on chain, r = 90361398…: responded
+  withholds    challenge 3: answered on chain after 3 block(s)
+
+settlement
+
+provider      failed  paid on chain (sats)  bond (1 BTC)                        P(forfeit | k)
+honest             0                  5120  provider (refund at term end)                0.000
+deletes 10%        2                  4096  client (forfeit leaf)                       0.9988
+deletes 50%        7                  1536  client (forfeit leaf)                        1.000
+outsources         7                  1536  client (forfeit leaf)                        1.000
+withholds          7                  1536  provider (refund at term end)                0.000
+
+relay holds 50 signed receipts; 27 carry a preimage that opens their invoice
+regtest height 0 → 1619; wrote C:\Users\patri\AppData\Local\Temp/market-7c.json

@@ -11,7 +11,7 @@
 
 import { createHash, randomBytes } from "node:crypto";
 import type { Key } from "../model/schnorr.ts";
-import { buildTree, chunk, encryptReplica, makeSentinel, replicaKey, sentinelSecret, verifyEpoch } from "../model/storage_bonds.ts";
+import { buildTree, chunk, CHUNK, encryptReplica, epochIndices, makeSentinel, replicaKey, sentinelSecret, verifyEpoch } from "../model/storage_bonds.ts";
 import { authHeader, blossomAuth, now, signEvent, tagValue, verifyEvent, type NostrEvent } from "./nostr.ts";
 import { preimageMatches, type Payer } from "./lightning.ts";
 import type { Relays } from "./relay.ts";
@@ -74,6 +74,8 @@ export interface EpochResult {
   payment?: { invoice: string; preimage: string };
   receipt?: NostrEvent;
   published?: boolean;
+  /** With ClientOptions.retrievalProbe: whether a challenged chunk could be downloaded and matched. */
+  retrieval?: "ok" | "failed";
 }
 
 const sha256hex = (b: Uint8Array) => createHash("sha256").update(b).digest("hex");
@@ -88,6 +90,10 @@ export interface ClientOptions {
   /** How the nonce reaches the provider and the answer comes back. Default: GET /pdp over HTTP.
    *  layer1/nostr-pdp.ts sends it as NIP-44 encrypted events instead. */
   transport?: (rep: Replica, epoch: number, nonce: string) => Promise<PdpAnswer>;
+  /** Phase 7C retrieval gate. After a valid proof, download one challenged chunk over plain BUD-01
+   *  (a Range GET), and pay only if its bytes equal the chunk the proof opened. A proof shows
+   *  possession; this shows the provider still serves. */
+  retrievalProbe?: boolean;
 }
 
 export class StorageClient {
@@ -184,6 +190,10 @@ export class StorageClient {
         paths: a.paths.map((p) => p.map((h) => Buffer.from(h, "hex"))),
       });
     if (!ok) return { ...base, outcome: "failed", detail: "a chunk did not open against the root" };
+    if (this.opts.retrievalProbe) {
+      const why = await this.probeRetrieval(rep, nonce, a.chunks.map((c) => Buffer.from(String(c), "base64")));
+      if (why) return { ...base, outcome: "proved-unpaid", detail: `retrieval failed: ${why}`, retrieval: "failed" };
+    }
 
     const want = rep.offer.priceMsatPerChunkEpoch * rep.n;
     try {
@@ -192,10 +202,27 @@ export class StorageClient {
       if (inv.amountMsat !== want) return { ...base, outcome: "proved-unpaid", detail: `invoice for ${inv.amountMsat} msat, deal says ${want}` };
       const { preimage } = await this.opts.payer.pay(inv.paymentRequest, want);
       if (!preimageMatches(inv.paymentHash, preimage)) return { ...base, outcome: "proved-unpaid", detail: "preimage does not match" };
-      return { ...base, outcome: "proved-paid", detail: `paid ${want} msat, hash ${inv.paymentHash.slice(0, 16)}…`, paidMsat: want, payment: { invoice: inv.paymentRequest, preimage } };
+      return { ...base, outcome: "proved-paid", detail: `paid ${want} msat, hash ${inv.paymentHash.slice(0, 16)}…`, paidMsat: want, payment: { invoice: inv.paymentRequest, preimage }, ...(this.opts.retrievalProbe ? { retrieval: "ok" as const } : {}) };
     } catch (e) {
       return { ...base, outcome: "proved-unpaid", detail: `payment failed: ${(e as Error).message}` };
     }
+  }
+
+  /** Download one chunk the proof opened (chosen from the nonce, so the provider cannot prepare for it)
+   *  over a plain Range GET; null if it matches, else why not. */
+  private async probeRetrieval(rep: Replica, nonce: Buffer, proven: Buffer[]): Promise<string | null> {
+    const idx = epochIndices(nonce, rep.n, rep.q);
+    const j = nonce[31] % idx.length;
+    const start = idx[j] * CHUNK;
+    try {
+      const r = await fetch(`${rep.offer.url}/${rep.sha256}`, { headers: { Range: `bytes=${start}-${start + CHUNK - 1}` }, signal: AbortSignal.timeout(10_000) });
+      if (r.status !== 206 && r.status !== 200) return `HTTP ${r.status}`;
+      let got = Buffer.from(await r.arrayBuffer());
+      if (r.status === 200) got = got.subarray(start, start + CHUNK);
+      const want = proven[j].subarray(0, got.length);
+      if (got.length === 0 || !got.equals(want) || proven[j].subarray(got.length).some((b) => b !== 0)) return "downloaded bytes differ from the proven chunk";
+      return null;
+    } catch (e) { return String((e as Error).message ?? e); }
   }
 
   /** The per-epoch receipt (design §6): signed by the client, names the provider and replica. A paid

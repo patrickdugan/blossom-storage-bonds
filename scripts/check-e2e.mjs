@@ -33,6 +33,15 @@ for (const role of kind === 'market' ? ['outsources', 'deletes 50%'] : ['outsour
   if (paid(s) >= paid(honest)) fails.push(`${role} was paid ${paid(s)} sats, not less than the honest ${paid(honest)}`);
 }
 
+// Phase 7C, with --retrieval-probe: a withholder keeps its bond (the bond enforces possession, not
+// service) but is paid less than the honest provider, because the retrieval gate stops paying it.
+const wh = r.summary.find((s) => s.role === 'withholds');
+if (wh) {
+  if (bondTo(wh) !== 'provider') fails.push(`withholds bond went to ${bondTo(wh)}; possession alone should keep it`);
+  if (paid(wh) >= paid(honest)) fails.push(`withholds was paid ${paid(wh)} sats, not less than the honest ${paid(honest)}`);
+  notes.push(`withholds: bond kept (possession is enforced, retrieval is not), paid ${paid(wh)} of the honest ${paid(honest)} sats`);
+}
+
 const d10 = by('deletes 10%');
 if (d10) {
   if (bondTo(d10) === 'client') notes.push('deletes 10%: forfeited');

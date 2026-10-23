@@ -91,12 +91,16 @@ const ROLES: Role[] = [
   { name: "deletes 50%", slug: "deletes50", kept: 0.5, misbehave: (rep) => ({ kind: "delete", sha: rep.sha256, indices: pick(rep.n, 0.5, "half") }) },
   { name: "outsources", slug: "outsources", kept: 0, misbehave: (rep, honest) => ({ kind: "outsource", sha: rep.sha256, from: { url: honest.offer.url, sha256: honest.sha256 } }) },
 ];
+// Phase 7C: with --retrieval-probe the client pays only epochs whose challenged chunk it can also
+// download, and a fifth provider keeps every byte and proves every epoch but refuses downloads.
+const PROBE = process.argv.includes("--retrieval-probe");
+if (PROBE) ROLES.push({ name: "withholds", slug: "withholds", kept: 1, misbehave: (rep) => ({ kind: "withhold", sha: rep.sha256 }) });
 
 interface Proc { child: ChildProcess; url: string; admin: string; nostr: string; bond_x: string; fee_address: string; pid: number; ln?: string; log: any[] }
 
-async function startProviderProcess(role: Role, relayUrl: string, dir: string, token: string): Promise<Proc> {
+async function startProviderProcess(role: Role, relayUrl: string, dir: string, token: string, extra: string[] = []): Promise<Proc> {
   const child = spawn(process.execPath, [join(here, "provider.ts"), "--name", role.slug, ...(SLOW ? ["--no-auto-refund", "--bond-max-sats", String(BOND_SATS)] : ["--seed", `bsb/provider/${role.slug}`]),
-    "--dir", join(dir, role.slug), "--relays", relayUrl, "--admin-token", token, "--price", String(PRICE), "--pay", PAY, ...(LN ? ["--lnd", LND] : [])],
+    "--dir", join(dir, role.slug), "--relays", relayUrl, "--admin-token", token, "--price", String(PRICE), "--pay", PAY, ...(LN ? ["--lnd", LND] : []), ...extra],
     { stdio: ["ignore", "pipe", "inherit"] });
   const log: any[] = [];
   return new Promise((ok, bad) => {
@@ -184,7 +188,7 @@ try {
   // Seeded nonces make the regtest demo reproducible; anywhere else they are random.
   const client = new StorageClient({
     key: nostrKey, secret: storageSecret(NET, SEED, "market client storage secret"),
-    payer, relay: rc, ...(SLOW ? {} : { nonceSeed: "market" }), transport: nostrTransport(rc, nostrKey),
+    payer, relay: rc, ...(SLOW ? {} : { nonceSeed: "market" }), transport: nostrTransport(rc, nostrKey), retrievalProbe: PROBE,
   });
   const blob = demoBlob();
 
@@ -234,9 +238,25 @@ try {
 
   // ── epochs: NIP-44 challenges, channel payments ──
   const results: EpochResult[][] = ROLES.map(() => []);
+  const crashReport: Record<string, unknown>[] = [];
   const mark: Record<string, string> = { "proved-paid": "pass", "failed": "FAIL", "proved-unpaid": "unpaid", "unreachable": "down" };
   console.log(`\nepoch  ${ROLES.map((r) => r.name.padEnd(12)).join(" ")}   (nonce and answer over NIP-44; paid by ${LN ? "BOLT 11 over Lightning" : "channel state"})`);
+  // Phase 7C: --crash-honest <epoch> kills the honest provider (SIGKILL: no shutdown, no flush) before
+  // that epoch and restarts it on the same port from the same data directory. The honest outcome must
+  // hold: its channel state comes back from its payment ledger, and its deals and bonds from disk.
+  const CRASH = Number(arg("crash-honest", "0"));
+  if (CRASH && LN) throw new Error("--crash-honest needs the channel backend (a killed provider would orphan its lnd)");
   for (let e = 1; e <= EPOCHS; e++) {
+    if (e === CRASH) {
+      const port = new URL(procs[0].url).port;
+      const gone = new Promise((r) => procs[0].child.once("exit", r));
+      procs[0].child.kill("SIGKILL");
+      await gone;
+      procs[0] = await startProviderProcess(ROLES[0], relayList, dir, token, ["--port", port]);
+      const resumed = procs[0].log.filter((ev) => ev.event === "bond-resumed").length;
+      console.log(`  ← honest provider killed (SIGKILL) and restarted on port ${port} as pid ${procs[0].pid}; ${resumed} bond(s) resumed from disk`);
+      crashReport.push({ epoch: e, port, pid: procs[0].pid, bondsResumed: resumed });
+    }
     if (e === FROM) for (const [i, role] of ROLES.entries()) if (role.misbehave) await admin(procs[i], token, "/admin/misbehave", role.misbehave(reps[i], reps[0]));
     const row: string[] = [];
     for (const [i, rep] of reps.entries()) { const r = await client.runEpoch(rep, e); results[i].push(r); row.push(mark[r.outcome].padEnd(12)); }
@@ -374,6 +394,7 @@ try {
     params: { pay: PAY, epochs: EPOCHS, q: Q, misbehaviourFrom: FROM, m: M, k: K, windows: W, bondBtc: 1, delta: DELTA, priceMsatPerChunkEpoch: PRICE, channelSats: CAPACITY, blobBytes: blob.length },
     [NET.name]: { heightBefore: height0, heightAfter: height1 },
     summary,
+    crash: crashReport,
     receipts: { onRelay: receipts.length, paidWithPreimage: checked.filter((c) => c.ok && c.paid).length },
   }, null, 2) + "\n");
   console.log(`${NET.name} height ${height0} → ${height1}; wrote ${OUT}`);
