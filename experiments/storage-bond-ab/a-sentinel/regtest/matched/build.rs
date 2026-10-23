@@ -5,8 +5,8 @@
 use std::{env,fs,path::PathBuf};
 fn main(){
     let here=PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
-    let source=here.join("../../../../regtest/src/main.rs").canonicalize().unwrap();
-    let rpc=here.join("../../../../regtest/src/rpc.rs").canonicalize().unwrap();
+    let source=here.join("../../../../../regtest/src/main.rs").canonicalize().unwrap();
+    let rpc=here.join("../../../../../regtest/src/rpc.rs").canonicalize().unwrap();
     println!("cargo:rerun-if-changed={}",source.display());
     println!("cargo:rerun-if-changed={}",rpc.display());
     let original=fs::read_to_string(&source).unwrap();
@@ -29,7 +29,7 @@ fn bond() -> Amount {
     let fixture="concat!(env!(\"CARGO_MANIFEST_DIR\"), \"/../fixtures/sentinels.json\")";
     assert_eq!(code.matches(fixture).count(),1);
     code=code.replace(fixture,
-        "concat!(env!(\"CARGO_MANIFEST_DIR\"), \"/../../../../fixtures/sentinels.json\")");
+        "concat!(env!(\"CARGO_MANIFEST_DIR\"), \"/../../../../../fixtures/sentinels.json\")");
     let output="let path = concat!(env!(\"CARGO_MANIFEST_DIR\"), \"/../results/regtest.json\");";
     assert_eq!(code.matches(output).count(),1);
     code=code.replace(output,
