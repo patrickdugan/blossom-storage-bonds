@@ -17,7 +17,10 @@ is active on Bitcoin.
   relay.snort.social and nostr.mom, with nos.lol as fallback (runbook §7). relay.damus.io rate-limited,
   then banned, a fresh key after six events. offchain.pub refuses events over 4 kB from keys outside
   its web of trust.
-- Steps 3 onward (faucet coins, starting parties, more machines) each wait for explicit approval. Mainnet value at risk stays **NO GO**
+- **Step 3 (2026-10-23):** fresh pilot keys and fee addresses were made (runbook §4). Funding is blocked:
+  every working signet faucet requires a CAPTCHA, which an agent may not solve. A person funds the four
+  addresses (about 220,000 sats with `--pay onchain` at bond 20,000), or a signet signer does.
+- Starting parties and adding machines still wait for explicit approval. Mainnet value at risk stays **NO GO**
   until the pilot has run.
 
 The existing-consensus market works end to end, reproducibly, in CI:

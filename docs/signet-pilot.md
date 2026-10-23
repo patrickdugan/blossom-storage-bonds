@@ -124,6 +124,26 @@ of 5 to 12 IP-days. That leaves three options:
 - **Shrink the run**: `--bond-sats 20000 --capacity 25000`, or `--pay onchain`, which needs no channels.
 - **Run the pilot on a signet of its own** (§9).
 
+**Phase 7C pilot step 3 (2026-10-23).** `scripts/pilot-keys.ts` made fresh keys for the client and the
+three providers under `C:\BitcoinSignet\pilot\<party>` (`party.seed`, where `full-stack.ts` and
+`provider.ts` look). It started no party. The fee addresses to fund:
+
+| Party | Fee address (signet) | Needs (bond 20,000, capacity 25,000, f = 2) |
+| --- | --- | --- |
+| client | `tb1pjr9fnykgn20zw8g4sahmxs6haq2tqyn822c4t2lu3ufq8fcmtg5sy3gs2e` | 29,600, plus 24,608 for `--pay onchain` or 81,000 into its lnd |
+| honest | `tb1p95rj6f6378t20pjhjdfvjneznx3seka3dhv9u753feqq83r407xq93qvhs` | 46,400 |
+| deletes10 | `tb1p2xhzx43f8t8fts402ld9g07dxffgw50lpgzxyfpczvmwdg7qaghq2t8nhk` | 46,400 |
+| outsources | `tb1pz0gskjhl2kfxawmueqetpay29045fc2hsrpp4cmyyrzdzsq9mnzsgm5nhq` | 46,400 |
+
+No coins were obtained automatically. On 2026-10-23 every working web faucet required a CAPTCHA:
+- bitcoinsignetfaucet.com and faucet.coinbin.org use Cloudflare Turnstile;
+- signet.dcorral.com uses reCAPTCHA plus Turnstile;
+- alt.signetfaucet.com answers 403;
+- signetfaucet.com serves only a bare "OK".
+
+An agent must not solve CAPTCHAs, so funding takes a person at a faucet, a signet block signer, or
+the pilot's own signet (§9).
+
 `bsb-bond fee-split <n> <sats>` splits a fee wallet's largest coin. Off regtest a spend waits a block
 before its change can be spent again, and the client challenges every flagged provider at once, so the
 client should split its fee wallet into at least `providers × 2` coins.
