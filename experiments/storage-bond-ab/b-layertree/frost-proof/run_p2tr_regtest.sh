@@ -89,6 +89,7 @@ if(p.schema!=="bsb-ab-p2tr-real-frost-regtest-v1"||
    p.missingSecondShareRejected!==true||
    p.maliciousTwoShareRedirect.broadcast!==false||
    p.maliciousTwoShareRedirect.validBitcoinMempoolSpend!==true||
+   p.maliciousTwoShareRedirect.conflictingAlternativeRejectedAfterHonestConfirmation!==true||
    p.honestTwoSharePayout.confirmed!==true||
    p.honestTwoSharePayout.sixConfirmations!==true||
    p.limits.bitcoinCoreBip341AndP2TRKeyPathAccepted!==true||
