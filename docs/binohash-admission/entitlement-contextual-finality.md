@@ -32,6 +32,8 @@ The actual Rust terminal templates use `Sequence::from_height(144)` and `LockTim
 
 **Main proof results:** `contextual_csv_waits_at_least_contract_delay`, `refund_confirmation_follows_contract_height`, `csv_opcode_without_maturity_counterexample`, `cltv_opcode_without_transaction_finality`, `contextual_forfeit_requires_bip68`, `contextual_refund_requires_absolute_height`, and `contextual_admission_refines_protocol`.
 
+Lean now also proves `contextual_history_refines_abstract` and `contextual_history_conserves_economic_bond`: under that authenticated contextual coverage premise, arbitrary-length chains of timed bond spends refine the authorized storage-bond transition relation and conserve the economic collateral plus miner fees. The assertion still depends on trustworthy Bitcoin proof of each transaction's UTXO and timing context.
+
 `ContextualConsensusCoverage` remains an explicit **unproved** premise that the actual Bitcoin block/UTXO validator authenticates these conditions. This module does not formalize MTP, BIP68 time-based sequences, block-header work, coinbase maturity, active-chain membership, UTXO creation height provenance, relay, package policy or miner liveness.
 
 ## 3. Timing and payout threats that still matter
