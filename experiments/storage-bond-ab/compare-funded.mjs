@@ -62,6 +62,29 @@ export function compare(a,b) {
     b.dishonestPayout.fraudulentlyAssertedFault===true&&
     b.dishonestPayout.witnessTamperingRejected.coreRejected===true,
     'missing B threshold or fraudulent-storage negative controls');
+  let sharedPdpWitnessAligned=false;
+  if(matched && a.sharedPdpEvidence!==null && a.sharedPdpEvidence!==undefined) {
+    const proof=a.sharedPdpEvidence;
+    insist(proof.classification==='COMMON-MERKLE-WITNESS-BITCOIN-SCRIPT-NOT-PROVIDER-ERASURE'&&
+      proof.sourceWitnessesBoundToCoreSignedTransactions===true&&
+      proof.productionStorageNonavailabilityProven===false&&
+      proof.epochsAndFeePoliciesFullyMatchedToB===false,
+      'source PDP Bitcoin witness claimed unsupported security');
+    const alice=proof.holderFixtures?.alice,bob=proof.holderFixtures?.bob;
+    insist(alice&&bob &&
+      alice.pdpVerdicts?.join(',')==='pass,fault,pass'&&
+      bob.pdpVerdicts?.join(',')==='pass,pass,pass'&&
+      alice.referenceEvidenceHashes?.length===3&&
+      bob.referenceEvidenceHashes?.length===3&&
+      /^[0-9a-f]{64}$/i.test(alice.referenceEvidenceHashes[1])&&
+      Array.isArray(alice.commitmentHashes)&&alice.commitmentHashes.length===3&&
+      Array.isArray(bob.commitmentHashes)&&bob.commitmentHashes.length===3,
+      'bad Merkle-derived Taproot participant evidence');
+    insist(b.honestPayout.independentlyVerifiedFaultDetected===true&&
+      b.honestPayout.independentReferenceProofHash===alice.referenceEvidenceHashes[1],
+      'A real Taproot witness and B economically authorized fault used different PDP evidence');
+    sharedPdpWitnessAligned=true;
+  }
   insist(b.totalSponsorFeesSats===6_000&&
     b.securityLimits.frostSigned===false&&
     b.securityLimits.sapioMidPolicyEnforced===false&&
@@ -69,7 +92,8 @@ export function compare(a,b) {
     'misleading B fee or security classification');
   return {
     schema:'bsb-ab-core-heterogeneous-evidence-v1',
-    network:'regtest',matchedCapital:matched,matchedFullScenarios:false,
+    network:'regtest',matchedCapital:matched,
+    sharedPdpWitnessAligned,matchedFullScenarios:false,
     feeComparisonPermitted:false,securityRankPermitted:false,
     note:matched?
       'Both begin with 100k sats but A has two separate Taproot bonds, distinct challenge events and terminal fees deducted from collateral. B is pooled P2WSH multisig, NOT FROST or MID. Do not present a transaction-fee winner.':
@@ -82,6 +106,8 @@ export function compare(a,b) {
       ],
       realIndependentStorageVerdict:false,
       matched60k40k:matched,
+      actualSourceMerkleWitnessesVerified:sharedPdpWitnessAligned,
+      deletedWindowNonavailabilityProven:false,
     },
     B:{
       carrierBondSats:b.principalSats,clientEntitlementsSats:{alice:60_000,bob:40_000},
