@@ -142,6 +142,24 @@ export async function auditContext(report,call=rpc) {
   const cooperative=await named('Cooperative close');
   assert.equal(challenge0.tx.vin[0].txid,fund.txid,
     'first challenge must spend confirmed funding output');
+  // A BIP37 proof only commits to the legacy txid. Modify a real confirmed
+  // challenge's witness without altering its input prevouts/outputs; the
+  // same partial Merkle proof still matches the forged variant's txid.
+  // This does NOT demonstrate consensus validity of the forged witness.
+  const witnessBytes=Buffer.from(challenge0.tx.vin[0].txinwitness[0],'hex');
+  assert.ok(witnessBytes.length>=16);
+  const actualRaw=Buffer.from(challenge0.tx.hex,'hex');
+  const byteOffset=actualRaw.indexOf(witnessBytes);
+  assert.ok(byteOffset>0,'opening bytes must be present in raw transaction witness');
+  const alteredWitnessRaw=Buffer.from(actualRaw);
+  alteredWitnessRaw[byteOffset]^=1;
+  const substituted=parseTx(alteredWitnessRaw);
+  assert.equal(substituted.txid,challenge0.txid,
+    'witness-only substitution preserves txid');
+  assert.notEqual(hashInput(alteredWitnessRaw),hashInput(actualRaw));
+  assert.equal(proofIncludesTxid(challenge0.inclusion.proofHex,
+    substituted.txid,challenge0.blockhash).matches[0].txid,challenge0.txid,
+    'txid Merkle proof cannot distinguish a substituted SegWit witness');
   assert.equal(response0.tx.vin[0].txid,challenge0.txid,
     'response must spend first challenged state');
   const challenge1=await confirmed(forfeit.tx.vin[0].txid);
@@ -227,7 +245,15 @@ export async function auditContext(report,call=rpc) {
     cooperative:{txid:cooperative.txid,sourceHeight:coopSource.height,
       spendingHeight:cooperative.height,providerAndClientOutputs:2,feeSats:CLOSE_FEE.toString()},
     reportChecks:report.checks.length,
-    nodeAssertsActiveChain:true
+    nodeAssertsActiveChain:true,
+    txidProofDoesNotAuthenticateWitness:true,
+    substitutionCounterexample:{
+      confirmedTxid:challenge0.txid,
+      confirmedRawSha256:hashInput(actualRaw),
+      unconfirmedAlteredWitnessRawSha256:hashInput(alteredWitnessRaw),
+      unchangedTxid:substituted.txid,
+      alteredWitnessIsConfirmed:false
+    }
   };
 }
 if(process.argv[1]&&import.meta.url===new URL('file://'+process.argv[1]).href){

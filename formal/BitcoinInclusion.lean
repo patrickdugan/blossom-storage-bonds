@@ -98,4 +98,31 @@ theorem orphan_header_inclusion_is_not_chain_proof :
     isLocalInclusion orphanProof ∧ ¬ isAuthenticatedInclusion orphanProof := by
   simp [isLocalInclusion,isAuthenticatedInclusion,orphanProof]
 
+/-- A Bitcoin block's ordinary transaction Merkle tree binds the
+non-witness txid, not the wtxid. This simplified record isolates the
+evidence gap without assuming a particular hash preimage representation. -/
+structure WitnessedTransaction where
+  strippedId : Nat
+  witnessVersion : Nat
+  deriving DecidableEq, Repr
+
+def bitcoinMerkleLeafId (tx : WitnessedTransaction) : Nat :=
+  tx.strippedId
+
+def confirmedWitnessExample : WitnessedTransaction :=
+  { strippedId := 42, witnessVersion := 10 }
+
+def substitutedWitnessExample : WitnessedTransaction :=
+  { strippedId := 42, witnessVersion := 11 }
+
+/-- Constructive logical counterexample to treating a txid inclusion proof
+as authentication of a particular SegWit witness. Both transactions have
+the same Merkle leaf identity but different witness records. -/
+theorem bitcoin_txid_proof_cannot_bind_witness :
+    bitcoinMerkleLeafId confirmedWitnessExample =
+      bitcoinMerkleLeafId substitutedWitnessExample ∧
+    confirmedWitnessExample.witnessVersion ≠
+      substitutedWitnessExample.witnessVersion := by
+  decide
+
 end BlossomFormal
