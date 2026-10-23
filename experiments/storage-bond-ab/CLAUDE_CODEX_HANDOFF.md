@@ -83,6 +83,42 @@ coverage, signer-selected output redirection, timed exits and extra
 Taproot spend paths. Secure test keys must be disposable and clearly
 labeled; production wallet material is prohibited.
 
+### Codex update: real 2-of-3 BIP340 FROST signing now verified
+
+The `b-layertree/frost-proof/` crate uses pinned
+`frost-secp256k1-tr = 3.0.0` and a checked-in Cargo.lock.
+[Passing cryptographic CI](https://github.com/patrickdugan/blossom-storage-bonds/actions/runs/39983580968)
+confirms all three 2-of-3 signer pairs, actual BIP340 independent
+`secp256k1` verification, incomplete-share refusal, and a distinct
+valid malicious two-share authorization. Public signature transcripts
+are preserved. This does **not** sign any Bitcoin transaction.
+
+**Next Codex target:** replace the separate funded P2WSH
+CHECKMULTISIG witness in `b-layertree/regtest/surrogate.mjs`
+with an actual FROST-signed **P2TR key-path transaction**.
+Use `bitcoin::sighash::SighashCache` to hash the exact BIP341
+inputs, values, ScriptPubKeys and outputs, use the real x-only
+group verifying key and the appropriate BIP341 TapTweak, and
+aggregate the two honest shares using the library's
+`aggregate_with_tweak` API when constructing a conventionally
+tweaked Taproot output. Verify the 64-byte aggregate signature
+independently and require Bitcoin Core `testmempoolaccept`,
+broadcast and 6 confirmations.
+
+A second two-share quorum must still be able to sign a wrong
+100,000-sat destination despite the *valid* shared Blossom
+source Merkle proof. That is the deliberately demonstrated
+unauthorized-claim counterexample. One share, corrupted witness
+and wrong prevout/output tests must fail Bitcoin Core.
+
+The current FROST demo uses **ephemeral trusted-dealer shares
+in one process**; follow on with participant-process isolation,
+authenticated transport and DKG, but do not mistake those
+properties for MID covenant enforcement. The historical NCC audit
+did not cover the Taproot-specific ciphersuite. The on-chain
+payout remains federated until a full spending-path constraint
+prevents quorum compromise from bypassing the proof verdict.
+
 ### CODEX: B pooled LayerTree/FROST Bitcoin implementation
 
 **Suggested branch:** `codex/storage-ab-layertree-signet`
