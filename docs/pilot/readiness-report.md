@@ -26,7 +26,7 @@ is active on Bitcoin.
   support is checked. `HeaderChain` gained the BIP94 rules, and all 157,409 testnet4 headers from the local
   node validate through it (tip hash matches `getbestblockhash`). The only testnet4 wallet on this machine
   (`utxoref-testnet`) holds 0 coins (scantxoutset over 1,000 addresses of all 8 descriptors), so funding
-  is again a person's step: about 0.003 tBTC to `tb1p48njta6evz09zkx430f7p7x64txyj0cj9l8hgte60en4aleypxmsg6qnmk` (runbook, "Running the pilot on testnet4").
+  is again a person's step. CI on this branch is green on all 9 jobs ([run 39984745859](https://github.com/patrickdugan/blossom-storage-bonds/actions/runs/39984745859), `d7af4f6`). Funding: about 0.003 tBTC to `tb1p48njta6evz09zkx430f7p7x64txyj0cj9l8hgte60en4aleypxmsg6qnmk` (runbook, "Running the pilot on testnet4").
 - Starting parties and adding machines still wait for explicit approval. Mainnet value at risk stays **NO GO**
   until the pilot has run.
 
