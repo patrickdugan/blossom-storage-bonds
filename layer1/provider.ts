@@ -4,7 +4,7 @@
 // itself.
 //
 //   node layer1/provider.ts --name <slug> --dir <dir> --relays <ws url,...> --admin-token <t>
-//                           [--network regtest|signet] [--confs N] [--seed <seed>] [--rpc <url>]
+//                           [--network regtest|signet|testnet4] [--confs N] [--seed <seed>] [--rpc <url>]
 //                           [--host 127.0.0.1] [--port 0] [--public-url <url>] [--failure-domain <text>]
 //                           [--price <msat per chunk-epoch>] [--bond-max-sats N] [--min-term <blocks>] [--max-term <blocks>]
 //                           [--uploaders <pubkey,...>] [--no-auto-refund]
@@ -44,7 +44,7 @@ import { BondTool, rpc } from "./bondtool.ts";
 import { ChannelPayee } from "./channel.ts";
 import { KIND_DEAL, dealEvent, offerEvent, parseDeal, publishSure, type OfferTerms, type Proposal } from "./deals.ts";
 import type { Payee } from "./lightning.ts";
-import { LndNode, LndPayee, lndExe } from "./lnd.ts";
+import { LndNode, LndPayee, assertLndNetwork, lndExe } from "./lnd.ts";
 import { partySeed, txConfirmations, useNetwork } from "./net.ts";
 import type { NostrEvent } from "./nostr.ts";
 import { KIND_PAYMENT_RECEIPT, OnchainPayee, type PaymentReceipt } from "./onchain.ts";
@@ -68,10 +68,11 @@ const SEED = NET.canMine ? arg("seed") : partySeed(NET, DIR, "", opt("seed"));
 const PRICE = Number(arg("price", "2000"));
 const PAY = arg("pay", "channel");
 if (PAY !== "channel" && PAY !== "ln" && PAY !== "onchain") throw new Error("--pay must be channel, ln or onchain");
+if (PAY === "ln") assertLndNetwork(NET.name);
 const RPC = process.env.BSB_RPC!;
 const BOND_MAX = Number(arg("bond-max-sats", NET.canMine ? "100000000" : "1000000"));
 const MIN_TERM = Number(arg("min-term", "300"));
-// The longest a client may lock this provider's bond for (about 30 days on signet).
+// The longest a client may lock this provider's bond for (about 30 days on public networks).
 const MAX_TERM = Number(arg("max-term", NET.canMine ? "100000" : "4320"));
 // Who may upload, and so propose deals: anyone with a valid BUD-11 token unless listed.
 const UPLOADERS = opt("uploaders")?.split(",").filter(Boolean);

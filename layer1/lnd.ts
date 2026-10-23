@@ -11,6 +11,7 @@
 // environment as everything else (net.ts rpcAuth), polls every 5 s, and can listen on a public address
 // so that peers on other machines reach it. Its wallet is a fresh random one per node, as on regtest.
 // On a private signet (layer1/private-signet.ts) set BSB_SIGNET_CHALLENGE to its challenge in hex.
+// Testnet4 Lightning is refused until compatibility with this lnd version is verified; use --pay onchain.
 //
 // Load on bitcoind: lnd opens a new TCP connection for every RPC, and fetches every block (a new wallet
 // also rescans the chain, since every regtest block looks recent). Each connection then sits in
@@ -66,6 +67,12 @@ export interface LndConfig {
   txPollMs?: number;
 }
 
+/** Check before setup or funding: this checkout has not verified lnd's testnet4 support. */
+export function assertLndNetwork(network: string): asserts network is "regtest" | "signet" {
+  if (network === "testnet4") throw new Error("Lightning on testnet4 is not enabled: lnd v0.21 testnet4 support is unverified; use --pay onchain (full-stack/provider) or --pay channel (market)");
+  if (network !== "regtest" && network !== "signet") throw new Error(`network ${network}: only regtest and signet support Lightning, never mainnet`);
+}
+
 const b64hex = (b: string) => Buffer.from(b, "base64").toString("hex");
 /** LND's REST API gives txids as raw bytes (little-endian) in base64. */
 const txidFromBytes = (b: string) => Buffer.from(b, "base64").reverse().toString("hex");
@@ -85,8 +92,9 @@ export class LndNode {
 
   /** Start lnd with a fresh wallet (noseedbackup: a test wallet, unlocked at start) and wait for its API. */
   static async start(cfg: LndConfig): Promise<LndNode> {
+    const net = cfg.network ?? (process.env.BSB_NETWORK || "regtest");
+    assertLndNetwork(net);
     mkdirSync(cfg.dir, { recursive: true });
-    const net = cfg.network ?? "regtest";
     const [p2p, rpcPort, rest] = [cfg.listen ? Number(cfg.listen.split(":").pop()) : await freePort(), await freePort(), await freePort()];
     const btc = cfg.bitcoind ?? (() => {
       const [user, ...pass] = rpcAuth().split(":");
@@ -175,7 +183,7 @@ export class LndNode {
 
   /** Wait until lnd has processed the chain up to `height` and reports itself synced. */
   async waitSynced(height: number, timeoutMs = 60_000): Promise<void> {
-    if (process.env.BSB_NETWORK === "signet") timeoutMs = Math.max(timeoutMs, 3_600_000);
+    if (process.env.BSB_NETWORK === "signet" || process.env.BSB_NETWORK === "testnet4") timeoutMs = Math.max(timeoutMs, 3_600_000);
     const t0 = Date.now();
     for (;;) {
       const i = await this.rest("GET", "/v1/getinfo");

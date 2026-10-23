@@ -26,12 +26,14 @@ import { createHash } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 
 export interface ChainParams {
-  readonly name: "regtest" | "signet" | "mainnet";
+  readonly name: "regtest" | "signet" | "testnet4" | "mainnet";
   /** Display-order hex of block 0. */
   readonly genesis: string;
   readonly powLimit: bigint;
   /** Regtest's fPowNoRetargeting: bits never change. */
   readonly noRetarget: boolean;
+  /** Testnet4's 20-minute minimum-difficulty exception and BIP94 retarget/time-warp rules. */
+  readonly bip94?: boolean;
   readonly bip34: number;
   readonly bip66: number;
   readonly bip65: number;
@@ -63,9 +65,19 @@ export const SIGNET: ChainParams = {
   noRetarget: false,
   bip34: 1, bip66: 1, bip65: 1,
 };
+/** Bitcoin Core 31.1 src/kernel/chainparams.cpp; difficulty and timestamps follow BIP94. */
+export const TESTNET4: ChainParams = {
+  name: "testnet4",
+  genesis: "00000000da84f2bafbbc53dee25a72ae507ff4914b867c565be350b0da8bf043",
+  powLimit: MAINNET.powLimit,
+  noRetarget: false,
+  bip94: true,
+  bip34: 1, bip66: 1, bip65: 1,
+};
 export const paramsFor = (name: string): ChainParams => {
   if (name === "regtest") return REGTEST;
   if (name === "signet") return SIGNET;
+  if (name === "testnet4") return TESTNET4;
   if (name === "mainnet") return MAINNET;
   throw new Error(`no chain params for ${name}`);
 };
@@ -164,8 +176,9 @@ export class HeaderChain implements HeaderSource {
     const times = chain.slice(Math.max(0, h - 11), h).map((x) => x.time).sort((a, b) => a - b);
     const mtp = times[Math.floor(times.length / 2)];
     if (hdr.time <= mtp) throw new HeaderError(h, `time ${hdr.time} is not above the median ${mtp}`);
+    if (p.bip94 && h % INTERVAL === 0 && hdr.time < prev.time - 600) throw new HeaderError(h, "BIP94 time warp");
     if (now !== undefined && hdr.time > now + MAX_FUTURE_BLOCK_TIME) throw new HeaderError(h, "time too far in the future");
-    const want = this.requiredBits(chain, h);
+    const want = this.requiredBits(chain, h, hdr.time);
     if (hdr.bits !== want) throw new HeaderError(h, `bits ${hdr.bits.toString(16)} are not the required ${want.toString(16)}`);
     const target = compactToTarget(want);
     if (target === null || target > p.powLimit) throw new HeaderError(h, "target out of range");
@@ -173,14 +186,24 @@ export class HeaderChain implements HeaderSource {
     return workOf(target);
   }
 
-  /** Core's GetNextWorkRequired, without testnet's minimum-difficulty exception. */
-  private requiredBits(chain: Header[], h: number): number {
+  /** Core's GetNextWorkRequired and CalculateNextWorkRequired (including testnet4's BIP94). */
+  private requiredBits(chain: Header[], h: number, time: number): number {
     const last = chain[h - 1];
-    if (this.params.noRetarget || h % INTERVAL !== 0) return last.bits;
+    if (this.params.noRetarget) return last.bits;
+    if (h % INTERVAL !== 0) {
+      if (this.params.bip94) {
+        const minBits = targetToCompact(this.params.powLimit);
+        if (time > last.time + 20 * 60) return minBits;
+        let i = h - 1;
+        while (i > 0 && i % INTERVAL !== 0 && chain[i].bits === minBits) i--;
+        return chain[i].bits;
+      }
+      return last.bits;
+    }
     const first = chain[h - INTERVAL];
     let span = last.time - first.time;
     span = Math.min(Math.max(span, TIMESPAN / 4), TIMESPAN * 4);
-    let t = (compactToTarget(last.bits)! * BigInt(span)) / BigInt(TIMESPAN);
+    let t = (compactToTarget(this.params.bip94 ? first.bits : last.bits)! * BigInt(span)) / BigInt(TIMESPAN);
     if (t > this.params.powLimit) t = this.params.powLimit;
     return targetToCompact(t);
   }

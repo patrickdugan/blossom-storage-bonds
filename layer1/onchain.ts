@@ -189,7 +189,7 @@ function toWords(bytes: Buffer): number[] {
   if (bits > 0) out.push((acc << (5 - bits)) & 31);
   return out;
 }
-export const HRP: Record<string, string> = { mainnet: "bc", regtest: "bcrt", signet: "tb" };
+export const HRP: Record<string, string> = { mainnet: "bc", regtest: "bcrt", signet: "tb", testnet4: "tb" };
 /** A witness v1 (taproot) address, BIP350 bech32m. */
 export function taprootAddress(outputKey: string, network: string): string {
   const hrp = HRP[network];

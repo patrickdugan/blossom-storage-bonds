@@ -58,23 +58,34 @@ impl NetCfg {
         NetCfg { network: Network::Regtest, confs: 1, fees: Fees::Regtest }
     }
 
+    pub fn default_rpc_url(&self) -> &'static str {
+        match self.network {
+            Network::Regtest => "http://127.0.0.1:18543",
+            Network::Signet => "http://127.0.0.1:38332",
+            Network::Testnet4 => "http://127.0.0.1:48332",
+            _ => unreachable!("only regtest, signet and testnet4 are configured"),
+        }
+    }
+
     /// The name Core reports in getblockchaininfo.chain.
     pub fn core_chain(&self) -> &'static str {
         match self.network {
             Network::Regtest => "regtest",
             Network::Signet => "signet",
-            _ => unreachable!("only regtest and signet are configured"),
+            Network::Testnet4 => "testnet4",
+            _ => unreachable!("only regtest, signet and testnet4 are configured"),
         }
     }
 
-    /// From BSB_NETWORK (regtest or signet; anything else, mainnet above all, is refused), BSB_CONFS
+    /// From BSB_NETWORK (regtest, signet or testnet4; anything else, mainnet above all, is refused), BSB_CONFS
     /// (default 1 on regtest, 3 elsewhere), and BSB_FEE_RATE, or else BSB_FEE_TARGET, BSB_FEE_FALLBACK
     /// and BSB_MAX_FEE_RATE for estimation off regtest.
     pub fn from_env(get: impl Fn(&str) -> Option<String>) -> Result<NetCfg, String> {
         let network = match get("BSB_NETWORK").as_deref().unwrap_or("regtest") {
             "regtest" => Network::Regtest,
             "signet" => Network::Signet,
-            other => return Err(format!("BSB_NETWORK={other}: only regtest and signet are supported, never mainnet")),
+            "testnet4" => Network::Testnet4,
+            other => return Err(format!("BSB_NETWORK={other}: only regtest, signet and testnet4 are supported, never mainnet")),
         };
         let num = |k: &str, d: u64| -> Result<u64, String> {
             get(k).map_or(Ok(d), |v| v.parse::<u64>().map_err(|_| format!("{k} must be a whole number")))
@@ -96,7 +107,7 @@ impl NetCfg {
 /// refuses the regtest password.
 pub fn rpc_from_env(net: &NetCfg, get: impl Fn(&str) -> Option<String>) -> Result<Rpc, String> {
     let regtest = net.network == Network::Regtest;
-    let url = get("BSB_RPC").unwrap_or_else(|| if regtest { "http://127.0.0.1:18543".into() } else { "http://127.0.0.1:38332".into() });
+    let url = get("BSB_RPC").unwrap_or_else(|| net.default_rpc_url().into());
     let (user, pass) = if let Some(path) = get("BSB_RPC_COOKIE") {
         let s = std::fs::read_to_string(&path).map_err(|e| format!("BSB_RPC_COOKIE {path}: {e}"))?;
         let (u, p) = s.trim().split_once(':').ok_or("cookie file is not user:password")?;
@@ -638,6 +649,32 @@ mod tests {
         }
         assert!(check_seed(&s, "6b1f0c2d9a7e44c3b8f1d2e3a4b5c6d7e8f90112233445566778899aabbccddee").is_err(), "65 chars");
         assert!(check_seed(&s, "6b1f0c2d9a7e44c3b8f1d2e3a4b5c6d7e8f90112233445566778899aabbccdde").is_ok());
+    }
+
+    #[test]
+    fn testnet4_defaults_and_refusals() {
+        let n = NetCfg::from_env(env(&[("BSB_NETWORK", "testnet4")])).unwrap();
+        assert_eq!(n.network, Network::Testnet4);
+        assert_eq!(n.core_chain(), "testnet4");
+        assert_eq!(n.default_rpc_url(), "http://127.0.0.1:48332");
+        assert_eq!(n.confs, 3);
+        assert_eq!(n.fees, Fees::Estimate { target: 6, fallback: 2, max: 10 });
+        for bad in ["mainnet", "main", "bitcoin", "testnet"] {
+            assert!(NetCfg::from_env(env(&[("BSB_NETWORK", bad)])).is_err());
+        }
+        assert!(NetCfg::from_env(env(&[("BSB_NETWORK", "testnet4"), ("BSB_CONFS", "0")])).is_err());
+        assert_eq!(NetCfg::from_env(env(&[("BSB_NETWORK", "testnet4"), ("BSB_CONFS", "6")])).unwrap().confs, 6);
+        assert_eq!(NetCfg::from_env(env(&[("BSB_NETWORK", "testnet4"), ("BSB_FEE_RATE", "7")])).unwrap().fees, Fees::Fixed(7));
+        assert!(rpc_from_env(&n, env(&[])).is_err());
+        assert!(rpc_from_env(&n, env(&[("BSB_RPC_USER", "bsb"), ("BSB_RPC_PASS", "bsb-regtest-only")])).is_err());
+        assert!(rpc_from_env(&n, env(&[("BSB_RPC_USER", "u"), ("BSB_RPC_PASS", "test-secret")])).is_ok());
+        for fixed in ["bsb/provider/honest", "bsb/client/full-stack", "bsb/fee-wallet", &"01".repeat(32), &"00".repeat(32)] {
+            assert!(check_seed(&n, fixed).is_err(), "{fixed}");
+        }
+        let fresh = "6b1f0c2d9a7e44c3b8f1d2e3a4b5c6d7e8f90112233445566778899aabbccdde";
+        assert!(check_seed(&n, fresh).is_ok());
+        let secp = Secp256k1::new();
+        assert!(Address::p2tr(&secp, party(&secp, fresh).x, None, n.network).to_string().starts_with("tb1p"));
     }
 
     #[test]

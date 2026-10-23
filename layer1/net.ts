@@ -1,15 +1,17 @@
-// The chain a party runs on (--network regtest|signet, or BSB_NETWORK), and what differs between
+// The chain a party runs on (--network regtest|signet|testnet4, or BSB_NETWORK), and what differs between
 // regtest and a pilot network:
 //
-//                   regtest (the default)                   signet
-//   RPC             127.0.0.1:18543, fixed test login       127.0.0.1:38332, BSB_RPC_COOKIE or BSB_RPC_USER/_PASS
-//   addresses       bcrt1…                                  tb1…
-//   BOLT 11         lnbcrt…                                 lntbs…
-//   confirmations   1                                       3 (--confs or BSB_CONFS)
-//   blocks          mined by the orchestrator               waited for; nothing here ever mines
-//   fees            fixed, as measured in phases 1 to 6     estimatesmartfee (BSB_FEE_RATE pins one)
-//   party keys      fixed labels, so runs reproduce         32 fresh random bytes per party and run, kept in
-//                                                           that party's directory; fixed labels refused
+//                   regtest (the default)       signet                    testnet4
+//   RPC             127.0.0.1:18543             127.0.0.1:38332           127.0.0.1:48332
+//   login           fixed test login            BSB_RPC_COOKIE or BSB_RPC_USER/_PASS off regtest
+//   addresses       bcrt1…                      tb1…                      tb1…
+//   BOLT 11         lnbcrt…                     lntbs…                    lntb… (LN currently refused)
+//   confirmations   1                           3 off regtest (--confs or BSB_CONFS)
+//   blocks          mined by the orchestrator   waited for off regtest; nothing here ever mines
+//   poll            150 ms                      5 s                       5 s
+//   fees            fixed, phases 1 to 6        estimatesmartfee off regtest (BSB_FEE_RATE pins one)
+//   party keys      fixed labels                32 fresh random bytes per party and run off regtest,
+//                                               kept in that party's directory; fixed labels refused
 //
 // bsb-bond (regtest/src/bin/bond.rs, common.rs NetCfg) reads the same environment variables, so a process
 // calls useNetwork() once and every bsb-bond and child process it starts agrees with it. Mainnet is
@@ -19,7 +21,7 @@ import { randomBytes, createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
-export type NetName = "regtest" | "signet";
+export type NetName = "regtest" | "signet" | "testnet4";
 
 export interface Net {
   readonly name: NetName;
@@ -38,13 +40,21 @@ export interface Net {
 const PROFILE: Record<NetName, Omit<Net, "confs">> = {
   regtest: { name: "regtest", canMine: true, hrp: "bcrt", lnHrp: "bcrt", pollMs: 150 },
   signet: { name: "signet", canMine: false, hrp: "tb", lnHrp: "tbs", pollMs: 5_000 },
+  testnet4: { name: "testnet4", canMine: false, hrp: "tb", lnHrp: "tb", pollMs: 5_000 },
 };
 
-export const defaultRpcUrl = (name: NetName): string => (name === "regtest" ? "http://127.0.0.1:18543" : "http://127.0.0.1:38332");
+export const defaultRpcUrl = (name: NetName): string => {
+  switch (name) {
+    case "regtest": return "http://127.0.0.1:18543";
+    case "signet": return "http://127.0.0.1:38332";
+    case "testnet4": return "http://127.0.0.1:48332";
+    default: throw new Error(`network ${name}: only regtest, signet and testnet4 are supported, never mainnet`);
+  }
+};
 
 function parseName(v: string): NetName {
-  if (v === "regtest" || v === "signet") return v;
-  throw new Error(`network ${v}: only regtest and signet are supported, never mainnet`);
+  if (v === "regtest" || v === "signet" || v === "testnet4") return v;
+  throw new Error(`network ${v}: only regtest, signet and testnet4 are supported, never mainnet`);
 }
 
 /** The network profile from the environment alone (for modules that are not entry points). */

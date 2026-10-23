@@ -7,9 +7,30 @@ run on signet yet.**
 
 Every step below that starts a signet node, downloads the chain, asks a faucet for coins, rents or
 starts a machine, or publishes to a public relay needs Patrick's go-ahead first. The pilot never touches
-mainnet or real funds. Every entry point and `bsb-bond` refuse any network but `regtest` and `signet`.
+mainnet or real funds. Every entry point and `bsb-bond` refuse any network but `regtest`, `signet` and `testnet4`.
 
 Sources for the external numbers below were read on 2026-10-21. Section 11 lists them.
+
+## Running the pilot on testnet4
+
+Use a synced Bitcoin Core 31.1 testnet4 node with `txindex=1` and the same separate party directories,
+fresh random keys, relay settings and funding steps below. In PowerShell, set these on every machine:
+
+```powershell
+$env:BSB_NETWORK = "testnet4"
+$env:BSB_RPC = "http://127.0.0.1:48332"
+$env:BSB_RPC_COOKIE = "C:\BitcoinTestnet\testnet4\.cookie"
+$env:BSB_CONFS = "3"
+```
+
+The RPC URL and three confirmations are defaults; `--network testnet4` also selects this profile.
+Core must report chain `testnet4`. Addresses start with `tb1`, polling is every 5 seconds, and the
+pilot waits for blocks without mining. The fixed regtest RPC password and fixed party keys are refused.
+
+**Use `--pay onchain` for both providers and `full-stack.ts`.** The profile's BOLT 11 prefix is `lntb`,
+but Lightning on testnet4 is explicitly refused until support in the tested lnd v0.21 is verified.
+The signet-specific Lightning instructions below do not apply to testnet4. Header mode uses testnet4's
+genesis and BIP94 rules; RPC mode with the watchtower's own node remains recommended.
 
 ## 1. What the pilot tests that regtest cannot
 

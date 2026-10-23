@@ -35,10 +35,11 @@
 //! The provider keeps the latest and closes before `t_refund`. Results print as one JSON line; an error
 //! prints {"error": ...} and exits 1.
 //!
-//! Networks (common.rs NetCfg): BSB_NETWORK is regtest (the default) or signet; mainnet is refused. On
+//! Networks (common.rs NetCfg): BSB_NETWORK is regtest (the default), signet or testnet4; mainnet is refused. On
 //! regtest everything is as in phases 1 to 6: fixed fees, one confirmation, the fixed RPC test
-//! credentials, and any label as BSB_SEED. On signet BSB_SEED must be 32 fresh random bytes in hex, RPC
-//! needs BSB_RPC_COOKIE or BSB_RPC_USER/BSB_RPC_PASS (default URL 127.0.0.1:38332), the node needs
+//! credentials, and any label as BSB_SEED. Off regtest BSB_SEED must be 32 fresh random bytes in hex, RPC
+//! needs BSB_RPC_COOKIE or BSB_RPC_USER/BSB_RPC_PASS (default URL 127.0.0.1:38332 on signet,
+//! 127.0.0.1:48332 on testnet4), the node needs
 //! txindex, a bond or channel is relied on only after BSB_CONFS confirmations (default 3), and fees come
 //! from estimatesmartfee (or BSB_FEE_RATE). A deal or channel file may name its own bond_sats or
 //! close_fee_sats; without them they are 1 BTC and 1,000 sats as before. Test coins only, never funds.

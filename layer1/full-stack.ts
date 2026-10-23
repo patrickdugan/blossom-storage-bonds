@@ -1,10 +1,10 @@
 // Phase 4: the whole stack in one run, with every party in its own process. Phase 7: the same run on
-// signet, and with providers and a watchtower on other machines.
+// signet or testnet4, and with providers and a watchtower on other machines.
 //
 //   scripts/regtest-node.sh <datadir> <bitcoind>      (another shell; RPC on 127.0.0.1:18543)
 //   node layer1/full-stack.ts [--epochs 3] [--from-epoch 2] [--q 16] [--out results/full-stack.json]
 //                             [--pay ln|onchain] [--pay-every 1] [--fee-rate 5]
-//                             [--network regtest|signet] [--confs N] [--relays <ws url,...>]
+//                             [--network regtest|signet|testnet4] [--confs N] [--relays <ws url,...>]
 //                             [--epoch-blocks 10] [--deadline 6] [--term 1500] [--first <height>]
 //                             [--bond-sats N] [--capacity 50000] [--ln-open direct|none] [--ln-fee-budget-msat N]
 //                             [--providers <pubkey,...>] [--watchtower <pubkey>] [--dir <dir>] [--print-key]
@@ -74,7 +74,7 @@ import { readEnforceState, writeEnforceState } from "./enforce.ts";
 import { StorageClient, type BondSentinel, type Replica } from "./client.ts";
 import { KIND_DEAL, findOffers, parseDeal, proposeDeal, type ProviderOffer } from "./deals.ts";
 import { HeaderChain, paramsFor, serveHeaders, syncFrom } from "./headerchain.ts";
-import { LndNode, LndPayer, lndExe } from "./lnd.ts";
+import { LndNode, LndPayer, assertLndNetwork, lndExe } from "./lnd.ts";
 import { advance, confirm, feeRate, partySeed, storageSecret, untilHeight, useNetwork, waitHeight } from "./net.ts";
 import { now, signEvent, type NostrEvent } from "./nostr.ts";
 import { KIND_PAYMENT_RECEIPT, OnchainPayer, batchVsize, buildReceipt, receiptTags, verifyReceipt, type BatchPayment, type OnchainInvoice, type PaymentReceipt } from "./onchain.ts";
@@ -92,6 +92,7 @@ const TERM = Number(arg("term", "1500"));
 const M = 64, K = 4, W = 16;
 const PAY = arg("pay", "ln");
 if (PAY !== "ln" && PAY !== "onchain") throw new Error("--pay must be ln or onchain");
+if (PAY === "ln") assertLndNetwork(NET.name);
 const ONCHAIN = PAY === "onchain";
 const PAY_EVERY = Number(arg("pay-every", "1")), FEE_RATE = Number(arg("fee-rate", "5"));
 const LND = arg("lnd", lndExe());
@@ -471,7 +472,7 @@ try {
     await untilHeight(NET, b, me.fee_address, SLOW ? waiting(`epoch ${e} boundary`) : undefined);
     say(`  epoch ${e}: boundary block ${b}, seed ${String(await rpc("getblockhash", [b])).slice(0, 16)}…`);
     if (!REMOTE.length) {
-      // On signet the proof comes once the boundary is --confs deep, and proving takes minutes.
+      // Off regtest the proof comes once the boundary is --confs deep, and proving takes minutes.
       const said = await Promise.all(procs.map((p) => waitLog(p, (ev) => ev.event === "zk-epoch" && ev.height === b, SLOW ? 6 * 3_600_000 : 900_000)));
       said.forEach((ev, i) => { row(i, b).providerSays = ev.proved ? "proved" : "could not prove"; });
       if (SLOW && e + 1 === FROM_EPOCH) await misbehave(e + 1);

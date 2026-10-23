@@ -36,7 +36,7 @@ export class BondTool {
   /** Run one command; resolves with its JSON result, rejects with its {"error"} message. */
   run(...args: string[]): Promise<Record<string, any>> {
     return new Promise((ok, bad) => {
-      // A bond-fund on signet can wait minutes for a UTXO-set scan; a call that hangs longer is killed.
+      // A bond-fund off regtest can wait minutes for a UTXO-set scan; a call that hangs longer is killed.
       execFile(this.exe, args, { env: { ...process.env, BSB_SEED: this.seed, BSB_RPC: this.rpc }, maxBuffer: 1 << 24, timeout: 900_000 }, (err, stdout) => {
         const line = String(stdout).trim().split("\n").pop() ?? "";
         let v: Record<string, any>;

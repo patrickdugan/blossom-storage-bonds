@@ -2,7 +2,7 @@
 //
 //   scripts/regtest-node.sh <datadir> <bitcoind>      (another shell; RPC on 127.0.0.1:18543)
 //   node layer1/market.ts [--pay channel|ln] [--epochs 10] [--q 8] [--from 4] [--m 64] [--k 4] [--windows 16] [--out <file>]
-//                         [--network regtest|signet] [--confs N] [--relays <ws url,...>] [--bond-sats N] [--term 1500]
+//                         [--network regtest|signet|testnet4] [--confs N] [--relays <ws url,...>] [--bond-sats N] [--term 1500]
 //
 // This process is the client, with its own Nostr key, bond and channel key, and fee wallet. Four provider
 // processes (layer1/provider.ts) run beside it, each with its own keys and wallet. A Nostr relay carries
@@ -32,7 +32,7 @@
 // Offers and deals go over Nostr (layer1/deals.ts). Off regtest (net.ts) nothing mines: every wait is for
 // real blocks, keys and nonces are fresh, each party's wallet must be funded by hand before setup goes on,
 // and bonds are --bond-sats (default 100,000). Enforcement then takes up to Δ = 144 blocks per sentinel,
-// about a day on signet; layer1/full-stack.ts is the run a signet pilot uses (docs/signet-pilot.md).
+// about a day on public networks; layer1/full-stack.ts is the pilot run (docs/signet-pilot.md).
 
 import { spawn, type ChildProcess } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
@@ -49,7 +49,7 @@ import { findOffers, proposeDeal, type ProviderOffer } from "./deals.ts";
 import { advance, confirm, partySeed, storageSecret, txConfirmations, untilHeight, useNetwork, waitHeight } from "./net.ts";
 import { ChannelPayer } from "./channel.ts";
 import type { Payer } from "./lightning.ts";
-import { LndNode, LndPayer, lndExe } from "./lnd.ts";
+import { LndNode, LndPayer, assertLndNetwork, lndExe } from "./lnd.ts";
 import { StorageClient, KIND_EPOCH_RECEIPT, checkReceipt, type BondSentinel, type EpochResult, type Offer, type Replica } from "./client.ts";
 import { nostrTransport } from "./nostr-pdp.ts";
 import { RelayPool, startRelay, type Relay } from "./relay.ts";
@@ -62,6 +62,7 @@ const EPOCHS = Number(arg("epochs", "10")), Q = Number(arg("q", "8")), FROM = Nu
 const M = Number(arg("m", "64")), K = Number(arg("k", "4")), W = Number(arg("windows", "16"));
 const PAY = arg("pay", "channel");
 if (PAY !== "channel" && PAY !== "ln") { console.error("--pay must be channel or ln"); process.exit(2); }
+if (PAY === "ln") assertLndNetwork(NET.name);
 const LN = PAY === "ln";
 const LND = arg("lnd", lndExe());
 const OUT = arg("out", join(here, "..", "results", LN ? "market-ln.json" : "market.json"));

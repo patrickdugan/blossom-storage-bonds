@@ -2,7 +2,7 @@
 // bitcoind, or with --headers none at all) and Nostr key that holds no stake in any deal.
 //
 //   node layer1/watchtower.ts --relays <ws url,...> --providers <pubkey,...> --epoch-blocks 10 --from <height>
-//                             [--network regtest|signet] [--confs N] [--deadline 6] [--min-q 8] [--rpc <url>] [--dir <dir>]
+//                             [--network regtest|signet|testnet4] [--confs N] [--deadline 6] [--min-q 8] [--rpc <url>] [--dir <dir>]
 //                             [--headers <mirror url> --min-work <hex> --receipt-deadline <blocks>]
 //
 // Its Nostr key is the fixed label "bsb/watchtower" on regtest; on any other network it is made fresh on

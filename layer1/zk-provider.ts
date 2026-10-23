@@ -36,7 +36,7 @@ export interface ZkOptions {
   /** Prove a boundary only once its block has this many confirmations (net.ts confs; 1 on regtest), so
    *  a short reorg does not leave a proof for a seed that is no longer on the chain. */
   confs?: number;
-  /** How often to look at the chain tip (400 ms by default; seconds on signet). */
+  /** How often to look at the chain tip (400 ms by default; seconds off regtest). */
   pollMs?: number;
 }
 
