@@ -12,8 +12,12 @@ is active on Bitcoin.
 - **Update, 161adb1:** condition 1 (crash-safe enforcement) is met too; see §7. CI is green on all 10
   jobs ([run 39951573833](https://github.com/patrickdugan/blossom-storage-bonds/actions/runs/39951573833)).
 - **Public signet pilot, step 1 done (2026-10-23):** one full signet node with txindex synced to tip
-  327,643 in 2 h 27 min, using 30 GB (runbook §2). Steps 2 onward (relays, faucet coins, starting
-  parties, more machines) each wait for explicit approval. Mainnet value at risk stays **NO GO**
+  327,643 in 2 h 27 min, using 30 GB (runbook §2).
+- **Step 2 done (2026-10-23):** six public relays probed. The pilot uses relay.primal.net,
+  relay.snort.social and nostr.mom, with nos.lol as fallback (runbook §7). relay.damus.io rate-limited,
+  then banned, a fresh key after six events. offchain.pub refuses events over 4 kB from keys outside
+  its web of trust.
+- Steps 3 onward (faucet coins, starting parties, more machines) each wait for explicit approval. Mainnet value at risk stays **NO GO**
   until the pilot has run.
 
 The existing-consensus market works end to end, reproducibly, in CI:

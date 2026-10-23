@@ -189,6 +189,24 @@ is the enforcement window: Δ is fixed at 144 blocks by the bond's script.
     what each relay kept. **It posts to the named relays, so it needs a go-ahead.**
   - The candidates run strfry (relay.damus.io, nos.lol, relay.primal.net). nostr.wine charges for
     writes.
+  - **Probed, phase 7C pilot step 2 (2026-10-23; `results/relay-probe-signet-pilot.json`).** Each relay
+    got one event of each of the six kinds, then padded events of 4–100 kB, from a fresh key:
+
+    | Relay | Kinds kept | Largest kept | First round trip | Verdict |
+    | --- | --- | --- | --- | --- |
+    | relay.primal.net | 6/6 | 100 kB | 554 ms | **use** |
+    | relay.snort.social | 6/6 | 100 kB | 636 ms | **use** |
+    | nostr.mom | 6/6 | 64 kB (100 kB "event too large") | 484 ms | **use** |
+    | nos.lol | 6/6 | 64 kB | 1,277 ms | fallback |
+    | relay.damus.io | 6/6 | none | 470 ms | avoid: after six events, a fresh key is rate-limited ("you are noting too much"), then banned for a while |
+    | offchain.pub | 6/6 | 4 kB | 516 ms | avoid: larger events refused unless the key is in its web of trust |
+
+    **Pilot relays:** `--relays wss://relay.primal.net,wss://relay.snort.social,wss://nostr.mom`, with
+    nos.lol as the fallback. Every event the stack publishes is under 64 kB: a deal acceptance is about
+    6 kB, and NIP-44 answers over 60 kB already go by encrypted URL.
+
+    A client publishing many events at setup should still pace them: damus shows a relay can rate-limit
+    a burst from a new key.
   - The stack's events are small: the deal acceptance is about 6 kB, a payment receipt a few kB, and a
     proof announcement under 1 kB. The proof itself is a Blossom blob.
   - The kinds are unregistered placeholders: 4245 (proof), 4246 (attestation), 4247 (payment receipt),
