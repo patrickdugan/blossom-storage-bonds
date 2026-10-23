@@ -43,7 +43,8 @@ jobs:
           lean -o formal/Blossom.olean formal/Blossom.lean
           LEAN_PATH=formal lean -o formal/UTXORefinement.olean formal/UTXORefinement.lean
           LEAN_PATH=formal lean -o formal/MerkleBinding.olean formal/MerkleBinding.lean
-          LEAN_PATH=formal lean formal/BitcoinInclusion.lean
+          LEAN_PATH=formal lean -o formal/BitcoinInclusion.olean formal/BitcoinInclusion.lean
+          LEAN_PATH=formal lean formal/BitcoinWitnessBinding.lean
           LEAN_PATH=formal lean formal/PaymentChannel.lean
           LEAN_PATH=formal lean formal/PresignedParents.lean
           LEAN_PATH=formal lean formal/RecipientAuthority.lean
