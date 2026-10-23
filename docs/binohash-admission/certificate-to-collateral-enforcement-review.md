@@ -232,6 +232,11 @@ ADR-018 (commit 1656574). All passed:
 - [Binohash model #39907229214](https://github.com/patrickdugan/blossom-storage-bonds/actions/runs/39907229214).
 - [Full-node regtest #39907229207](https://github.com/patrickdugan/blossom-storage-bonds/actions/runs/39907229207).
 
+ADR-019 and the final verdict (862b535, 3c2c84d). All passed on 3c2c84d:
+- [Lean #39908125653](https://github.com/patrickdugan/blossom-storage-bonds/actions/runs/39908125653): Lean 4.15 with 19 audited theorems; the ADR-015..019 vectors on stock and BIP347-patched Core 26; the Inquisition v29.4-inq cross-check of all 31 + 16 cases.
+- [Binohash model #39908125796](https://github.com/patrickdugan/blossom-storage-bonds/actions/runs/39908125796).
+- [Full-node regtest #39908125501](https://github.com/patrickdugan/blossom-storage-bonds/actions/runs/39908125501).
+
 The issues and PR could not be updated from here: comments need auth, and this flow has none. The text for #2 and #3 is below.
 
 ## Tracking issue update (text for #2 and #3)
@@ -244,4 +249,5 @@ The issues and PR could not be updated from here: comments need auth, and this f
 > - ADR-016: on Core 26 with a local BIP347 patch, a one-tx OP_CAT refutation leaf accepts real stronger regtest forks (N=8, N=151 at 19,428 WU) and rejects all 10 attacks. On stock Core all 10 are valid. BIP347 activation is the exact missing primitive.
 > - ADR-017: dynamic frozen claims via a presigned freeze set (25 cases total, 0 counterexamples under BIP347).
 > - ADR-018: Bitcoin Inquisition v29.4-inq's interpreter reproduces all verdicts with and without its OP_CAT flag (41 cases, 0 mismatches).
-> - Next: retarget-aware work and timeliness (review §9).
+> - ADR-019: a pinned difficulty schedule on real mainnet headers across the 32256 retarget (31 cases, 0 mismatches on Core 26 + BIP347 and Inquisition). Lean no_expiry: timeliness needs a covenant beyond OP_CAT.
+> - Final: BLOCKED on BIP347 activation; timeliness additionally needs a covenant.
