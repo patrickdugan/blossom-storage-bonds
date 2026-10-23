@@ -23,6 +23,8 @@ fn bond() -> Amount {
 }
 "#);
     code=code.replace("BOND","bond()");
+    // Replacing the constant name must not change the runtime env-var key.
+    code=code.replace("BSB_A_bond()_SATS","BSB_A_BOND_SATS");
     let mod_line="mod rpc;";
     assert_eq!(code.matches(mod_line).count(),1);
     code=code.replace(mod_line,&format!("#[path = {:?}]\nmod rpc;",rpc.to_string_lossy()));
