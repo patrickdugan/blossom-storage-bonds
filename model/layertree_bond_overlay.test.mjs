@@ -76,3 +76,23 @@ test('unbounded late response competes with client forfeiture after CLTV',()=>{
   const w=bareScriptTimeoutRace({height:99,deadline:98,providerKnowsAnswer:true});
   assert(w.clientForfeitEligible&&w.providerLateResponseEligible);
   assert.equal(w.consensusGuaranteesExclusiveVerdict,false);});
+
+test('closed carrier cannot be refreshed or silently reopened',()=>{let s=S();
+  s=observe(s,e(s,'alice',1,'fault'),Q);
+  for(let ep=1;ep<=3;ep++)s=observe(s,e(s,'bob',ep),Q);
+  s=payout(s,settle(s,'alice','client',56,O('2'),40000),Q);
+  s=payout(s,settle(s,'bob','provider',101,null,0),Q);
+  assert.throws(()=>refresh(s,r(s,O('9')),Q),/closed/);
+});
+test('tampered economic records are rejected by original agreement hash',()=>{
+  const s=S();s.bonds[0].terms.clientScript='51';
+  assert.throws(()=>refresh(s,r(s),Q),/commitment|principal|mutated/);
+});
+test('fresh join requires exact additional principal and unique lineage',()=>{
+  const s=S(), term=t('carol',20000);
+  const a={kind:'admit',before:s.root,from:O('0'),to:O('3'),value:119999,terms:term};
+  assert.throws(()=>admit(s,a,Q),/underfunded/);
+  const n=admit(s,{...a,value:120000},Q);
+  assert.equal(n.carrier.value,120000);
+  assert.equal(n.bonds.length,3);
+});
