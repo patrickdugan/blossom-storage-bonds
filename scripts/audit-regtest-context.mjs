@@ -17,6 +17,7 @@ import {forfeitContextOk,refundContextOk} from '../model/contextual_finality.mjs
 import {parseBitcoinTxOutProof,proofIncludesTxid} from '../model/bitcoin_merkleblock.mjs';
 import {createWitnessCommitmentEvidence,verifyWitnessCommitmentEvidence}
   from '../model/bitcoin_witness_commitment.mjs';
+import {parseCoinbaseWitnessRaw} from '../model/bitcoin_coinbase_witness.mjs';
 
 const BOND=100_000_000n, DELTA=144, CLOSE_FEE=1000n;
 const hashInput=b=>createHash('sha256').update(b).digest('hex');
@@ -123,18 +124,19 @@ export async function auditContext(report,call=rpc) {
     assert.equal(coinbaseParsed.txid,coinbaseId,
       'Bitcoin coinbase inclusion must be bound to independently parsed raw bytes');
     assert.equal(coinbaseParsed.inputs[0].txid,'00'.repeat(32));
-    const reservedHex=cb.vin[0].txinwitness?.[0];
-    assert.ok(typeof reservedHex==='string'&&/^[0-9a-f]{64}$/i.test(reservedHex),
-      'SegWit block coinbase must carry a 32-byte witness reserved value');
-    const coinbaseRaw=Buffer.from(cb.hex,'hex');
-    assert.ok(coinbaseRaw.includes(Buffer.from(reservedHex,'hex')),
-      'reported reserved value must occur in raw coinbase witness bytes');
+    const rawCoinbaseEvidence=parseCoinbaseWitnessRaw(cb.hex);
+    assert.equal(rawCoinbaseEvidence.txid,coinbaseId);
+    const reservedHex=rawCoinbaseEvidence.reservedHex;
+    assert.equal(reservedHex,cb.vin[0].txinwitness?.[0],
+      'Core coinbase witness value must match independently decoded bytes');
     const candidateOutputs=coinbaseParsed.outputs
       .map(output=>output.script.toString('hex'))
       .filter(script=>script.startsWith('6a24aa21a9ed') && script.length>=76);
     assert.ok(candidateOutputs.length>=1,'coinbase missing BIP141 witness commitment');
-    // BIP141 explicitly selects the highest matching coinbase output index.
-    const coinbaseCommitmentScript=candidateOutputs.at(-1);
+    // BIP141 selects the HIGHEST matching output; both independent parsers
+    // must agree on the exact coinbase bytes.
+    const coinbaseCommitmentScript=rawCoinbaseEvidence.commitmentScript;
+    assert.equal(coinbaseCommitmentScript,candidateOutputs.at(-1));
     const witnessEvidence=createWitnessCommitmentEvidence({
       txids:block.tx.map(x=>x.txid),
       wtxids:block.tx.map((x,i)=>i===0?'00'.repeat(32):x.hash),
@@ -144,7 +146,10 @@ export async function auditContext(report,call=rpc) {
     assert.equal(witnessEvidence.blockhash,t.blockhash);
     assert.equal(witnessEvidence.txid,txid);
     assert.equal(witnessEvidence.wtxid,computedWtxid);
-    assert.equal(verifyWitnessCommitmentEvidence(witnessEvidence),true);
+    const rawBoundWitnessEvidence={
+      ...witnessEvidence,coinbaseRawHex:cb.hex,witnessedRawHex:t.hex
+    };
+    assert.equal(verifyWitnessCommitmentEvidence(rawBoundWitnessEvidence),true);
     const out={txid,height:header.height,blockhash:t.blockhash,
       tx:t,parsed,rawSha256:hashInput(bytes),
       inclusion:{
@@ -152,11 +157,7 @@ export async function auditContext(report,call=rpc) {
         index:verified.matches[0].index,
         headerHex:verified.headerHex,proofHex:txoutproof,
         merkleRoot:verified.merkleRoot,
-        witness:{
-          ...witnessEvidence,
-          coinbaseRawHex:cb.hex,
-          witnessedRawHex:t.hex
-        }
+        witness:rawBoundWitnessEvidence
       }};
     byId.set(txid,out);
     return out;

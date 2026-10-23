@@ -13,6 +13,7 @@
  * NOT prove header PoW, canonical chainwork or full Bitcoin consensus.
  */
 import {createHash} from 'node:crypto';
+import {parseCoinbaseWitnessRaw} from './bitcoin_coinbase_witness.mjs';
 
 const sha=b=>createHash('sha256').update(b).digest();
 const sha2=b=>sha(sha(b));
@@ -22,6 +23,7 @@ const h32=x=>{
 };
 const internal=x=>Buffer.from(h32(x)).reverse();
 const displayed=b=>Buffer.from(b).reverse().toString('hex');
+const displaySha256d=b=>displayed(sha2(b));
 const magic='6a24aa21a9ed';
 
 function merkleRow(nodes){
@@ -112,6 +114,22 @@ export function verifyWitnessCommitmentEvidence(evidence){
     const coinbaseBranch=evidence.coinbaseTxidBranchHex.map(x=>Buffer.from(x,'hex'));
     const n=evidence.totalTransactions,i=evidence.txIndex;
     if(!Number.isSafeInteger(n)||n<2||!Number.isSafeInteger(i)||i<1||i>=n)return false;
+    // When raw coinbase/witnessed transactions are supplied, verify that
+    // their actual bytes produce the ids, reserved value and commitment
+    // selected in this BIP141 receipt. Do not trust caller-provided fields.
+    if(evidence.coinbaseRawHex){
+      const cb=parseCoinbaseWitnessRaw(evidence.coinbaseRawHex);
+      if(cb.txid!==evidence.coinbaseTxid||
+         cb.reservedHex!==evidence.reservedHex||
+         cb.commitmentScript!==evidence.coinbaseCommitmentScript)
+        return false;
+    }
+    if(evidence.witnessedRawHex){
+      if(typeof evidence.witnessedRawHex!=='string' ||
+         !/^[0-9a-f]+$/i.test(evidence.witnessedRawHex) ||
+         displaySha256d(Buffer.from(evidence.witnessedRawHex,'hex'))!==evidence.wtxid)
+        return false;
+    }
     if(!verifyIndexedMerkleBranch(internal(evidence.wtxid),i,n,witnessBranch,witnessRoot))
       return false;
     if(!verifyIndexedMerkleBranch(internal(evidence.coinbaseTxid),0,n,coinbaseBranch,ordinaryRoot))
