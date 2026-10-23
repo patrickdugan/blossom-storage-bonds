@@ -14,6 +14,7 @@ import {createHash} from 'node:crypto';
 import {readFileSync} from 'node:fs';
 import {parseTx} from '../layer1/onchain.ts';
 import {forfeitContextOk,refundContextOk} from '../model/contextual_finality.mjs';
+import {parseBitcoinTxOutProof,proofIncludesTxid} from '../model/bitcoin_merkleblock.mjs';
 
 const BOND=100_000_000n, DELTA=144, CLOSE_FEE=1000n;
 const hashInput=b=>createHash('sha256').update(b).digest('hex');
@@ -88,8 +89,27 @@ export async function auditContext(report,call=rpc) {
       assert.equal(parsed.outputs[i].value,sats(t.vout[i].value));
       assert.equal(parsed.outputs[i].script.toString('hex'),t.vout[i].scriptPubKey.hex);
     }
+    // Bitcoin Core can produce a BIP37 partial Merkle proof tied to the
+    // confirmed transaction's block header. Independently decode the
+    // serialized proof, then ask Core to cross-check it against its active
+    // chain. The header's active-chain status still comes from trusted RPC.
+    const txoutproof=await call('gettxoutproof',[[txid],t.blockhash]);
+    assert.ok(typeof txoutproof==='string' && /^[0-9a-f]+$/i.test(txoutproof));
+    const verified=proofIncludesTxid(txoutproof,txid,t.blockhash);
+    assert.equal(verified.matches.length,1,
+      'single-transaction partial Merkle proof must match exactly one leaf');
+    assert.equal(await call('getblockheader',[t.blockhash,false]),verified.headerHex,
+      'partial Merkle proof must embed exact active-chain block header');
+    assert.deepEqual(await call('verifytxoutproof',[txoutproof]),[txid],
+      'Bitcoin Core must independently verify the inclusion proof');
     const out={txid,height:header.height,blockhash:t.blockhash,
-      tx:t,parsed,rawSha256:hashInput(bytes)};
+      tx:t,parsed,rawSha256:hashInput(bytes),
+      inclusion:{
+        txid,blockhash:t.blockhash,height:header.height,
+        index:verified.matches[0].index,
+        headerHex:verified.headerHex,proofHex:txoutproof,
+        merkleRoot:verified.merkleRoot
+      }};
     byId.set(txid,out);
     return out;
   }
@@ -190,6 +210,7 @@ export async function auditContext(report,call=rpc) {
     consensusAssumption:'Core-valid active chain and UTXO set; not a trustless inclusion proof',
     coreVersion:version,network:'regtest',tip,
     confirmedTransactions:byId.size,
+    inclusionProofs:[...byId.values()].map(x=>x.inclusion),
     parents:[
       {path:'challenge-0',txid:challenge0.txid,confirmedHeight:challenge0.height,sourceHeight:fund.height},
       {path:'response-0',txid:response0.txid,confirmedHeight:response0.height,sourceHeight:challenge0.height},
@@ -223,5 +244,10 @@ if(process.argv[1]&&import.meta.url===new URL('file://'+process.argv[1]).href){
   };
   await assert.rejects(auditContext(report,wrongChain),/non-active branch|forged height/);
   assert.equal(changed,true,'active chain must be consulted');
-  console.log(JSON.stringify({...result,adversarialWrongActiveChainRejected:true},null,2));
+  const corrupted=Buffer.from(result.inclusionProofs[0].proofHex,'hex');
+  corrupted[36]^=1; // mutate the header's Merkle commitment
+  assert.throws(()=>parseBitcoinTxOutProof(corrupted.toString('hex')),
+    /merkle root does not match/);
+  console.log(JSON.stringify({...result,adversarialWrongActiveChainRejected:true,
+    adversarialMerkleProofTamperRejected:true},null,2));
 }
