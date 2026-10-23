@@ -287,11 +287,6 @@ fn run(args:Vec<String>)->ResultX<()>{
     let wallet_names=["miner","sponsor","alice","bob"];
     for wallet in wallet_names {rpc.call("createwallet",&[json!(wallet)],None)?;}
     let (miner_addr,_)=rpc.address("miner")?;
-    // Newly generated regtest chains have no mempool fee history. The miner
-    // wallet alone gets an explicit deterministic fee before bootstrapping
-    // the bond and independent recovery-fee sponsor.
-    require(rpc.call("settxfee",&[json!(0.00002000)],Some("miner"))?==true,
-        "Bitcoin Core miner did not accept fixed funding fee")?;
     rpc.mine(101,&miner_addr)?;
     let (sponsor_addr,sponsor_script)=rpc.address("sponsor")?;
     let (_alice_addr,alice_script)=rpc.address("alice")?;
