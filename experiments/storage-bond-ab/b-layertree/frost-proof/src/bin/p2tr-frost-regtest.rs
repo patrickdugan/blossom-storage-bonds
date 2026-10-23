@@ -52,13 +52,6 @@ fn sha(bytes: &[u8]) -> [u8;32] {
 fn sats_to_btc(sats: u64) -> String {
     format!("{}.{:08}", sats/100_000_000, sats%100_000_000)
 }
-fn bitcoin_value(value: &Value) -> ResultX<u64> {
-    let raw = value.as_f64().ok_or("Bitcoin Core returned invalid amount")?;
-    let sats = (raw*100_000_000.0).round();
-    require(raw >= 0.0 && sats >= 0.0 && sats <= 2_100_000_000_000_000.0, "Bitcoin amount out of range")?;
-    require((raw*100_000_000.0-sats).abs() < 0.0001, "Bitcoin value has fractional satoshi")?;
-    Ok(sats as u64)
-}
 fn rpc_string(value: Value) -> ResultX<String> {
     Ok(value.as_str().ok_or("Bitcoin Core omitted expected string")?.to_owned())
 }
@@ -95,7 +88,11 @@ impl Rpc {
     fn chain(&self) -> ResultX<()> {
         let info = self.call("getblockchaininfo",&[],None)?;
         require(info["chain"]=="regtest","refusing Bitcoin network other than regtest")?;
-        require(info["initialblockdownload"]==false,"refusing unsynced Bitcoin Core node")
+        // A brand-new PRIVATE regtest node is in IBD at height zero, even
+        // though it is the only authority over this throwaway chain.
+        let blocks=info["blocks"].as_u64().unwrap_or(0);
+        require(info["initialblockdownload"]==false || blocks==0,
+            "refusing a populated but unsynced regtest node")
     }
     fn mine(&self, n:u32, address:&str)->ResultX<()>{
         self.call("generatetoaddress",&[json!(n),json!(address)],None)?;
@@ -292,8 +289,8 @@ fn run(args:Vec<String>)->ResultX<()>{
     let (miner_addr,_)=rpc.address("miner")?;
     rpc.mine(101,&miner_addr)?;
     let (sponsor_addr,sponsor_script)=rpc.address("sponsor")?;
-    let (alice_addr,alice_script)=rpc.address("alice")?;
-    let (bob_addr,bob_script)=rpc.address("bob")?;
+    let (_alice_addr,alice_script)=rpc.address("alice")?;
+    let (_bob_addr,bob_script)=rpc.address("bob")?;
     require(alice_script!=bob_script,"two beneficiary wallets got the same script")?;
     let thief_script=rpc.address("miner")?.1;
     let fund_id=rpc.text("sendtoaddress",
