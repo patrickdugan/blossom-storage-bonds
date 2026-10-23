@@ -10,12 +10,43 @@ import {resolve} from 'node:path';
 const insist=(x,m)=>{if(!x)throw Error(m);};
 const count=r=>r.checks.filter(x=>x.pass===true).length;
 export function compare(a,b) {
-  insist(a && b && a.bond_sats===100_000_000,'expected unmodified A historical 1-BTC sentinel report');
-  insist(a.failed===0&&Array.isArray(a.checks)&&a.checks.length>=21&&
-    a.checks.every(r=>r.pass===true),'sentinel full-node regression failed');
-  insist(Array.isArray(a.sizes)&&a.sizes.length>=7&&a.sizes.every(s=>
-    Number.isInteger(s.vsize)&&s.vsize>0&&typeof s.tx==='string'),
-    'sentinel metrics missing');
+  insist(a && b,'two independent Core receipts required');
+  const matched=a.kind==='matched-capital-A-real-Taproot-regtest-NOT-matched-proof-epochs';
+  let aFacts;
+  if(matched) {
+    insist(a.principalSats===100_000&&a.aliceInitialSats===60_000&&
+      a.bobInitialSats===40_000&&a.independentTaprootBonds===2&&
+      a.originalTerminalFeeShavedSatsPerBond===1_000,
+      'capital-matched A witness/fee policy changed');
+    for(const [name,expected] of [['alice',60_000],['bob',40_000]]) {
+      const trial=a.results?.[name];
+      insist(trial&&trial.checks>=21&&trial.failed===0&&
+        Array.isArray(trial.sizes)&&trial.sizes.length>=7,
+        'capital-matched A reference failed Core checks');
+      insist(trial.impliedSingleTerminalReceiptSats===expected-1_000,
+        'A unilateral terminal fee amount changed');
+    }
+    aFacts={
+      aggregateBondSats:a.principalSats,checksPassed:a.results.alice.checks+a.results.bob.checks,
+      checksFailed:a.results.alice.failed+a.results.bob.failed,
+      twoIndependentBonds:true,
+      originalTerminalFeeShavedSatsPerBond:1_000,
+      coreMeasuredSamples:{
+        alice:Object.fromEntries(a.results.alice.sizes.map(x=>[x.tx,x.vsize])),
+        bob:Object.fromEntries(a.results.bob.sizes.map(x=>[x.tx,x.vsize])),
+      },
+    };
+  } else {
+    insist(a.bond_sats===100_000_000,'expected historical 1-BTC sentinel report');
+    insist(a.failed===0&&Array.isArray(a.checks)&&a.checks.length>=21&&
+      a.checks.every(r=>r.pass===true),'sentinel full-node regression failed');
+    insist(Array.isArray(a.sizes)&&a.sizes.length>=7&&a.sizes.every(s=>
+      Number.isInteger(s.vsize)&&s.vsize>0&&typeof s.tx==='string'),
+      'sentinel metrics missing');
+    aFacts={aggregateBondSats:a.bond_sats,checksPassed:count(a),
+      checksFailed:a.failed,twoIndependentBonds:false,
+      coreMeasuredSamples:Object.fromEntries(a.sizes.map(x=>[x.tx,x.vsize]))};
+  }
   insist(b.schema==='bsb-ab-federation-surrogate-core-regtest-v1'&&
     b.kind==='actual-funded-2of3-P2WSH-surrogate-NOT-FROST'&&
     b.chain==='regtest'&&b.networkConfirmed===true,
@@ -38,18 +69,19 @@ export function compare(a,b) {
     'misleading B fee or security classification');
   return {
     schema:'bsb-ab-core-heterogeneous-evidence-v1',
-    network:'regtest',matchedCapital:false,matchedFullScenarios:false,
+    network:'regtest',matchedCapital:matched,matchedFullScenarios:false,
     feeComparisonPermitted:false,securityRankPermitted:false,
-    note:'A is one historical 1BTC Taproot/Schnorr sentinel; B is 100k P2WSH multisig, not actual FROST or MID. Do not report the byte figures as a cost ratio.',
+    note:matched?
+      'Both begin with 100k sats but A has two separate Taproot bonds, distinct challenge events and terminal fees deducted from collateral. B is pooled P2WSH multisig, NOT FROST or MID. Do not present a transaction-fee winner.':
+      'A is one historical 1BTC Taproot/Schnorr sentinel; B is 100k P2WSH multisig, NOT FROST or MID. Do not report byte figures as a cost ratio.',
     A:{
-      originalBondSats:a.bond_sats,checksPassed:count(a),checksFailed:a.failed,
+      ...aFacts,
       consensusSpendTypes:[
         'BIP341-Taproot-presigned-script','BIP112-CSV',
         'BIP65-CLTV','TRUC-P2A-CPFP','MuSig2-keypath',
       ],
-      coreMeasuredSamples:Object.fromEntries(a.sizes.map(x=>[x.tx,x.vsize])),
       realIndependentStorageVerdict:false,
-      matched60k40k:false,
+      matched60k40k:matched,
     },
     B:{
       carrierBondSats:b.principalSats,clientEntitlementsSats:{alice:60_000,bob:40_000},
