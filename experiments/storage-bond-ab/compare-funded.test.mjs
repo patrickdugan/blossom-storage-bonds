@@ -69,9 +69,13 @@ test('security label cannot be upgraded to FROST without review',()=>{
 
 function matchedPdpPair() {
   const a=A(),b=B(),proven='e'.repeat(64);
+  a.results.alice.csvBlocks=6;
+  a.results.bob.csvBlocks=6;
+  b.challengeWindow={modelBlocks:6,bitcoinConsensusEnforced:false};
   a.sharedPdpEvidence={
     classification:'COMMON-MERKLE-WITNESS-BITCOIN-SCRIPT-NOT-PROVIDER-ERASURE',
     sourceWitnessesBoundToCoreSignedTransactions:true,
+    realBitcoinCsvDelayBlocks:6,
     productionStorageNonavailabilityProven:false,
     epochsAndFeePoliciesFullyMatchedToB:false,
     holderFixtures:{
@@ -93,6 +97,7 @@ test('real A signed sentinel commitment roots and B genuine storage loss bind sa
   assert.equal(r.sharedPdpWitnessAligned,true);
   assert.equal(r.A.actualSourceMerkleWitnessesVerified,true);
   assert.equal(r.A.deletedWindowNonavailabilityProven,false);
+  assert.equal(r.A.actualCsvDelayBlocks,6);
   assert.equal(r.matchedFullScenarios,false);
   assert.equal(r.feeComparisonPermitted,false);
 });
@@ -105,5 +110,18 @@ test('reject different B storage evidence, forged A proof status, or inflated se
   assert.throws(()=>compare(a,b),/bad Merkle-derived/);
   ({a,b}=matchedPdpPair());
   a.sharedPdpEvidence.productionStorageNonavailabilityProven=true;
+  assert.throws(()=>compare(a,b),/unsupported security/);
+});
+
+
+test('reject A six-block claim if Bitcoin CSV, B policy, or time boundary diverges',()=>{
+  let {a,b}=matchedPdpPair();
+  a.results.alice.csvBlocks=144;
+  assert.throws(()=>compare(a,b),/unsupported security/);
+  ({a,b}=matchedPdpPair());
+  b.challengeWindow.modelBlocks=144;
+  assert.throws(()=>compare(a,b),/unsupported security/);
+  ({a,b}=matchedPdpPair());
+  b.challengeWindow.bitcoinConsensusEnforced=true;
   assert.throws(()=>compare(a,b),/unsupported security/);
 });
