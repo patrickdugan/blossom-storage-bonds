@@ -123,6 +123,8 @@ export function authenticateSerializedWitnessInclusion(inclusion){
   if(actualWtxid!==w.wtxid)
     throw Error('raw SegWit transaction does not match claimed wtxid');
   const normal=proofIncludesTxid(inclusion.proofHex,target.txid,inclusion.blockhash);
+  if(normal.totalTransactions!==w.totalTransactions)
+    throw Error('transaction and witness Merkle proofs disagree on block transaction count');
   if(normal.matches.length!==1||
      normal.matches[0].index!==w.txIndex)
     throw Error('transaction inclusion index disagrees with witness position');

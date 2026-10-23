@@ -27,16 +27,20 @@ function invariant(p,message){
 }
 const BOND=100_000_000n, FEE=1_000n, DELTA=144;
 const isP2TR=s=>s?.length===34 && s[0]===0x51 && s[1]===0x20;
-export function verifyPortableRegtestReceipt(report){
+export function verifyPortableRegtestReceipt(report,trust={}){
   invariant(report?.schema==='bsb/core-active-chain-context/v1',
     'unexpected evidence format');
   invariant(report.network==='regtest','wrong network');
   const hc=report.headerChain;
   invariant(hc && Array.isArray(hc.headers),'header evidence absent');
   const headers=hc.headers;
+  // Optional independent tip/work bounds can be supplied by a caller that
+  // has authenticated them outside this JSON receipt. Never silently
+  // upgrade a self-declared archive tip into an independently trusted tip.
+  const expectedTip=trust.expectedTip??hc.tip;
+  const minimumChainwork=trust.minimumChainwork??hc.cumulativeWorkDecimal;
   const checked=verifyRegtestHeaderChain(headers,{
-    expectedTip:hc.tip,
-    minimumChainwork:hc.cumulativeWorkDecimal
+    expectedTip,minimumChainwork
   });
   invariant(checked.cumulativeWorkHex===hc.cumulativeWorkHex,
     'header cumulative work fields disagree');
@@ -159,6 +163,8 @@ export function verifyPortableRegtestReceipt(report){
     tipHeight:checked.tipHeight,
     tip:checked.tip,
     cumulativeWorkDecimal:checked.cumulativeWorkDecimal,
+    externalTipCompared:trust.expectedTip!==undefined,
+    externalMinWorkCompared:trust.minimumChainwork!==undefined,
     transactionsChecked:map.size,
     normalMerkleAuthenticated:true,
     bip141WitnessAuthenticated:true,
@@ -176,6 +182,15 @@ if(process.argv[1]&&import.meta.url===new URL('file://'+process.argv[1]).href){
   if(!path)throw Error('expected archived regtest receipt JSON path');
   const evidence=JSON.parse(readFileSync(path,'utf8'));
   const checked=verifyPortableRegtestReceipt(evidence);
+  let rejectedWrongTip=false;
+  try{verifyPortableRegtestReceipt(evidence,{expectedTip:'ff'.repeat(32)});}
+  catch{rejectedWrongTip=true;}
+  invariant(rejectedWrongTip,'external trusted-tip mismatch went undetected');
+  let rejectedGreaterWork=false;
+  try{verifyPortableRegtestReceipt(evidence,{
+    minimumChainwork:(BigInt(checked.cumulativeWorkDecimal)+1n).toString()
+  });}catch{rejectedGreaterWork=true;}
+  invariant(rejectedGreaterWork,'external chainwork minimum went unenforced');
   // Prevent an untrusted archive from pretending to contain a stronger
   // Bitcoin header or a different witness commitment.
   const wrong={...evidence,inclusionProofs:[...evidence.inclusionProofs]};
@@ -185,5 +200,8 @@ if(process.argv[1]&&import.meta.url===new URL('file://'+process.argv[1]).href){
   let rejected=false;
   try{verifyPortableRegtestReceipt(wrong);}catch{rejected=true;}
   invariant(rejected,'forged coinbase commitment passed offline audit');
-  console.log(JSON.stringify({...checked,adversarialUnboundCommitmentRejected:true},null,2));
+  console.log(JSON.stringify({...checked,
+    adversarialUnboundCommitmentRejected:true,
+    adversarialExternalTipMismatchRejected:true,
+    adversarialExternalWorkThresholdRejected:true},null,2));
 }

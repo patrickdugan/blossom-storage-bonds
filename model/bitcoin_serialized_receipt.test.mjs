@@ -160,3 +160,10 @@ test('SR07: reject absent, non-SegWit or truncated raw evidence',()=>{
     ...good.witness,witnessedRawHex:'bad'
   }}),/invalid serialized/);
 });
+
+test('SR08: reject mismatched block transaction count between txid and wtxid paths',()=>{
+  const good=syntheticReceipt();
+  assert.throws(()=>authenticateSerializedWitnessInclusion({
+    ...good,witness:{...good.witness,totalTransactions:3}
+  }),/block transaction count/);
+});
