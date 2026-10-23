@@ -91,7 +91,7 @@ test('do not mislabel one-process trusted dealer FROST as independently held sha
 test('require real Bitcoin-confirmed outputs, correct sponsor fees and malicious-quorum result',()=>{
   const a=records(),b=records(),c=records(),d=records();
   a.b.payout.confirmations=0;
-  assert.throws(()=>compareFrostFunded(a.a,a.b),/preserved bonded capital/);
+  assert.throws(()=>compareFrostFunded(a.a,a.b),/missing confirmed physical FROST transaction/);
   b.b.payout.outputs[1].sats=39_999;
   assert.throws(()=>compareFrostFunded(b.a,b.b),/preserved bonded capital/);
   c.b.sponsorTotalFeesSats=7000;
