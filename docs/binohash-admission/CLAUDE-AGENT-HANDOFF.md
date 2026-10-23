@@ -83,6 +83,20 @@ The repo now contains [ADR-014](portable-serialized-receipt.md), which formalize
 `scripts/verify-regtest-receipt.mjs` replays the exported `scripts/audit-regtest-context.mjs` receipt **offline and without any RPC/network**: complete genesis-anchored regtest headers (PoW, MTP, difficulty, BigInt accumulated work); nine dual txid/wtxid witness inclusion proofs; concrete bond predecessor amounts, pre-signed successor/P2A templates, terminal payout value, and contextual 144-block CSV/CLTV evidence. It can optionally compare a caller-supplied trusted tip and minimum work, but it cannot prove that those external anchors are trustworthy or that no higher-work alternative chain exists. The exporting Core node was still trusted to execute full Bitcoin block, Script and UTXO consensus.
 
 The CI job `blossom-regtest-context.yml` runs both the original full-node regtest audit and the new offline receipt verifier. Current Node suite includes 417 passing research cases and 33 TypeScript tests. The earlier 39-case Core P2TR Script suite remains separate; the unresolved protocol target remains permissionless stronger-fork certificate verification **controlling the actual collateral payout**, not just producing independently auditable settlement receipts.
+## ADR-015: Script capability boundary and enforcement review (2026-10-23)
+
+Read [the review](certificate-to-collateral-enforcement-review.md) first. Its verdict is **BLOCKED**, and the missing primitive is OP_CAT (BIP347).
+
+What was added:
+- **Vectors:** `regtest/src/bin/admission_vectors.rs` writes 16 real P2TR spends.
+- **Independent check:** `model/verify_admission_vectors.mjs` recomputes each design verdict from the bytes.
+- **Core check:** `research/consensus-check/src/bin/tapscript-vectors.rs` runs Core 26 with Taproot flags. The result is 0 mismatches and 5 counterexamples.
+- **Lean:** `formal/CertificateAdmission.lean` holds the security games. `CertificateAdmissionAxioms.lean` is the CI gate allowing only the standard axioms.
+
+Trap: `tapscript-vectors` needs a Linux build. The vendored C++ library fails to link with MSVC (LNK1120).
+
+Next experiment (review §7): run the CAT verifier against a BIP347 interpreter such as Bitcoin Inquisition. That download needs owner approval.
+
 ## Research goal
 
 Create a Bitcoin-enforced storage-bond construction allowing arbitrary permissionless stronger-fork certificates with exact 256-bit verified chain work and appropriate inclusion/cutoff proofs to control collateral settlement, while protecting timely stronger challenges and requiring the provider to answer the *actual submitted certificate* if that original protocol policy is retained.

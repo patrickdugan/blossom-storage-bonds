@@ -12,6 +12,19 @@ cargo run --release --manifest-path research/consensus-check/Cargo.toml < /tmp/b
 
 No bitcoind, block mining, GPU proofs, or funded pilot runs are invoked by these commands. The GitHub workflow runs these checks on the research branch and PR.
 
+## Current verdict (2026-10-23): BLOCKED on OP_CAT
+
+[Certificate-to-Collateral Enforcement Review](certificate-to-collateral-enforcement-review.md) and [ADR-015: Script capability boundary](script-capability-boundary.md).
+
+- **Core 26 Taproot vectors:** 16 cases, 5 consensus-valid counterexamples.
+  - Without OP_CAT, a linkage leaf accepts unlinked headers.
+  - No 256-bit target check is expressible.
+  - An OP_CAT leaf is OP_SUCCESS (anyone-can-spend) today.
+  - An output-blind verdict can be front-run.
+  - A hidden leaf drains the bond.
+- **Lean `formal/CertificateAdmission.lean`:** refutation safety, liveness and incentive theorems under explicit hypotheses A1–A6, plus model-level impossibility for a fixed-graph journal.
+- **Selected design:** stateless refutation with a presigned SINGLE|ANYONECANPAY payout.
+
 ## Two protocol directions
 
 **[ADR-001: Mutable journal cursor](cursor-architecture.md).** Each challenge replaces one UTXO containing the journal state. Settlement co-spends that live cursor and the bond, invalidating settlements on older outpoints. The blocker is authorization of a unique, permissionlessly generated valid successor without allowing a malicious challenger to burn or redirect the cursor. The Binohash toy demonstrates why a fresh signature can also authorize an unwanted transaction when the actual successor policy is absent.

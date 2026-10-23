@@ -8,6 +8,7 @@ on:
       - "regtest/Cargo.toml"
       - "regtest/Cargo.lock"
       - "model/verify_formal_evidence.mjs"
+      - "model/verify_admission_vectors.mjs"
       - "research/consensus-check/**"
       - "lean-toolchain"
       - ".github/workflows/blossom-formal.yml"
@@ -43,6 +44,10 @@ jobs:
           LEAN_PATH=formal lean formal/PresignedParents.lean
           LEAN_PATH=formal lean formal/RecipientAuthority.lean
           LEAN_PATH=formal lean formal/ContextualFinality.lean
+          LEAN_PATH=formal lean -o formal/CertificateAdmission.olean formal/CertificateAdmission.lean
+          LEAN_PATH=formal lean formal/CertificateAdmissionAxioms.lean | tee /tmp/bsb-axioms.txt
+          test "$(grep -c "axioms" /tmp/bsb-axioms.txt)" -eq 14
+          ! grep -vE "does not depend on any axioms|depends on axioms: \[(propext|Classical.choice|Quot.sound)(, (propext|Classical.choice|Quot.sound))*\]$" /tmp/bsb-axioms.txt
 
   taproot-templates:
     name: Offline rust-bitcoin Taproot template refinement bridge
@@ -60,3 +65,9 @@ jobs:
         run: node --experimental-strip-types model/verify_formal_evidence.mjs /tmp/bsb-taproot-evidence.json
       - name: Verify real Taproot P2TR witnesses and adversarial mutations in Bitcoin Core 26 Script
         run: cargo run --release --manifest-path research/consensus-check/Cargo.toml --bin taproot-evidence < /tmp/bsb-taproot-evidence.json
+      - name: ADR-015 certificate admission vectors (real P2TR spends)
+        run: cargo run --locked --release --manifest-path regtest/Cargo.toml --bin bsb-admission-vectors > /tmp/bsb-adr015.json
+      - name: ADR-015 independent design verdicts from the serialized bytes
+        run: node model/verify_admission_vectors.mjs /tmp/bsb-adr015.json
+      - name: ADR-015 Bitcoin Core 26 consensus with Taproot flags and spent outputs
+        run: cargo run --release --manifest-path research/consensus-check/Cargo.toml --bin tapscript-vectors < /tmp/bsb-adr015.json

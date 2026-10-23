@@ -23,3 +23,7 @@ path = "src/bin/bond.rs"
 [[bin]]
 name = "bsb-formal-evidence"
 path = "src/bin/formal_vectors.rs"
+
+[[bin]]
+name = "bsb-admission-vectors"
+path = "src/bin/admission_vectors.rs"
