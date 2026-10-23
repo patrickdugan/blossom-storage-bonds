@@ -381,6 +381,11 @@ fn run(args:Vec<String>)->ResultX<()>{
     require(settlement_id==honest.compute_txid().to_string(),"Bitcoin Core changed FROST payout")?;
     rpc.mine(6,&miner_addr)?;
     let confirmed_settlement=rpc.confirmed(&settlement_id,6)?;
+    // The dishonest quorum's rival transaction was Script-valid earlier,
+    // but cannot also consume the confirmed settlement's now-spent parent.
+    // This proves UTXO exclusivity, not contractual fair winner selection.
+    require(!rpc.witness_authorization(&evil)?,
+        "Bitcoin Core admitted a conflicting quorum payout after confirmed honest settlement")?;
     let (alice_point,_)=rpc.coin(&settlement_id,&alice_script,60_000)?;
     let (bob_point,_)=rpc.coin(&settlement_id,&bob_script,40_000)?;
     let report=json!({
@@ -406,6 +411,7 @@ fn run(args:Vec<String>)->ResultX<()>{
             "txid":evil.compute_txid().to_string(),
             "wtxid":evil.compute_wtxid().to_string(),
             "sameTxidWitnessMutationRejected":true,
+            "conflictingAlternativeRejectedAfterHonestConfirmation":true,
             "sourceBlossomStorageEvidenceHash":evidence
         },
         "honestTwoSharePayout":{
