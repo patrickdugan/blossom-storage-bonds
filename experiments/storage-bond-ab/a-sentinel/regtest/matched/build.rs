@@ -11,6 +11,15 @@ fn main(){
     println!("cargo:rerun-if-changed={}",rpc.display());
     let original=fs::read_to_string(&source).unwrap();
     let mut code=original.replace("//!","//");
+    // Preserve the reference 144-block CSV in original comparisons. Only
+    // the A/B shared-PDP run chooses the same six-block challenge policy
+    // as scenario.mjs; the actual Bitcoin CSV semantics remain unchanged.
+    println!("cargo:rerun-if-env-changed=BSB_A_SHARED_PDP");
+    if std::env::var("BSB_A_SHARED_PDP").as_deref() == Ok("1") {
+        let delay="const DELTA: u16 = 144;";
+        assert_eq!(code.matches(delay).count(),1,"upstream CSV policy changed");
+        code=code.replace(delay,"const DELTA: u16 = 6;");
+    }
     let bond_const="const BOND: Amount = Amount::from_sat(100_000_000);";
     assert_eq!(code.matches(bond_const).count(),1,"upstream bond constant changed");
     code=code.replace(bond_const,r#"
