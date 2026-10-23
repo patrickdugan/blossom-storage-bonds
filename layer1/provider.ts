@@ -45,7 +45,7 @@ import { ChannelPayee } from "./channel.ts";
 import { KIND_DEAL, dealEvent, offerEvent, parseDeal, publishSure, type OfferTerms, type Proposal } from "./deals.ts";
 import type { Payee } from "./lightning.ts";
 import { LndNode, LndPayee, lndExe } from "./lnd.ts";
-import { partySeed, useNetwork } from "./net.ts";
+import { partySeed, txConfirmations, useNetwork } from "./net.ts";
 import type { NostrEvent } from "./nostr.ts";
 import { KIND_PAYMENT_RECEIPT, OnchainPayee, type PaymentReceipt } from "./onchain.ts";
 import { servePdpOverNostr } from "./nostr-pdp.ts";
@@ -97,7 +97,15 @@ const payee: Payee = lnPayee ?? chainPayee ?? chanPayee!;
 
 /** A funded bond: its deal file and term; once sealed, the next sentinel it may be challenged on; and
  *  its refund, which counts only at the network's depth. */
-type Bond = { path: string; sealed: boolean; next: number; k: number; tEnd: number; client?: string; last?: string; refundTx?: string; waiting?: string; settled?: string };
+type Bond = {
+  path: string; sealed: boolean; next: number; k: number; tEnd: number; client?: string; last?: string; refundTx?: string; waiting?: string; settled?: string;
+  /** Each sentinel's Challenge_i and Respond_i txids. The deal fixes them (txids leave out the witness). */
+  ids?: { challenge: string; respond: string }[];
+  /** The chain tip at which the agent last looked at this bond: once per tip, since nothing it acts on
+   *  (a confirmed challenge, an answer's depth) changes without one. A tip hash, not a height, so that a
+   *  reorg to the same height is looked at too, and an answer it dropped is sent again. */
+  checkedAt?: string;
+};
 const bonds = new Map<string, Bond>();
 const dealPath = (sha: string) => join(DIR, `deal-${sha.slice(0, 16)}.json`);
 
@@ -303,16 +311,42 @@ async function settle(sha: string, b: Bond, h: number) {
   }
 }
 
+/** Whether bsb-bond bond-respond has anything to do for the next sentinel, asked over this process's own
+ *  RPC connection rather than by spawning bsb-bond: an idle bond-respond costs a process, a TCP
+ *  connection to bitcoind and three calls, and the agent used to ask every tick. bond-respond acts only when
+ *  Respond_i is known (to report its depth) or Challenge_i is confirmed (to answer it), so nothing else
+ *  needs it. A confirmed challenge whose output is spent by something other than our answer was
+ *  forfeited: the bond is over. */
+async function respondWork(sha: string, b: Bond): Promise<boolean> {
+  if (!b.ids) b.ids = ((await tool.run("bond-status", b.path)).states as any[]).map((s) => ({ challenge: s.challenge_txid, respond: s.respond_txid }));
+  const id = b.ids[b.next];
+  if ((await txConfirmations(id.respond, RPC)) !== null) return true;
+  if (!(await txConfirmations(id.challenge, RPC))) return false;
+  if ((await rpc("gettxout", [id.challenge, 0, true], RPC)) !== null) return true;
+  if ((await txConfirmations(id.respond, RPC)) !== null) return true;   // our answer arrived between the calls
+  b.settled = "forfeited";
+  log({ event: "bond-gone", sha: sha.slice(0, 12), i: b.next, why: "the challenge output was spent without our answer (forfeited)" });
+  return false;
+}
+
 // The on-chain agent: for each sealed bond, try the next sentinel. bsb-bond answers only once the
-// challenge is confirmed, and reads r from it. Answering goes on while a refund is pending.
+// challenge is confirmed, and reads r from it. Answering goes on while a refund is pending. Each tick asks
+// only the tip. Once per new tip it looks at each bond over this process's kept-alive connection, and runs
+// bsb-bond only if there is work.
 let stopping = false;
 (async () => {
-  let lastHeight = -1;
+  let lastHeight = -1, tip = "", height = -1;
   while (!stopping) {
+    try {
+      const t: string = await rpc("getbestblockhash", [], RPC);
+      if (t !== tip) { height = await rpc("getblockcount", [], RPC); tip = t; }
+    } catch (e) { log({ event: "watch-error", error: (e as Error).message }); }
     for (const [sha, b] of bonds) {
       if (b.settled || !b.sealed) continue;
-      if (b.next < b.k) {
+      if (b.next < b.k && tip && b.checkedAt !== tip) {
+        b.checkedAt = tip;
         try {
+          if (!(await respondWork(sha, b))) continue;
           const r = await tool.run("bond-respond", b.path, String(b.next));
           if (r.status === "responded" || r.status === "already") {
             // On regtest the orchestrator mines at once, so an answer counts when sent. Elsewhere it counts
@@ -327,17 +361,12 @@ let stopping = false;
             if (b.last !== key) log({ event: "bond-respond", sha: sha.slice(0, 12), i: b.next, ...r });
             b.last = key;
           }
-        } catch (e) { log({ event: "watch-error", error: (e as Error).message }); }
+        } catch (e) { b.checkedAt = undefined; log({ event: "watch-error", error: (e as Error).message }); }   // look again next tick
       }
     }
-    if (AUTO_REFUND || [...bonds.values()].some((b) => b.refundTx && !b.settled)) {
-      try {
-        const h: number = await rpc("getblockcount", [], RPC);
-        if (h !== lastHeight) {
-          lastHeight = h;
-          for (const [sha, b] of bonds) await settle(sha, b, h).catch((e) => log({ event: "watch-error", error: (e as Error).message }));
-        }
-      } catch (e) { log({ event: "watch-error", error: (e as Error).message }); }
+    if (height >= 0 && height !== lastHeight && (AUTO_REFUND || [...bonds.values()].some((b) => b.refundTx && !b.settled))) {
+      lastHeight = height;
+      for (const [sha, b] of bonds) await settle(sha, b, height).catch((e) => log({ event: "watch-error", error: (e as Error).message }));
     }
     await sleep(NET.pollMs);
   }

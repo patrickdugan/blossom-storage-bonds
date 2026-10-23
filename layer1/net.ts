@@ -95,6 +95,15 @@ export async function rpc(method: string, params: unknown[] = [], url?: string):
   return v.result;
 }
 
+/** Confirmations of a transaction: null if the node has never seen it, 0 in the mempool. It goes over
+ *  this process's own kept-alive connection, so a watcher can poll it every tick; spawning bsb-bond for
+ *  the same question costs a process and a TCP connection, which ends in TIME_WAIT. Needs txindex on
+ *  confirmed transactions (scripts/regtest-node.sh sets it; bsb-bond requires it off regtest). */
+export async function txConfirmations(txid: string, url?: string): Promise<number | null> {
+  try { return ((await rpc("getrawtransaction", [txid, true], url)) as { confirmations?: number }).confirmations ?? 0; }
+  catch (e) { if (/No such mempool or blockchain transaction/.test((e as Error).message)) return null; throw e; }
+}
+
 // ───────────────────────────── blocks ─────────────────────────────
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
