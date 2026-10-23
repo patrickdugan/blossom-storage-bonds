@@ -50,7 +50,7 @@ jobs:
             https://bitcoincore.org/bin/bitcoin-core-30.3/bitcoin-30.3-x86_64-linux-gnu.tar.gz
           echo "$CORE_SHA256  bitcoin.tar.gz" | sha256sum -c -
           tar -xzf bitcoin.tar.gz
-      - name: Real A: independent 60k and 40k Taproot sentinel bond histories
+      - name: Real A - independent 60k and 40k Taproot sentinel bond histories
         env:
           BITCOIND_EXEC: ${{ runner.temp }}/core/bitcoin-30.3/bin/bitcoind
           BITCOIN_CLI_EXEC: ${{ runner.temp }}/core/bitcoin-30.3/bin/bitcoin-cli
@@ -58,7 +58,7 @@ jobs:
         run: |
           set -euo pipefail
           bash experiments/storage-bond-ab/a-sentinel/regtest/run_matched.sh
-      - name: Real B: pooled P2WSH 2-of-3 with malicious-quorum payout test
+      - name: Real B - pooled P2WSH 2-of-3 with malicious-quorum payout test
         run: |
           set -euo pipefail
           node experiments/storage-bond-ab/b-layertree/regtest/surrogate.mjs \
