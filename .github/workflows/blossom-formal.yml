@@ -46,6 +46,7 @@ jobs:
           LEAN_PATH=formal lean formal/PaymentChannel.lean
           LEAN_PATH=formal lean formal/PresignedParents.lean
           LEAN_PATH=formal lean formal/RecipientAuthority.lean
+          LEAN_PATH=formal lean formal/ContextualFinality.lean
 
   taproot-templates:
     name: Offline rust-bitcoin Taproot template refinement bridge
