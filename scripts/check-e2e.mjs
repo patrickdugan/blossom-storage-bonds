@@ -54,7 +54,11 @@ if (d10) {
   }
 }
 
-for (const n of notes) console.log(`note: ${n}`);
-for (const f of fails) console.log(`FAIL: ${f}`);
+// On GitHub Actions, also emit annotations: the public API serves them without auth, logs it does not.
+const gha = !!process.env.GITHUB_ACTIONS;
+const line = (s) => s.summary.map((x) => `${x.role}: bond to ${bondTo(x)}, paid ${paid(x)}`).join('; ');
+for (const n of notes) console.log(gha ? `::notice title=${kind} outcome::${n}` : `note: ${n}`);
+for (const f of fails) console.log(gha ? `::error title=${kind} outcome::${f}` : `FAIL: ${f}`);
+if (gha) console.log(`::notice title=${kind} summary::${line(r)}${r.crash?.length ? `; crash-restart: ${JSON.stringify(r.crash)}` : ''}`);
 console.log(`${kind} ${file}: ${fails.length ? 'FAILED' : 'ok'} (honest paid ${paid(honest)} sats, bond to ${bondTo(honest)})`);
 process.exit(fails.length ? 1 : 0);
