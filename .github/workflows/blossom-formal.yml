@@ -5,11 +5,19 @@ on:
     branches: [research/binohash-admission]
     paths:
       - "formal/**"
+      - "regtest/src/**"
+      - "regtest/Cargo.toml"
+      - "regtest/Cargo.lock"
+      - "model/verify_formal_evidence.mjs"
       - "lean-toolchain"
       - ".github/workflows/blossom-formal.yml"
   pull_request:
     paths:
       - "formal/**"
+      - "regtest/src/**"
+      - "regtest/Cargo.toml"
+      - "regtest/Cargo.lock"
+      - "model/verify_formal_evidence.mjs"
       - "lean-toolchain"
       - ".github/workflows/blossom-formal.yml"
 
@@ -34,3 +42,18 @@ jobs:
           LEAN_PATH=formal lean formal/UTXORefinement.lean
           LEAN_PATH=formal lean formal/MerkleBinding.lean
           LEAN_PATH=formal lean formal/PaymentChannel.lean
+
+  taproot-templates:
+    name: Offline rust-bitcoin Taproot template refinement bridge
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Generate signed and tampered BIP341 templates without bitcoind
+        run: cargo run --locked --release --manifest-path regtest/Cargo.toml --bin bsb-formal-evidence > /tmp/bsb-taproot-evidence.json
+      - name: Independently decode real Rust transaction serialization and output constraints
+        run: node --experimental-strip-types model/verify_formal_evidence.mjs /tmp/bsb-taproot-evidence.json
