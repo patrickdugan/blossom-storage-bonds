@@ -11,7 +11,7 @@ import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
-import { scenario } from '../../shared/scenario.mjs';
+import { scenario, challenge } from '../../shared/scenario.mjs';
 
 const VALUE=100_000, SPONSOR=50_000, FEE=3_000;
 const need=(v,s)=>{if(!v)throw Error(s);};
@@ -142,8 +142,18 @@ async function run(opts) {
     rpc('generatetoaddress',[6,miningAddress]);
     let locked=outpointFrom(rpc('getrawtransaction',[txfund,true]),vaultScript,VALUE);
     let sponsor=outpointFrom(rpc('getrawtransaction',[txsponsor,true]),sponsorScript,SPONSOR);
-    const terms=scenario('storage-fault').terms;
+    const commonCase=scenario('storage-fault');
+    const terms=commonCase.terms;
     need(terms[0].stake===60000&&terms[1].stake===40000,'shared A/B scenario changed');
+    const actualFault=challenge(commonCase.events.find(e=>
+      e.kind==='proof'&&e.id==='alice'&&e.epoch===2));
+    need(actualFault.verified===false&&actualFault.witness.response===null,
+      'A/B reference Merkle proof did not establish a genuine sampled storage fault');
+    const fraudulentCase=scenario('false-fault');
+    const fraudulentClaim=challenge(fraudulentCase.events.find(e=>
+      e.kind==='proof'&&e.id==='alice'&&e.epoch===2));
+    need(fraudulentClaim.verified===true&&fraudulentClaim.assertedVerdict==='fault',
+      'false-fault attack must conflict with actually valid Blossom Merkle openings');
     const commit1=sha256(Buffer.from(JSON.stringify(terms))).toString('hex');
     const refreshOutputs=[{[vault.address]:btc(VALUE)},
       {[sponsorAddress]:btc(SPONSOR-FEE)},{data:commit1}];
@@ -168,7 +178,8 @@ async function run(opts) {
     // Test in mempool without ever broadcasting this attacker transaction.
     const thief=rpc('getnewaddress',[],'miner');
     const thiefScript=rpc('validateaddress',[thief]).scriptPubKey;
-    const badRoot=sha256(Buffer.from('forge-client-fault')).toString('hex');
+    const badRoot=sha256(Buffer.from('fabricated-fault|'+fraudulentClaim.evidenceHash))
+      .toString('hex');
     const stolen=signTwoOfThree(rpc,locked,sponsor,
       [{[thief]:btc(VALUE)},{[sponsorAddress]:btc(SPONSOR-2*FEE)},{data:badRoot}],
       [keys[0].wif,keys[1].wif],vault.redeemScript);
@@ -213,9 +224,15 @@ async function run(opts) {
       principalSats:VALUE,initialSponsorSats:SPONSOR,
       refresh:{...refreshed,rootCommitment:commit1,principalLockedSats:VALUE,sponsorFeeSats:FEE},
       dishonestPayout:{testmempoolacceptAllowed:true,broadcast:false,
+        referenceStorageProofPasses:true,
+        fraudulentlyAssertedFault:true,
+        independentReferenceProofHash:fraudulentClaim.evidenceHash,
         redirectedValueSats:VALUE,wouldPayScript:thiefScript,
         txid:forgedTx.txid,wtxid:forgedTx.hash,witnessTamperingRejected:tampering},
-      honestPayout:{...settled,aliceOutpoint:alice.txid+':'+alice.vout,
+      honestPayout:{...settled,
+        independentlyVerifiedFaultDetected:true,
+        independentReferenceProofHash:actualFault.evidenceHash,
+        aliceOutpoint:alice.txid+':'+alice.vout,
         bobOutpoint:bob.txid+':'+bob.vout,aliceSats:60000,bobSats:40000,sponsorFeeSats:FEE},
       observedVbytes:{refresh:refreshed.vsize,payout:settled.vsize},
       totalSponsorFeesSats:FEE*2,
