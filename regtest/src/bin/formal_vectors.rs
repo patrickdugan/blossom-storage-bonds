@@ -175,8 +175,47 @@ fn main() {
     assert!(verify_script_sig(&secp,&tx_forfeit,&forfeit_prev,&chain.forfeit,&c.x,&forfeit_sig));
     let refund_witness=vec![refund_sig,chain.refund.to_bytes(),control(&chain.bonds[1],&chain.refund)];
     let forfeit_witness=vec![forfeit_sig,chain.forfeit.to_bytes(),control(&chain.challenged[1],&chain.forfeit)];
-    let refund_signed=with_witness(tx_refund.clone(),refund_witness);
-    let forfeit_signed=with_witness(tx_forfeit.clone(),forfeit_witness);
+    let refund_signed=with_witness(tx_refund.clone(),refund_witness.clone());
+    let forfeit_signed=with_witness(tx_forfeit.clone(),forfeit_witness.clone());
+    // Stale signatures reject payout changes, but a NEW signature from the
+    // authorized unilateral spender may select any destination. These positive
+    // redirections are intentional counterexamples to fixed-recipient coverage.
+    let mut redirect_forfeit=tx_forfeit.clone();
+    redirect_forfeit.output[0].script_pubkey=
+      Address::p2tr(&secp,p.x,None,Network::Regtest).script_pubkey();
+    let forged_forfeit=with_witness(redirect_forfeit.clone(),forfeit_witness.clone());
+    let redirect_forfeit_sig=script_sig(&secp,&redirect_forfeit,&forfeit_prev,&chain.forfeit,&c);
+    let consent_forfeit=with_witness(redirect_forfeit,
+      vec![redirect_forfeit_sig,chain.forfeit.to_bytes(),control(&chain.challenged[1],&chain.forfeit)]);
+    let mut redirect_refund=tx_refund.clone();
+    redirect_refund.output[0].script_pubkey=
+      Address::p2tr(&secp,c.x,None,Network::Regtest).script_pubkey();
+    let forged_refund=with_witness(redirect_refund.clone(),refund_witness.clone());
+    let redirect_refund_sig=script_sig(&secp,&redirect_refund,&refund_prev,&chain.refund,&p);
+    let consent_refund=with_witness(redirect_refund,
+      vec![redirect_refund_sig,chain.refund.to_bytes(),control(&chain.bonds[1],&chain.refund)]);
+    // A fresh signer cannot bypass the relative CSV or absolute CLTV check.
+    let mut immature_forfeit=tx_forfeit.clone();
+    immature_forfeit.input[0].sequence=Sequence::from_height(DELTA-1);
+    let immature_forfeit_sig=script_sig(&secp,&immature_forfeit,&forfeit_prev,&chain.forfeit,&c);
+    let immature_forfeit=with_witness(immature_forfeit,
+      vec![immature_forfeit_sig,chain.forfeit.to_bytes(),control(&chain.challenged[1],&chain.forfeit)]);
+    let mut premature_refund=tx_refund.clone();
+    premature_refund.lock_time=LockTime::from_height(959_999).unwrap();
+    let premature_refund_sig=script_sig(&secp,&premature_refund,&refund_prev,&chain.refund,&p);
+    let premature_refund=with_witness(premature_refund,
+      vec![premature_refund_sig,chain.refund.to_bytes(),control(&chain.bonds[1],&chain.refund)]);
+    let mut final_seq_refund=tx_refund.clone();
+    final_seq_refund.input[0].sequence=Sequence::MAX;
+    let final_seq_refund_sig=script_sig(&secp,&final_seq_refund,&refund_prev,&chain.refund,&p);
+    let final_seq_refund=with_witness(final_seq_refund,
+      vec![final_seq_refund_sig,chain.refund.to_bytes(),control(&chain.bonds[1],&chain.refund)]);
+    let wrong_forfeit_sig=script_sig(&secp,&tx_forfeit,&forfeit_prev,&chain.forfeit,&p);
+    let wrong_forfeit=with_witness(tx_forfeit.clone(),
+      vec![wrong_forfeit_sig,chain.forfeit.to_bytes(),control(&chain.challenged[1],&chain.forfeit)]);
+    let wrong_refund_sig=script_sig(&secp,&tx_refund,&refund_prev,&chain.refund,&c);
+    let wrong_refund=with_witness(tx_refund.clone(),
+      vec![wrong_refund_sig,chain.refund.to_bytes(),control(&chain.bonds[1],&chain.refund)]);
     assert_eq!(refund_signed.output[0].value+CLOSE_FEE,BOND);
     assert_eq!(forfeit_signed.output[0].value+CLOSE_FEE,BOND);
     let output=json!({
@@ -195,7 +234,13 @@ fn main() {
            "input_sequence":tx_forfeit.input[0].sequence.to_consensus_u32(),
            "expected_csv":DELTA,"valid_client_sig":true,
            "output_value":tx_forfeit.output[0].value.to_sat(),"fee_sat":CLOSE_FEE.to_sat(),
-           "output_script":tx_forfeit.output[0].script_pubkey.to_hex_string()
+           "output_script":tx_forfeit.output[0].script_pubkey.to_hex_string(),
+           "attacks":{
+               "stale_signature_redirect":serialize_hex(&forged_forfeit),
+               "fresh_signature_before_csv":serialize_hex(&immature_forfeit),
+               "wrong_signer":serialize_hex(&wrong_forfeit)
+           },
+           "authorized_redirect_raw_hex":serialize_hex(&consent_forfeit)
        },
        "refund":{
            "txid":tx_refund.compute_txid().to_string(),"raw_hex":serialize_hex(&refund_signed),
@@ -203,7 +248,14 @@ fn main() {
            "spent_value":refund_prev.value.to_sat(),
            "lock_time":tx_refund.lock_time.to_consensus_u32(),"valid_provider_sig":true,
            "output_value":tx_refund.output[0].value.to_sat(),"fee_sat":CLOSE_FEE.to_sat(),
-           "output_script":tx_refund.output[0].script_pubkey.to_hex_string()
+           "output_script":tx_refund.output[0].script_pubkey.to_hex_string(),
+           "attacks":{
+               "stale_signature_redirect":serialize_hex(&forged_refund),
+               "fresh_signature_before_cltv":serialize_hex(&premature_refund),
+               "fresh_signature_final_sequence":serialize_hex(&final_seq_refund),
+               "wrong_signer":serialize_hex(&wrong_refund)
+           },
+           "authorized_redirect_raw_hex":serialize_hex(&consent_refund)
        }
     });
     println!("{}", serde_json::to_string_pretty(&output).unwrap());

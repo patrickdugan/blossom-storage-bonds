@@ -111,6 +111,24 @@ export function verifyEvidence(e){
   assert.match(r.spent_script,/^5120[0-9a-f]{64}$/);
   assert.equal(f.valid_client_sig,true);
   assert.equal(r.valid_provider_sig,true);
+  const expectTerminal=(kind,row,original,expectedAttacks)=>{
+    assert.deepEqual(Object.keys(row.attacks??{}).sort(),expectedAttacks.sort());
+    for(const [label,rawHex] of Object.entries(row.attacks)){
+      assert.ok(validHex(rawHex),'terminal attack must have raw bytes');
+      const mutant=parseTx(Buffer.from(rawHex,'hex'));
+      if(label==='wrong_signer')assert.equal(mutant.txid,original.txid);
+      else assert.notEqual(mutant.txid,original.txid);
+    }
+    assert.ok(validHex(row.authorized_redirect_raw_hex));
+    const consent=parseTx(Buffer.from(row.authorized_redirect_raw_hex,'hex'));
+    assert.notEqual(consent.txid,original.txid);
+    assert.equal(consent.outputs[0].value,99_999_000n);
+  };
+  expectTerminal('forfeit',f,ft,
+    ['stale_signature_redirect','fresh_signature_before_csv','wrong_signer']);
+  expectTerminal('refund',r,rt,
+    ['stale_signature_redirect','fresh_signature_before_cltv',
+     'fresh_signature_final_sequence','wrong_signer']);
   return {ok:true,parents:4,terminals:2,certificate:'UNFUNDED'};
 }
 if(process.argv[1] && import.meta.url===new URL('file://'+process.argv[1]).href) {

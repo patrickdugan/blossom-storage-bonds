@@ -53,7 +53,9 @@ fn main()->Result<(),Box<dyn std::error::Error>>{
     }
     let mut checked=0usize;
     let mut failures=0usize;
-    for row in v["transactions"].as_array().ok_or("missing transactions")?{
+    let parents=v["transactions"].as_array().ok_or("missing transactions")?;
+    if parents.len()!=4 { return Err("expected four signed challenge/response parents".into()); }
+    for row in parents {
         let name=field(row,"name")?;
         let script=field(row,"spent_script")?;
         let value=amount(row)?;
@@ -61,6 +63,12 @@ fn main()->Result<(),Box<dyn std::error::Error>>{
         if !check(name,field(row,"raw_hex")?,script,value,true)?{failures+=1;}
         let attacks=row["adversarial_raw_hex"].as_object()
             .ok_or("missing adversarial raw transaction evidence")?;
+        let required=["redirect_successor","reduce_successor","replace_prevout",
+             "wrong_sentinel_opening","wrong_control_block","wrong_leaf_script"];
+        if attacks.len()!=required.len() ||
+           required.iter().any(|label|!attacks.contains_key(*label)) {
+            return Err("missing expected pre-signed parent attack vectors".into());
+        }
         for (label,raw) in attacks {
             let raw=raw.as_str().ok_or("attack missing raw bytes")?;
             checked+=1;
@@ -69,10 +77,31 @@ fn main()->Result<(),Box<dyn std::error::Error>>{
     }
     for label in ["forfeit","refund"] {
         let row=&v[label];
+        let script=field(row,"spent_script")?;
+        let value=amount(row)?;
         checked+=1;
-        if !check(label,field(row,"raw_hex")?,field(row,"spent_script")?,
-                  amount(row)?,true)?{failures+=1;}
+        if !check(label,field(row,"raw_hex")?,script,value,true)?{failures+=1;}
+        let attacks=row["attacks"].as_object().ok_or("missing terminal attacks")?;
+        let required: &[&str]=if label=="forfeit"{
+            &["stale_signature_redirect","fresh_signature_before_csv","wrong_signer"]
+        }else{
+            &["stale_signature_redirect","fresh_signature_before_cltv",
+              "fresh_signature_final_sequence","wrong_signer"]
+        };
+        if attacks.len()!=required.len() ||
+           required.iter().any(|name|!attacks.contains_key(*name)){
+            return Err(format!("{label}: missing mandatory terminal adversarial cases").into());
+        }
+        for (name,raw) in attacks{
+            checked+=1;
+            if !check(&format!("{label}/{name}"),raw.as_str().ok_or("bad attack hex")?,
+                 script,value,false)?{failures+=1;}
+        }
+        checked+=1;
+        if !check(&format!("{label}/authorized_redirection_by_correct_signer"),
+             field(row,"authorized_redirect_raw_hex")?,script,value,true)?{failures+=1;}
     }
+    if checked!=39 {return Err(format!("incomplete Taproot witness matrix: {checked}").into());}
     println!("offline Bitcoin Core Taproot witness Script checks: {checked} cases, {failures} failures");
     if failures>0{return Err(format!("{failures} Taproot consensus Script mismatches").into());}
     Ok(())
