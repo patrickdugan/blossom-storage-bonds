@@ -72,6 +72,7 @@ for(const [id,report,amount] of [['alice',a,60000],['bob',b,40000]]) {
 }
 let pdpEvidence=null;
 if(shared) {
+    if(a.delta!==6 || b.delta!==6) throw Error('shared source PDP CSV did not use real 6-block BIP112 policy');
     const manifest=JSON.parse(fs.readFileSync(path.join(dir,'pdp/pdp-taproot-manifest.json')));
     if(manifest.schema!=='bsb-ab-pdp-to-taproot-fixture-v1' ||
        !manifest.publicCounterfactualDeletedPreimageIncluded ||
@@ -103,6 +104,7 @@ if(shared) {
       classification:'COMMON-MERKLE-WITNESS-BITCOIN-SCRIPT-NOT-PROVIDER-ERASURE',
       manifestSchema:manifest.schema,holderFixtures:hashes,
       sourceWitnessesBoundToCoreSignedTransactions:true,
+      realBitcoinCsvDelayBlocks:6,
       productionStorageNonavailabilityProven:false,
       bobCounterfactualSilenceDuringS1Forfeit:true,
       epochsAndFeePoliciesFullyMatchedToB:false,
@@ -117,9 +119,9 @@ const result={
     sharedPdpEvidence:pdpEvidence,
     originalTerminalFeeShavedSatsPerBond:1000,
     results:{
-      alice:{checks:a.checks.length,failed:a.failed,sizes:a.sizes,
+      alice:{checks:a.checks.length,failed:a.failed,csvBlocks:a.delta,sizes:a.sizes,
         impliedSingleTerminalReceiptSats:59000},
-      bob:{checks:b.checks.length,failed:b.failed,sizes:b.sizes,
+      bob:{checks:b.checks.length,failed:b.failed,csvBlocks:b.delta,sizes:b.sizes,
         impliedSingleTerminalReceiptSats:39000},
     },
     caveat:'Original A phase-1 fixed sentinels and transaction/fee rules remain different from the pooled B scenario. Exact A/B scenario and all external fee equalization still pending.',
