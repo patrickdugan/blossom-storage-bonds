@@ -39,7 +39,25 @@ cleanup() {
   rm -rf "$TMP"
 }
 trap cleanup EXIT
-bash scripts/regtest-node.sh "$DATADIR" "$BITCOIND_EXEC" >"$TMP/bitcoin.log" 2>&1 &
+# The private node has no historical mempool fee estimator. A local fallback
+# enables only the disposable miner's coinbase-funded setup payments.
+cat > "$DATADIR/bitcoin.conf" <<'CONF'
+regtest=1
+server=1
+txindex=1
+fallbackfee=0.00002
+[regtest]
+rpcuser=bsb
+rpcpassword=bsb-regtest-only
+rpcport=18543
+rpcbind=127.0.0.1
+rpcallowip=127.0.0.1
+port=18544
+connect=0
+listen=0
+CONF
+chmod 600 "$DATADIR/bitcoin.conf"
+"$BITCOIND_EXEC" -datadir="$DATADIR" -printtoconsole=0 >"$TMP/bitcoin.log" 2>&1 &
 PID=$!
 ready=0
 for i in $(seq 1 150); do
