@@ -1,0 +1,197 @@
+name: Phase 7C pilot end-to-end (regtest)
+
+# Every scenario the pilot rests on, run from scratch on a fresh regtest node per job: uploads, randomized
+# challenge proofs (Merkle PDP over NIP-44, and public Stwo epoch proofs), invoice authorization,
+# payment settlement (Spilman channel, on chain with receipts, Lightning via lnd), sentinel-bond
+# challenges, provider responses, forfeits and refunds. scripts/check-e2e.mjs asserts the outcomes.
+# Nothing here touches a public network. Keys, RPC passwords and Winternitz secrets are test values.
+
+on:
+  push:
+    branches: [phase-7c-pilot]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: pilot-e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  CORE_VERSION: "31.1"
+  LND_VERSION: "v0.21.4-beta"
+  SCARB_VERSION: "2.19.6"
+
+jobs:
+  unit:
+    name: Unit and adversarial tests (node --test)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - run: node --test model/*.test.ts layer1/*.test.ts
+
+  bins:
+    name: Build bsb-regtest and bsb-bond
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            regtest/target
+          key: bsb-bins-${{ hashFiles('regtest/Cargo.lock', 'regtest/src/**') }}
+      - run: cargo build --locked --release --manifest-path regtest/Cargo.toml --bin bsb-regtest --bin bsb-bond
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bsb-bins
+          path: |
+            regtest/target/release/bsb-regtest
+            regtest/target/release/bsb-bond
+
+  zk:
+    name: Build bsb-zk (Stwo) and the mode-1 Cairo executables
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        id: zkcache
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            zk/prover/target
+          key: bsb-zk-${{ hashFiles('zk/prover/Cargo.lock', 'zk/prover/src/**', 'zk/prover/rust-toolchain.toml') }}
+      - name: Install the pinned nightly
+        run: rustup toolchain install "$(sed -n 's/^channel = "\(.*\)"/\1/p' zk/prover/rust-toolchain.toml)" --profile minimal
+      - run: cargo build --release --manifest-path zk/prover/Cargo.toml
+      - name: Install Scarb
+        run: curl --proto '=https' --tlsv1.2 -sSf https://docs.swmansion.com/scarb/install.sh | sh -s -- -v "$SCARB_VERSION"
+      - name: Build zk_pdp (Blake2s holdings mode)
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          mkdir -p exe
+          (cd zk/cairo && scarb --release build --features blake && cp target/release/zk_pdp.executable.json ../../exe/zk_pdp_blake.executable.json)
+          cp zk/prover/target/release/bsb-zk exe/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bsb-zk
+          path: exe/
+
+  market:
+    name: Market on regtest (pay ${{ matrix.pay }})
+    needs: bins
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        pay: [channel, ln]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - uses: actions/download-artifact@v4
+        with:
+          name: bsb-bins
+          path: bins
+      - name: Fetch Bitcoin Core and lnd (checksums verified)
+        run: bash scripts/ci-fetch.sh "$RUNNER_TEMP/tools"
+      - name: Start a fresh regtest node
+        run: |
+          nohup bash scripts/regtest-node.sh "$RUNNER_TEMP/node" "$RUNNER_TEMP/tools/bitcoind" > "$RUNNER_TEMP/node.log" 2>&1 &
+          for i in $(seq 1 60); do "$RUNNER_TEMP/tools/bitcoin-cli" -datadir="$RUNNER_TEMP/node" getblockchaininfo >/dev/null 2>&1 && break; sleep 1; done
+      - name: Run the market
+        env:
+          BSB_BOND: ${{ github.workspace }}/bins/bsb-bond
+          BSB_LND: ${{ runner.temp }}/tools/lnd
+        run: |
+          chmod +x bins/*
+          args=""; [ "${{ matrix.pay }}" = ln ] && args="--pay ln"
+          node layer1/market.ts $args --out "$RUNNER_TEMP/market-${{ matrix.pay }}.json" 2>&1 | tee "$RUNNER_TEMP/market.log"
+      - name: Check outcomes
+        run: node scripts/check-e2e.mjs "$RUNNER_TEMP/market-${{ matrix.pay }}.json" market
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: market-${{ matrix.pay }}
+          path: |
+            ${{ runner.temp }}/market-*.json
+            ${{ runner.temp }}/market.log
+            ${{ runner.temp }}/node.log
+
+  harness:
+    name: Sentinel-bond harness (21 checks on Core)
+    needs: bins
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: bsb-bins
+          path: bins
+      - run: bash scripts/ci-fetch.sh "$RUNNER_TEMP/tools" core
+      - run: |
+          nohup bash scripts/regtest-node.sh "$RUNNER_TEMP/node" "$RUNNER_TEMP/tools/bitcoind" > "$RUNNER_TEMP/node.log" 2>&1 &
+          for i in $(seq 1 60); do "$RUNNER_TEMP/tools/bitcoin-cli" -datadir="$RUNNER_TEMP/node" getblockchaininfo >/dev/null 2>&1 && break; sleep 1; done
+          chmod +x bins/*
+          bins/bsb-regtest | tee "$RUNNER_TEMP/harness.log"
+          grep -q " 0 failed" "$RUNNER_TEMP/harness.log"
+
+  full-stack:
+    name: Full stack on regtest (pay ${{ matrix.pay }})
+    needs: [bins, zk]
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        pay: [onchain, ln]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - uses: actions/download-artifact@v4
+        with:
+          name: bsb-bins
+          path: bins
+      - uses: actions/download-artifact@v4
+        with:
+          name: bsb-zk
+          path: zkexe
+      - run: bash scripts/ci-fetch.sh "$RUNNER_TEMP/tools"
+      - run: |
+          nohup bash scripts/regtest-node.sh "$RUNNER_TEMP/node" "$RUNNER_TEMP/tools/bitcoind" > "$RUNNER_TEMP/node.log" 2>&1 &
+          for i in $(seq 1 60); do "$RUNNER_TEMP/tools/bitcoin-cli" -datadir="$RUNNER_TEMP/node" getblockchaininfo >/dev/null 2>&1 && break; sleep 1; done
+      - name: Run the whole stack
+        env:
+          BSB_BOND: ${{ github.workspace }}/bins/bsb-bond
+          BSB_LND: ${{ runner.temp }}/tools/lnd
+          BSB_ZK_BIN: ${{ github.workspace }}/zkexe/bsb-zk
+          BSB_ZK_EXE: ${{ github.workspace }}/zkexe
+        run: |
+          chmod +x bins/* zkexe/bsb-zk
+          node layer1/full-stack.ts --pay ${{ matrix.pay }} --out "$RUNNER_TEMP/full-stack-${{ matrix.pay }}.json" 2>&1 | tee "$RUNNER_TEMP/full-stack.log"
+      - name: Check outcomes
+        run: node scripts/check-e2e.mjs "$RUNNER_TEMP/full-stack-${{ matrix.pay }}.json" full-stack
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: full-stack-${{ matrix.pay }}
+          path: |
+            ${{ runner.temp }}/full-stack-*.json
+            ${{ runner.temp }}/full-stack.log
+            ${{ runner.temp }}/node.log

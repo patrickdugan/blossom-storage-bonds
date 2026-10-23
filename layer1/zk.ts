@@ -8,6 +8,9 @@
 // login shell would expand every $ in the script before bash saw it. One proof runs at a time on this
 // machine: a lock file serialises bsb-zk across processes, so providers never prove at once under
 // WSL's memory cap.
+//
+// On Linux (phase 7c: CI and pilot hosts) the same scripts run natively under bash, and paths need no
+// translation. The lock stays: proofs are memory-bound, and one at a time is the measured setting.
 
 import { execFile } from "node:child_process";
 import { closeSync, existsSync, mkdirSync, openSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
@@ -37,7 +40,10 @@ export const defaultZk = (): ZkConfig => ({
   threads: Number(process.env.BSB_ZK_THREADS ?? 4),
 });
 
+const NATIVE = process.platform !== "win32";
+
 const wslPath = (p: string): string => {
+  if (NATIVE) return p;
   const m = /^([A-Za-z]):[\\/](.*)$/.exec(p);
   if (!m) throw new Error(`not a Windows path: ${p}`);
   return `/mnt/${m[1].toLowerCase()}/${m[2].replace(/\\/g, "/")}`;
@@ -59,7 +65,8 @@ async function withLock<T>(f: () => Promise<T>): Promise<T> {
 
 function wsl(cfg: ZkConfig, script: string, timeoutMs = 900_000): Promise<{ code: number; stdout: string; stderr: string }> {
   return new Promise((ok) => {
-    execFile("wsl.exe", ["-d", cfg.distro, "-u", "root", "--exec", "bash", "-c", script],
+    const [cmd, argv] = NATIVE ? ["bash", ["-c", script]] : ["wsl.exe", ["-d", cfg.distro, "-u", "root", "--exec", "bash", "-c", script]];
+    execFile(cmd, argv,
       { maxBuffer: 1 << 26, timeout: timeoutMs, windowsHide: true },
       (err, stdout, stderr) => ok({ code: err ? (typeof (err as any).code === "number" ? (err as any).code : 1) : 0, stdout: String(stdout), stderr: String(stderr) }));
   });
