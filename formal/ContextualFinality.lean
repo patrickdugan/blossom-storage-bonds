@@ -46,7 +46,7 @@ theorem contextual_csv_waits_at_least_contract_delay
     (c : CsvHeightCase) (h : csvContextOk c) :
     c.outputConfirmedHeight + c.contractDelayBlocks ≤ c.candidateBlockHeight := by
   rcases h with ⟨⟨_, _, _, minSequence⟩, matured⟩
-  omega
+  exact (Nat.add_le_add_left minSequence c.outputConfirmedHeight).trans matured
 
 /-- The exact operational sequence (144 blocks) can satisfy the CSV opcode
 while still lacking the BIP68 age needed for confirmed inclusion. -/
@@ -60,11 +60,11 @@ def matureCsvFixture : CsvHeightCase :=
 
 theorem csv_opcode_without_maturity_counterexample :
     csvScriptOk immatureCsvFixture ∧ ¬ bip68HeightFinal immatureCsvFixture := by
-  decide
+  simp [csvScriptOk, bip68HeightFinal, immatureCsvFixture]
 
 theorem first_mature_csv_boundary :
     csvContextOk matureCsvFixture ∧ ¬ csvContextOk immatureCsvFixture := by
-  decide
+  simp [csvContextOk, csvScriptOk, bip68HeightFinal, matureCsvFixture, immatureCsvFixture]
 
 /-- A larger signed sequence creates a longer contextual wait; a party
 cannot shorten actual BIP68 finality to the minimum script delay. -/
@@ -73,7 +73,7 @@ def slowerCsvFixture : CsvHeightCase :=
 
 theorem larger_sequence_requires_its_own_bip68_wait :
     csvScriptOk slowerCsvFixture ∧ ¬ bip68HeightFinal slowerCsvFixture := by
-  decide
+  simp [csvScriptOk, bip68HeightFinal, slowerCsvFixture, immatureCsvFixture]
 
 structure CltvHeightCase where
   contractEndHeight : Nat
@@ -102,7 +102,7 @@ theorem refund_confirmation_follows_contract_height
     (c : CltvHeightCase) (h : cltvContextOk c) :
     c.contractEndHeight < c.candidateBlockHeight := by
   rcases h with ⟨⟨_, _, _, enoughLock, _⟩, finalHeight⟩
-  omega
+  exact lt_of_le_of_lt enoughLock finalHeight
 
 def earlyRefundFixture : CltvHeightCase :=
   { contractEndHeight := 960000, txLockHeight := 960000,
@@ -114,11 +114,11 @@ def matureRefundFixture : CltvHeightCase :=
 
 theorem cltv_opcode_without_transaction_finality :
     cltvScriptOk earlyRefundFixture ∧ ¬ absoluteHeightFinal earlyRefundFixture := by
-  decide
+  simp [cltvScriptOk, absoluteHeightFinal, earlyRefundFixture]
 
 theorem first_mature_cltv_boundary :
     cltvContextOk matureRefundFixture ∧ ¬ cltvContextOk earlyRefundFixture := by
-  decide
+  simp [cltvContextOk, cltvScriptOk, absoluteHeightFinal, matureRefundFixture, earlyRefundFixture]
 
 /-- Link the contextual timing predicates to the existing abstract BondTx
 path. A signed forfeit/refund must carry a corresponding real-chain witness
