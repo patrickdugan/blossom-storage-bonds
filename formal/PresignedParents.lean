@@ -74,17 +74,16 @@ inductive PackageStep : PackageLedger → PackageLedger → Prop where
       PackageStep s { s with bondRef := tx.successorRef, bondSats := tx.successorSats }
   | child (s : PackageLedger) (fee : Nat)
       (affordable : fee ≤ s.feeWalletSats) :
-      PackageStep s { s with feeWalletSats := s.feeWalletSats - fee,
-        minerFees := s.minerFees + fee }
+      PackageStep s { s with feeWalletSats := s.feeWalletSats - fee, minerFees := s.minerFees + fee }
 
 theorem package_step_conserves_all_funds {s t : PackageLedger}
     (h : PackageStep s t) : packageValue s = packageValue t := by
   cases h with
-  | parent s tx valid _ inputAmount =>
+  | parent tx valid _ inputAmount =>
       have amount := valid_parent_preserves_bond tx valid
       simp [packageValue]
       omega
-  | child s fee affordable =>
+  | child fee affordable =>
       simp [packageValue]
       omega
 
@@ -100,8 +99,7 @@ theorem parent_leaves_fee_wallet_unchanged
 theorem child_leaves_bond_unchanged
     (s : PackageLedger) (fee : Nat)
     (affordable : fee ≤ s.feeWalletSats) :
-    ({ s with feeWalletSats := s.feeWalletSats - fee,
-      minerFees := s.minerFees + fee }).bondSats = s.bondSats := by
+    ({ s with feeWalletSats := s.feeWalletSats - fee, minerFees := s.minerFees + fee }).bondSats = s.bondSats := by
   rfl
 
 /-- Arbitrary finite histories of parent/CPFP spends preserve the sum of
