@@ -116,13 +116,13 @@ export function scenario(name='storage-fault') {
   const events = structuredClone(expectedEvents);
   if (name === 'healthy') {
     events[3].storage = 'intact';
-    events[5] = {kind:'proof',id:'alice',epoch:3,height:56,storage:'intact'};
-    events.splice(6,0,{kind:'settle',id:'alice',winner:'provider',height:101});
+    events[5] = {kind:'proof',id:'alice',epoch:3,height:57,storage:'intact'};
+    events.splice(7,0,{kind:'settle',id:'alice',winner:'provider',height:101});
   } else if (name === 'false-fault') {
     events[3].storage = 'intact';
     events[3].assertedVerdict = 'fault';
   } else if (name === 'quorum-outage') {
-    events[0].voters = ['f1'];
+    events.forEach(event => {event.voters=['f1'];});
   } else if (name === 'storage-fault') {
     // Original common loss scenario.
   } else throw new Error('unknown A/B scenario: ' + name);
