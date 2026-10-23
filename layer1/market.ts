@@ -44,6 +44,7 @@ import { fileURLToPath } from "node:url";
 import { keyFromSeed } from "../model/schnorr.ts";
 import { sentinelSurvival } from "../model/storage_bonds.ts";
 import { BondTool, forfeitRates, forfeitWithPolicy, rpc, runWith } from "./bondtool.ts";
+import { readEnforceState, writeEnforceState } from "./enforce.ts";
 import { findOffers, proposeDeal, type ProviderOffer } from "./deals.ts";
 import { advance, confirm, partySeed, storageSecret, txConfirmations, untilHeight, useNetwork, waitHeight } from "./net.ts";
 import { ChannelPayer } from "./channel.ts";
@@ -233,6 +234,9 @@ try {
       chans.push(chanPath); chanTxid = ch.funding_txid!;
     }
     reps.push(rep); kept.push(ks); deals.push(dealPath); fundTx.push(d.fund_txid); chanTx.push(chanTxid);
+    // Phase 7C condition 1: what enforcement needs, on disk from the moment the bond exists, so a crash of
+    // this process cannot cost the enforcement window (layer1/enforce.ts resumes from it).
+    writeEnforceState(join(dir, `enforce-${ROLES[i].slug}.json`), { deal: dealPath, kept: ks.map((s) => ({ r: s.r })), delta: DELTA, bondSats: BOND_SATS, challenges: [], forfeits: [] });
     console.log(`  ${ROLES[i].name.padEnd(12)} replica ${rep.sha256.slice(0, 12)}…  kept [${ks.map((s) => s.j).join(", ")}]  bond ${d.fund_txid.slice(0, 12)}… (${d.checked.provider_signatures} signatures checked)  ${LN ? "ln " : ""}channel ${chanTxid.slice(0, 12)}…`);
   }
 
@@ -245,6 +249,11 @@ try {
   // that epoch and restarts it on the same port from the same data directory. The honest outcome must
   // hold: its channel state comes back from its payment ledger, and its deals and bonds from disk.
   const CRASH = Number(arg("crash-honest", "0"));
+  // Phase 7C condition 1: --enforce-external runs flagged enforcement in layer1/enforce.ts; with
+  // --crash-enforcer, the first enforcer is killed mid-job and resumed from its state file.
+  const EXTERNAL = process.argv.includes("--enforce-external");
+  const CRASH_ENFORCER = process.argv.includes("--crash-enforcer");
+  let enforcerCrashed = false;
   if (CRASH && LN) throw new Error("--crash-honest needs the channel backend (a killed provider would orphan its lnd)");
   for (let e = 1; e <= EPOCHS; e++) {
     if (e === CRASH) {
@@ -294,6 +303,39 @@ try {
     const n = failed > 0 ? K : 1;
     const steps = [];
     let forfeit: string | undefined;
+    if (EXTERNAL && failed > 0) {
+      // --enforce-external: hand the flagged deal to layer1/enforce.ts, a separate process. With
+      // --crash-enforcer, the first one is SIGKILLed right after its first challenge and started again
+      // from the same state file; it must finish the job.
+      const stateFile = join(dir, `enforce-${role.slug}.json`);
+      const s = readEnforceState(stateFile);
+      s.flagged = { cause: `${failed} failed epoch(s)`, at: await rpc("getblockcount") };
+      writeEnforceState(stateFile, s);
+      const runOnce = (killAfterChallenge: boolean) => new Promise<{ result?: any; killed: boolean }>((ok, bad) => {
+        const child = spawn(process.execPath, [join(here, "enforce.ts"), "--state", stateFile, "--mine-to", me.fee_address], { env: { ...process.env, BSB_SEED: SEED }, stdio: ["ignore", "pipe", "inherit"] });
+        let result: any, killed = false;
+        createInterface({ input: child.stdout! }).on("line", (line) => {
+          let ev: any; try { ev = JSON.parse(line); } catch { return; }
+          if (ev.result) result = ev.result;
+          else console.log(`    [enforcer ${role.slug} pid ${child.pid}] ${ev.event}${ev.j !== undefined ? ` sentinel ${ev.j}` : ""}${ev.txid ? ` ${String(ev.txid).slice(0, 12)}…` : ""}`);
+          if (killAfterChallenge && ev.event === "challenge" && !killed) { killed = true; child.kill("SIGKILL"); }
+        });
+        child.on("exit", (c) => (killed || c === 0 ? ok({ result, killed }) : bad(new Error(`enforcer exited ${c}`))));
+      });
+      let r = await runOnce(CRASH_ENFORCER && !enforcerCrashed);
+      const crashedHere = r.killed;
+      if (r.killed) {
+        enforcerCrashed = true;
+        console.log(`  ← enforcer for ${role.name} killed (SIGKILL) after its first challenge; restarting from ${stateFile}`);
+        r = await runOnce(false);
+      }
+      const done = readEnforceState(stateFile);
+      for (const c of done.challenges) steps.push({ i: c.j, challenge_txid: c.txid ?? null, answered_after_blocks: null, forfeit_txid: done.result?.outcome === "forfeited" && done.forfeits.at(-1)?.j === c.j ? done.result.txid : null, external: true });
+      if (done.result?.outcome === "forfeited") forfeit = done.result.txid;
+      console.log(`  ${role.name.padEnd(12)} enforced by layer1/enforce.ts: ${done.result?.outcome}${forfeit ? ` → forfeit ${forfeit.slice(0, 16)}…` : ""}${crashedHere ? " (survived a crash)" : ""}`);
+      enforcement.push({ role: role.name, failedEpochs: failed, unpaidEpochs: unpaid, challenged: steps.length, steps, forfeit, external: true, enforcerCrashed: crashedHere });
+      continue;
+    }
     for (let j = 0; j < n && !forfeit; j++) {
       const c = await tool.run("bond-challenge", deals[i], String(j), kept[i][j].r);
       await mine(1, me.fee_address);
@@ -392,7 +434,7 @@ try {
     summary.push({
       role: role.name, pid: procs[i].pid, failedEpochs: en.failedEpochs, unpaidEpochs: en.unpaidEpochs, paidSats: s.paidSats, paidOnChainSats: paidOnChain,
       channel: { funding: chanTx[i], close: s.channelClose }, bond: { funding: fundTx[i], settlement: bondTxid, to: en.forfeit ? "client" : "provider", confirmations: bt.confirmations },
-      enforcement: en.steps, pForfeitIfAllChallenged: pForfeit,
+      enforcement: en.steps, pForfeitIfAllChallenged: pForfeit, ...(en.external ? { enforcedExternally: true, enforcerCrashed: !!en.enforcerCrashed } : {}),
       providerAgentLog: procs[i].log.filter((ev) => ev.event === "bond-respond" || ev.event === "watch-error"),
     });
   }

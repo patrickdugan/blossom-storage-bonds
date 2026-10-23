@@ -50,6 +50,15 @@ if (wh) {
   notes.push(`withholds: bond kept (possession is enforced, retrieval is not), paid ${paid(wh)} of the honest ${paid(honest)} sats`);
 }
 
+// Pilot condition 1 (--enforce-external --crash-enforcer): an enforcer killed mid-job and resumed from
+// its state file must still forfeit the bond.
+const crashed = r.summary.filter((s) => s.enforcerCrashed);
+if (process.argv.includes('--expect-enforcer-crash') && crashed.length === 0) fails.push('no enforcer crash was recorded');
+for (const s of crashed) {
+  if (bondTo(s) !== 'client') fails.push(`${s.role}: its enforcer crashed and the bond went to ${bondTo(s)}, not the client`);
+  else notes.push(`${s.role}: enforcer SIGKILLed mid-job, resumed from its state file, and forfeited the bond`);
+}
+
 const d10 = by('deletes 10%');
 if (d10) {
   if (bondTo(d10) === 'client') notes.push('deletes 10%: forfeited');

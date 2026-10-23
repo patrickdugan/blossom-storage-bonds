@@ -98,7 +98,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        pay: [channel, ln]
+        pay: [channel, ln, channel-enforcer-crash]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -121,9 +121,11 @@ jobs:
         run: |
           chmod +x bins/*
           args="--retrieval-probe --crash-honest 3"; [ "${{ matrix.pay }}" = ln ] && args="--pay ln --retrieval-probe"
+          # Pilot condition 1: flagged bonds enforced by layer1/enforce.ts, the first one SIGKILLed mid-job.
+          [ "${{ matrix.pay }}" = channel-enforcer-crash ] && args="--retrieval-probe --enforce-external --crash-enforcer"
           node layer1/market.ts $args --out "$RUNNER_TEMP/market-${{ matrix.pay }}.json" 2>&1 | tee "$RUNNER_TEMP/market.log"
       - name: Check outcomes
-        run: node scripts/check-e2e.mjs "$RUNNER_TEMP/market-${{ matrix.pay }}.json" market
+        run: node scripts/check-e2e.mjs "$RUNNER_TEMP/market-${{ matrix.pay }}.json" market $([ "${{ matrix.pay }}" = channel-enforcer-crash ] && echo --expect-enforcer-crash)
       - if: always()
         uses: actions/upload-artifact@v4
         with:
