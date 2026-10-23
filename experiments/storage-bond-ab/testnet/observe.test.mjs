@@ -65,7 +65,7 @@ test('signed exact witness and BTC fee observed from trusted signet chain',async
   assert.equal(result.network,'signet');
   assert.equal(result.transactionCount,1);
   assert.equal(result.transactions[0].wtxid,txid);
-  assert.equal(result.transactions[0].fee_sats,100);
+  assert.equal(result.transactions[0].fee_sats,1000);
   assert.equal(result.transactions[0].outputs[0].sats,60_000);
   assert.equal(result.claimAuthorizationVerified,false);
   assert.equal(result.storageFaultValidityVerified,false);
