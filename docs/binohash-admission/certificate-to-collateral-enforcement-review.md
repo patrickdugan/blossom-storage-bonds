@@ -161,7 +161,10 @@ See [ADR-016](cat-refutation-verifier.md). There are 13 real-transaction cases:
 `model/verify_cat_vectors.mjs` recomputes every verdict with the real 256-bit regtest PoW rule and agrees on all 13. In Lean, `exactN_stronger` and `exactN_leaf_sound` connect the leaf's exact-N acceptance to A2's soundness (fixed difficulty). Both depend on no axioms.
 
 **Next implementable experiments**, in order of value:
-1. Cross-check the patch against Bitcoin Inquisition's BIP347 (needs approval to download).
+1. ~~Cross-check the patch against Bitcoin Inquisition's BIP347.~~ Done in [ADR-018](inquisition-crosscheck.md). Inquisition v29.4-inq's own `VerifyScript` reproduces every verdict, 41 cases with 0 mismatches:
+   - with `SCRIPT_VERIFY_OP_CAT` it matches the patch;
+   - without the flag it matches stock Core 26;
+   - each attack fails at its intended check.
 2. Add per-period targets fixed at setup, to handle mainnet retargets.
 3. Add a BIP141 inclusion check of the certificate's anchor transaction inside the leaf (CAT Merkle path), for timeliness.
 4. ~~Add a presigned leaf per claim value, for dynamic frozen claims.~~ Done in [ADR-017](dynamic-claim-freeze.md).
@@ -172,6 +175,13 @@ See [ADR-016](cat-refutation-verifier.md). There are 13 real-transaction cases:
 - a fork equal to the claim does not refute, and any longer fork refutes through its prefix.
 
 The whole file has 25 cases with 0 mismatches. Stock Core shows 11 counterexamples, and the BIP347 build shows 0.
+
+## 9. Remaining items, characterized
+
+These two are not built. Each is stated precisely enough to be the next experiment.
+
+1. **Retargets (mainnet).** A header's work is `2^256 / (target + 1)` from its nBits. Exact cumulative work in one tapscript needs that 256-bit division for every header, plus the retarget rule (a timestamp difference over 2016 blocks). Either can be written with OP_CAT limb arithmetic, but neither is measured. The cheaper sound variant has the leaf pin nBits per difficulty period at setup, as ADR-016 does for one period. That admits forks only on the pinned schedule: it is sound, but incomplete for forks that retarget differently. Lean's `exactN_leaf_sound` covers the fixed-difficulty case only.
+2. **Timeliness.** Bitcoin has no "valid only before height h" timelock. The refutation window is closed only by the refund spending the output after the deadline, which is A4 (`late_refutation_can_lose`). Proving that the fork *existed* by the cutoff needs an anchor: for example, the fork tip committed in a transaction confirmed on the claimed chain before the cutoff, proven in the leaf by a Merkle path, which is possible with OP_CAT. That makes the refutation depend on main-chain headers too. Header timestamps alone don't establish it, because miners choose them within the median-time-past and two-hour rules.
 
 ## 8. Commit and CI record
 
@@ -207,4 +217,5 @@ The issues and PR could not be updated from here: comments need auth, and this f
 > - Selected: stateless refutation with a presigned SINGLE|ACP payout.
 > - ADR-016: on Core 26 with a local BIP347 patch, a one-tx OP_CAT refutation leaf accepts real stronger regtest forks (N=8, N=151 at 19,428 WU) and rejects all 10 attacks. On stock Core all 10 are valid. BIP347 activation is the exact missing primitive.
 > - ADR-017: dynamic frozen claims via a presigned freeze set (25 cases total, 0 counterexamples under BIP347).
-> - Next: an Inquisition cross-check, retarget-aware work, and BIP141 timeliness inside the leaf.
+> - ADR-018: Bitcoin Inquisition v29.4-inq's interpreter reproduces all verdicts with and without its OP_CAT flag (41 cases, 0 mismatches).
+> - Next: retarget-aware work and timeliness (review §9).

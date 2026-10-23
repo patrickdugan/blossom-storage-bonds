@@ -11,6 +11,7 @@ on:
       - "model/verify_admission_vectors.mjs"
       - "model/verify_cat_vectors.mjs"
       - "research/bip347-check/**"
+      - "research/inquisition-check/**"
       - "research/consensus-check/**"
       - "lean-toolchain"
       - ".github/workflows/blossom-formal.yml"
@@ -83,3 +84,29 @@ jobs:
         run: |
           bash research/bip347-check/prepare.sh
           cargo run --release --manifest-path research/bip347-check/Cargo.toml < /tmp/bsb-adr016.json
+      - name: Keep ADR vectors for the Inquisition cross-check
+        uses: actions/upload-artifact@v4
+        with:
+          name: adr-vectors
+          path: |
+            /tmp/bsb-adr015.json
+            /tmp/bsb-adr016.json
+
+  inquisition-crosscheck:
+    name: ADR-018 Bitcoin Inquisition v29.4-inq interpreter cross-check
+    needs: taproot-templates
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: actions/download-artifact@v4
+        with:
+          name: adr-vectors
+          path: /tmp/vectors
+      - name: Install cmake and Boost headers
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq cmake libboost-dev
+      - name: Build Inquisition consensus libraries and cross-check (with and without SCRIPT_VERIFY_OP_CAT)
+        run: bash research/inquisition-check/run.sh /tmp/vectors/bsb-adr015.json /tmp/vectors/bsb-adr016.json /tmp/inq-work
