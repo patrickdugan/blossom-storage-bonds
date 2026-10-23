@@ -183,9 +183,13 @@ fn sign_frost_keypath(
     let mut signed_shares=BTreeMap::new();
     for index in selected {
         let identifier=identifiers[index];
-        let share=frost::round2::sign(&signing,
+        // Both the participant share and the aggregator must apply exactly
+        // the same BIP341 TapTweak. Untweaked round2::sign() shares are
+        // invalid under aggregate_with_tweak().
+        let share=frost::round2::sign_with_tweak(&signing,
             nonces.get(&identifier).ok_or("missing FROST secret nonce")?,
-            packages.get(&identifier).ok_or("missing verified FROST share")?)?;
+            packages.get(&identifier).ok_or("missing verified FROST share")?,
+            None)?;
         signed_shares.insert(identifier,share);
     }
     let signature=frost::aggregate_with_tweak(&signing,&signed_shares,public,None)?;
