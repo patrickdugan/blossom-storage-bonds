@@ -179,4 +179,45 @@ theorem contextual_coverage_implies_base
     (accepted : bitcoinAccepts s tx e) : admitted s tx := by
   exact (coverage s tx e accepted).1
 
+/-- A chain history includes the timing evidence for EACH actual bond spend,
+rather than checking Script once and assigning an unconstrained block height
+later. The evidence itself still needs authentic Bitcoin provenance. -/
+inductive TimedBitcoinRun
+    (bitcoinAccepts : UTXOState → BondTx → TimingEvidence → Prop) :
+    UTXOState → UTXOState → Prop where
+  | refl (s : UTXOState) : TimedBitcoinRun bitcoinAccepts s s
+  | extend {start middle : UTXOState}
+      (past : TimedBitcoinRun bitcoinAccepts start middle)
+      (tx : BondTx) (evidence : TimingEvidence)
+      (accepted : bitcoinAccepts middle tx evidence) :
+      TimedBitcoinRun bitcoinAccepts start (applyBondTx middle tx)
+
+/-- Under authenticated contextual consensus coverage, every included
+transaction in an arbitrarily long history refines one authorized abstract
+storage-bond step. This is a conditional statement about the verifier. -/
+theorem contextual_history_refines_abstract
+    (bitcoinAccepts : UTXOState → BondTx → TimingEvidence → Prop)
+    (coverage : ContextualConsensusCoverage bitcoinAccepts)
+    {start finish : UTXOState}
+    (history : TimedBitcoinRun bitcoinAccepts start finish) :
+    Reach 0 start.account finish.account := by
+  induction history with
+  | refl => exact Reach.refl _
+  | extend past tx evidence accepted ih =>
+      exact Reach.more ih
+        (contextual_admission_refines_protocol _ tx evidence
+          (coverage _ tx evidence accepted))
+
+/-- The bookkeeping theorem counts the locked collateral, authorized
+disposition by each party, and miner fees. It does not assert that either
+party's physically receiving address matches the entitlement counter. -/
+theorem contextual_history_conserves_economic_bond
+    (bitcoinAccepts : UTXOState → BondTx → TimingEvidence → Prop)
+    (coverage : ContextualConsensusCoverage bitcoinAccepts)
+    {start finish : UTXOState}
+    (history : TimedBitcoinRun bitcoinAccepts start finish) :
+    bondTotal start.account = bondTotal finish.account := by
+  exact reachable_preserves_bond 0
+    (contextual_history_refines_abstract bitcoinAccepts coverage history)
+
 end BlossomFormal
