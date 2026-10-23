@@ -199,6 +199,16 @@ Status after [ADR-019](pinned-difficulty-schedule.md):
 - **Retargets are built** for forks on a schedule pinned at setup. Real mainnet headers 32251–32262 cross the 32256 retarget, with 0 mismatches across Core 26 + BIP347, Inquisition and the Node consensus check. Exact work is computed at setup, and `sched_leaf_sound` makes it sound. A fork that retargets differently is refused; that is a completeness limit, not a counterexample.
 - **Timeliness is characterized.** `no_expiry` (Lean) proves that no Bitcoin timelock expires, and a trusted anchor needs a covenant (`fixed_graph_misses`). Timeliness therefore needs a covenant or oracle beyond OP_CAT's verifier, or it accepts the A4 race.
 
+Every remaining item, with what closes it:
+
+| Item | Status | Exact requirement | Evidence |
+| --- | --- | --- | --- |
+| BIP347 on Bitcoin mainnet | **missing primitive** | BIP347 activation | stock-Core columns of ADR-015/016/017/019: every OP_CAT leaf is OP_SUCCESS |
+| Inquisition deployments | characterized from source | On **regtest**, `src/binana.py` gives OP_CAT `.always = true`, and `CONSENSUS_CHECKS` sets `SCRIPT_VERIFY_OP_CAT` when the deployment is active. So ADR-018's `cat` mode uses the flags Inquisition regtest consensus applies. On **signet**, OP_CAT is a heretical deployment from 2024-01-01 to 2034 with a 432-block period; whether it is active now depends on signet signalling, which was not observed (no signet node). | `research/inquisition-check`, Inquisition `src/binana/op_cat.json` at v29.4-inq |
+| Timeliness | **needs a covenant** | carry the provider's tip into the frozen output (CAT+Schnorr introspection, or CTV+CSFS), or an oracle; otherwise the A4 race | `no_expiry`, `fixed_graph_misses`, `late_refutation_can_lose` |
+| Setup key (A5) | **needs a covenant to remove** | An output-blind leaf is front-runnable (`copy_redirect`, vector L4), so the payout must be bound by a presigned key (`presigned_binds`, which assumes erasure) or by output introspection | L4/L5 vectors and Lean |
+| Off-schedule retargets | **engineering, not a missing primitive** | Check the retarget rule in Script: the 2016-block timestamp span (two header fields, already readable via CAT), the ×4 clamp, and `new_target = old_target × span / 1209600` in 256-bit arithmetic. With CAT that is limb arithmetic on ≤4-byte script numbers (BitVM-style u32), not measured here. The next experiment is to implement it for one retarget and measure the weight. | ADR-019 `pinned_without_retarget` |
+
 The original text follows for the record.
 
 1. **Retargets (mainnet).** A header's work is `2^256 / (target + 1)` from its nBits. Exact cumulative work in one tapscript needs that 256-bit division for every header, plus the retarget rule (a timestamp difference over 2016 blocks). Either can be written with OP_CAT limb arithmetic, but neither is measured. The cheaper sound variant has the leaf pin nBits per difficulty period at setup, as ADR-016 does for one period. That admits forks only on the pinned schedule: it is sound, but incomplete for forks that retarget differently. Lean's `exactN_leaf_sound` covers the fixed-difficulty case only.

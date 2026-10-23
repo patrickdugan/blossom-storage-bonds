@@ -33,7 +33,9 @@ Inquisition's error strings show that each rejected case fails at the intended c
 
 ## What this changes
 
-The ADR-016/017 verifier and freeze graph are enforced by Inquisition's own consensus code wherever its BIP347 deployment is active. They are anyone-can-spend wherever it isn't. Whether BIP347 is active on Inquisition's signet was **not** checked here: no signet node was run.
+The ADR-016/017 verifier and freeze graph are enforced by Inquisition's own consensus code wherever its BIP347 deployment is active. They are anyone-can-spend wherever it isn't. From Inquisition's source (`src/binana.py`, `src/binana/op_cat.json`):
+- **Regtest:** OP_CAT is always active, and consensus then applies `SCRIPT_VERIFY_OP_CAT`, the flag the `cat` mode uses.
+- **Signet:** OP_CAT is a heretical deployment (start 2024-01-01, timeout 2034, period 432). Its live status was not observed, since no signet node was run.
 
 On Bitcoin mainnet BIP347 is not active, so the review's verdict stays **BLOCKED**, and the single missing primitive is BIP347 activation.
 
