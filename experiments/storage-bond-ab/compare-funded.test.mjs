@@ -65,3 +65,45 @@ test('security label cannot be upgraded to FROST without review',()=>{
   const b=B();b.securityLimits.frostSigned=true;
   assert.throws(()=>compare(A(),b),/fee or security classification/);
 });
+
+
+function matchedPdpPair() {
+  const a=A(),b=B(),proven='e'.repeat(64);
+  a.sharedPdpEvidence={
+    classification:'COMMON-MERKLE-WITNESS-BITCOIN-SCRIPT-NOT-PROVIDER-ERASURE',
+    sourceWitnessesBoundToCoreSignedTransactions:true,
+    productionStorageNonavailabilityProven:false,
+    epochsAndFeePoliciesFullyMatchedToB:false,
+    holderFixtures:{
+      alice:{pdpVerdicts:['pass','fault','pass'],
+        referenceEvidenceHashes:['a'.repeat(64),proven,'b'.repeat(64)],
+        commitmentHashes:['c'.repeat(64),'d'.repeat(64),'e'.repeat(64)]},
+      bob:{pdpVerdicts:['pass','pass','pass'],
+        referenceEvidenceHashes:['f'.repeat(64),'1'.repeat(64),'2'.repeat(64)],
+        commitmentHashes:['3'.repeat(64),'4'.repeat(64),'5'.repeat(64)]},
+    },
+  };
+  b.honestPayout.independentlyVerifiedFaultDetected=true;
+  b.honestPayout.independentReferenceProofHash=proven;
+  return {a,b};
+}
+test('real A signed sentinel commitment roots and B genuine storage loss bind same Merkle evidence',()=>{
+  const {a,b}=matchedPdpPair();
+  const r=compare(a,b);
+  assert.equal(r.sharedPdpWitnessAligned,true);
+  assert.equal(r.A.actualSourceMerkleWitnessesVerified,true);
+  assert.equal(r.A.deletedWindowNonavailabilityProven,false);
+  assert.equal(r.matchedFullScenarios,false);
+  assert.equal(r.feeComparisonPermitted,false);
+});
+test('reject different B storage evidence, forged A proof status, or inflated security claims',()=>{
+  let {a,b}=matchedPdpPair();
+  b.honestPayout.independentReferenceProofHash='0'.repeat(64);
+  assert.throws(()=>compare(a,b),/different PDP evidence/);
+  ({a,b}=matchedPdpPair());
+  a.sharedPdpEvidence.holderFixtures.alice.pdpVerdicts[1]='pass';
+  assert.throws(()=>compare(a,b),/bad Merkle-derived/);
+  ({a,b}=matchedPdpPair());
+  a.sharedPdpEvidence.productionStorageNonavailabilityProven=true;
+  assert.throws(()=>compare(a,b),/unsupported security/);
+});
