@@ -46,14 +46,11 @@ jobs:
           tar -xzf bitcoin.tar.gz
           test -x bitcoin-30.3/bin/bitcoind
           test -x bitcoin-30.3/bin/bitcoin-cli
-      - name: Resolve local pinned Rust dependency changes
+      - name: Verify pinned FROST and rust-bitcoin dependencies
         run: |
           set -euo pipefail
-          cargo generate-lockfile --manifest-path experiments/storage-bond-ab/b-layertree/frost-proof/Cargo.toml
-          echo "BSB_FROST_BIP341_LOCK_START"
-          base64 -w0 experiments/storage-bond-ab/b-layertree/frost-proof/Cargo.lock
-          echo
-          echo "BSB_FROST_BIP341_LOCK_END"
+          test -s experiments/storage-bond-ab/b-layertree/frost-proof/Cargo.lock
+          cargo test --locked --manifest-path experiments/storage-bond-ab/b-layertree/frost-proof/Cargo.toml
       - name: Exercise honest and malicious threshold BIP341 Bitcoin keypath transactions
         env:
           BITCOIND_EXEC: ${{ runner.temp }}/core/bitcoin-30.3/bin/bitcoind
