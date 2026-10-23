@@ -27,6 +27,10 @@ executable test. The GO is conditional on the five pilot conditions in §7. Main
 | `747ffa0` | write-ahead payment ledgers (`layer1/ledger.ts`) in the channel and on-chain backends |
 | `36f7fa7` | retrieval gate and a withholding provider; `--crash-honest`; harness RBF race; `model/pilot_economics.ts`; Phase 5 note |
 | `8c79160` | deployment and recovery guide; e2e outcomes as CI annotations |
+| `9a1d121` | this report, first version |
+| `a387fbe` | sentinel budget discipline; the forfeit fee policy (`forfeitWithPolicy`); harness S1 RBF war (26 checks) |
+| `9c03ea0` | fixes for the nine findings of the first independent review |
+| `f1875dd` | fixes for the second review's two new defects and three partials |
 
 ## 2. Phase 1: signet recovered and verified
 
@@ -114,23 +118,61 @@ Deployment and recovery: `docs/pilot/deployment.md`.
 
 ## 7. Pilot conditions (the "conditional")
 
-1. **A restartable client loop.** `full-stack.ts` keeps its epoch and enforcement loop in memory
-   (runbook §11). Payments and deal files survive a crash, but enforcement must be resumable before
-   Δ expires. Until it is, an operator stands by to enforce from the deal files.
-2. **A forfeit fee policy.** Broadcast at the first eligible block, at a competitive rate, and fee-bump
-   while unconfirmed. Harness S1 shows a late responder can otherwise outbid it.
-3. **Sentinel budget discipline.** Spend sentinels only on watchtower-attested missing or invalid
-   proofs, never on retrieval failures. The market spent all k = 4 on a withholder that answered
-   every one.
+1. **Open: a restartable client loop.** `full-stack.ts` keeps its epoch and enforcement loop in
+   memory (runbook §11). Payments and deal files survive a crash, but enforcement must be resumable
+   before Δ expires. Until it is, an operator stands by to enforce from the deal files.
+2. **Met: a forfeit fee policy** (`a387fbe`). `forfeitWithPolicy` bids at the first eligible block and
+   re-bids one step higher each unconfirmed block, capped so the fee stays below half the bond
+   (FP01–FP05; the market uses it). Harness S1 on Core 31.1 shows what it does and does not buy:
+   - a default-fee late answer loses;
+   - at 25 sat/vB a late answer replaces the forfeit, and the client's 70 sat/vB re-bid replaces it
+     back;
+   - the provider's 80 sat/vB bid then wins the block.
+
+   So the policy defeats casual lateness. A determined late responder can bid up to the bond, but it
+   had to hold the data to answer.
+3. **Met: sentinel budget discipline** (`a387fbe`). `market.ts` spends sentinels only on epochs whose
+   possession proof failed or never came. The withholder now draws one routine challenge, not all
+   four, and CI fails if it draws more (CK04).
 4. **Pilot parameters as in §5:** q = 64, daily epochs, ≥ 100k-sat bonds, the retrieval probe, ≥ 2
    replicas.
 5. **Public-network gates** (runbook §8): each step of the signet pilot needs explicit approval. No
    mainnet funds.
 
+## 7a. Independent review
+
+Two read-only Codex reviews (OpenAI's Codex CLI, high reasoning) checked the 7C diff. Every finding
+was verified against the code before it was fixed, and each fix has a regression test.
+
+| Round | Scope | Findings | Outcome |
+| --- | --- | --- | --- |
+| 1 | `776b859..a387fbe` | 9: two high, seven medium (below) | all fixed in `9c03ea0` (DU09–DU12, RT04, FP05, CK01–CK04, pinned digests) |
+| 2 | `a387fbe..9c03ea0` | six FIXED, three PARTIAL; two new defects (one high, one medium) | fixed at HEAD (DU13–DU15). The aligned-chunk probe partial is accepted as chunk-granular retrieval (§8) |
+| 3 | `9c03ea0..f1875dd` | the two round-2 defects FIXED; the channel-file fix PARTIAL; one new high: an in-place truncating rewrite could leave a funded channel's file empty before its ledger record | fixed in the next commit: atomic durable writes (temp file, fsync, rename), and an "opening" record written ahead, so a crashed open blocks a second, blind funding (DU16). Residual: `bsb-bond` (Rust) writes its own file non-atomically; after a crash inside it, the opening record makes the operator recover the funding from the chain |
+
+Round 1's nine findings:
+- **High:** ledger short writes; a channel file that wasn't durable.
+- **Medium:**
+  - a torn ledger tail left in place;
+  - an expired interrupted payment stalling the channel;
+  - a retrieval probe predictable from the nonce;
+  - an uncapped first forfeit bid;
+  - two CI checker gaps (unpaid epochs, a refunded deleter);
+  - CI checksums fetched from the same origin as the binaries.
+
+Round 2's high defect let a provider name a total the client never signed, making the next state
+overpay.
+
+The review sharpened two claims:
+- **Retrieval** is guaranteed per chunk (ranged GET plus path), not as whole-file download.
+- **The forfeit policy** defeats lateness, not a provider willing to bid up to the bond.
+
 ## 8. Residual trust and limits
 
 - **Withholding:** a provider can keep its bond while refusing service. Payment gating limits its
-  income; nothing on chain punishes it.
+  income; nothing on chain punishes it. The probe checks one randomly chosen chunk per epoch through a
+  ranged GET and its Merkle path. The guarantee is chunk-granular: a provider that serves every
+  aligned chunk but refuses whole-file downloads passes, and its data is still fully retrievable.
 - **Late responses:** the Δ deadline is soft against a fee bidder (S1); possession is still proven.
 - **Sentinel budget:** each bond can be challenged at most k times.
 - **Proof availability:** proofs are 11 MB, served by Blossom and announced on Nostr.

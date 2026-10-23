@@ -8,7 +8,8 @@
 // ignores it, and the first append after it truncates it, so the next record starts on a clean line.
 // Damage anywhere else is an error, never silently skipped.
 
-import { closeSync, existsSync, fsyncSync, ftruncateSync, openSync, readFileSync, writeSync } from "node:fs";
+import { closeSync, existsSync, fsyncSync, ftruncateSync, openSync, readFileSync, renameSync, writeSync } from "node:fs";
+import { dirname } from "node:path";
 
 export type LedgerRecord = { t: string } & Record<string, unknown>;
 
@@ -59,8 +60,13 @@ export class Ledger {
   }
 }
 
-/** Write a small file durably: write it whole, fsync it, then close. */
+/** Replace a small file atomically and durably: write a temporary file, fsync it, then rename it over
+ *  the target. A crash leaves either the old content or the new, never a truncated file (third
+ *  independent review: truncating in place could lose a funded channel's file). */
 export function writeFileDurable(path: string, text: string): void {
-  const fd = openSync(path, "w");
+  const tmp = `${path}.tmp-${process.pid}`;
+  const fd = openSync(tmp, "w");
   try { writeAll(fd, Buffer.from(text, "utf8")); fsyncSync(fd); } finally { closeSync(fd); }
+  renameSync(tmp, path);
+  try { const d = openSync(dirname(path), "r"); try { fsyncSync(d); } finally { closeSync(d); } } catch { /* no directory fsync on this platform */ }
 }

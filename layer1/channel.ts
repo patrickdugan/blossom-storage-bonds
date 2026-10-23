@@ -171,6 +171,8 @@ export class ChannelPayer implements Payer {
   readonly unsettled = new Map<string, { pr: string; payee: string; paid: number; sig: string }>();
   /** Every total this client ever signed, per payee: the only totals reconcile() will accept. */
   private readonly signed = new Map<string, Set<number>>();
+  /** Channel opens begun but never recorded as finished: funding may be on chain. open() refuses them. */
+  readonly unfinishedOpens = new Map<string, string>();
   private noteSigned(payee: string, paid: number) { if (!this.signed.has(payee)) this.signed.set(payee, new Set([0])); this.signed.get(payee)!.add(paid); }
 
   /** With `ledgerPath`, every signed state is written ahead. After a restart the client counts each
@@ -181,7 +183,9 @@ export class ChannelPayer implements Payer {
     if (ledgerPath) {
       this.ledger = new Ledger(ledgerPath);
       for (const r of this.ledger.replay()) {
-        if (r.t === "open") {
+        if (r.t === "opening") this.unfinishedOpens.set(String(r.payee), String(r.path));
+        else if (r.t === "open") {
+          this.unfinishedOpens.delete(String(r.payee));
           restoreChannelFile(String(r.path), r.ch);
           this.chans.set(String(r.payee), { path: String(r.path), paid: 0, done: 0 });
         }
@@ -248,6 +252,11 @@ export class ChannelPayer implements Payer {
 
   /** Fund the channel on chain (the caller mines and then tells the provider). */
   async open(path: string, ch: ChannelFile): Promise<ChannelFile> {
+    const payee = `bsbch:${ch.provider_x}`;
+    if (this.unfinishedOpens.has(payee)) throw new Error(`an earlier open to this payee did not finish (${this.unfinishedOpens.get(payee)}); its funding may be on chain: recover it from that file and the chain before opening again`);
+    // Write ahead: from here a funding transaction may be broadcast, so a crash must not lead to a
+    // second, blind funding.
+    this.ledger?.append({ t: "opening", payee, path });
     writeFileDurable(path, JSON.stringify(ch));
     const v = (await this.tool.run("chan-open", path)) as ChannelFile;
     const content = readFileSync(path, "utf8");

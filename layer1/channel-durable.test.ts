@@ -298,3 +298,16 @@ test("DU15: a channel file damaged by a crash (not just missing) is restored fro
     assert.equal(readFileSync(s.chanPath, "utf8"), good);
   } finally { server.close(); }
 });
+
+// ── fix from the third independent review ──
+
+test("DU16: a crash during a channel open blocks a second, blind funding; durable writes are atomic", async () => {
+  const s = setup();
+  new Ledger(s.cLedger).append({ t: "opening", payee: `bsbch:${providerX}`, path: s.chanPath });
+  const back = new ChannelPayer(clientX, tool, s.cLedger);
+  await assert.rejects(back.open(s.chanPath, { provider_x: providerX, client_x: clientX, capacity_sats: 50_000, t_refund: 900 }), /did not finish/);
+  const { writeFileDurable } = await import("./ledger.ts");
+  writeFileSync(s.chanPath, "old");
+  writeFileDurable(s.chanPath, "new content");
+  assert.equal(readFileSync(s.chanPath, "utf8"), "new content");
+});
