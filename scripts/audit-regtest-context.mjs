@@ -20,6 +20,7 @@ import {createWitnessCommitmentEvidence,verifyWitnessCommitmentEvidence}
 import {verifyRegtestHeaderChain,bindInclusionToHeaderChain}
   from '../model/regtest_header_chain.mjs';
 import {parseCoinbaseWitnessRaw} from '../model/bitcoin_coinbase_witness.mjs';
+import {authenticateSerializedWitnessInclusion} from '../model/bitcoin_serialized_receipt.mjs';
 
 const BOND=100_000_000n, DELTA=144, CLOSE_FEE=1000n;
 const hashInput=b=>createHash('sha256').update(b).digest('hex');
@@ -152,15 +153,19 @@ export async function auditContext(report,call=rpc) {
       ...witnessEvidence,coinbaseRawHex:cb.hex,witnessedRawHex:t.hex
     };
     assert.equal(verifyWitnessCommitmentEvidence(rawBoundWitnessEvidence),true);
+    const inclusion={
+      txid,blockhash:t.blockhash,height:header.height,
+      index:verified.matches[0].index,
+      headerHex:verified.headerHex,proofHex:txoutproof,
+      merkleRoot:verified.merkleRoot,
+      witness:rawBoundWitnessEvidence
+    };
+    const verifiedPortable=authenticateSerializedWitnessInclusion(inclusion);
+    assert.equal(verifiedPortable.txid,txid);
+    assert.equal(verifiedPortable.wtxid,computedWtxid);
+    assert.equal(verifiedPortable.coinbaseTxid,coinbaseId);
     const out={txid,height:header.height,blockhash:t.blockhash,
-      tx:t,parsed,rawSha256:hashInput(bytes),
-      inclusion:{
-        txid,blockhash:t.blockhash,height:header.height,
-        index:verified.matches[0].index,
-        headerHex:verified.headerHex,proofHex:txoutproof,
-        merkleRoot:verified.merkleRoot,
-        witness:rawBoundWitnessEvidence
-      }};
+      tx:t,parsed,rawSha256:hashInput(bytes),inclusion};
     byId.set(txid,out);
     return out;
   }
@@ -216,6 +221,17 @@ export async function auditContext(report,call=rpc) {
   assert.equal(verifyWitnessCommitmentEvidence({
     ...challenge0.inclusion.witness,wtxid:corruptedWtxid
   }),false,'BIP141 coinbase witness commitment rejects the forged witness variant');
+  assert.throws(()=>authenticateSerializedWitnessInclusion({
+    ...challenge0.inclusion,
+    witness:{...challenge0.inclusion.witness,
+      witnessedRawHex:alteredWitnessRaw.toString('hex')}
+  }),/wtxid/,'witness substitution must fail portable receipt verification');
+  assert.throws(()=>authenticateSerializedWitnessInclusion({
+    ...challenge0.inclusion,
+    witness:{...challenge0.inclusion.witness,
+      coinbaseCommitmentScript:'6a24aa21a9ed'+'cc'.repeat(32)}
+  }),/reported witness commitment does not match raw coinbase output/,
+    'unbound coinbase commitment cannot authenticate witness bytes');
   assert.equal(response0.tx.vin[0].txid,challenge0.txid,
     'response must spend first challenged state');
   const challenge1=await confirmed(forfeit.tx.vin[0].txid);
@@ -344,6 +360,7 @@ export async function auditContext(report,call=rpc) {
     nodeAssertsActiveChain:true,
     txidProofDoesNotAuthenticateWitness:true,
     witnessCommitmentRejectsAlteredWitness:true,
+    serializedCoinbaseCommitmentAuthenticated:true,
     substitutionCounterexample:{
       confirmedTxid:challenge0.txid,
       confirmedRawSha256:hashInput(actualRaw),

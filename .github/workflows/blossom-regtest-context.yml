@@ -13,6 +13,8 @@ on:
       - "model/bitcoin_witness_commitment.mjs"
       - "model/regtest_header_chain.mjs"
       - "model/bitcoin_coinbase_witness.mjs"
+      - "model/bitcoin_serialized_receipt.mjs"
+      - "scripts/verify-regtest-receipt.mjs"
       - "model/fixture.ts"
       - "layer1/onchain.ts"
       - ".github/workflows/blossom-regtest-context.yml"
@@ -73,6 +75,11 @@ jobs:
         run: |
           set -euo pipefail
           node --experimental-strip-types scripts/audit-regtest-context.mjs results/regtest.json | tee /tmp/bsb-regtest-context.json
+      - name: Independently verify archived receipt with no RPC or network
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --experimental-strip-types scripts/verify-regtest-receipt.mjs /tmp/bsb-regtest-context.json
       - name: Save contextual evidence from isolated regtest execution
         if: success()
         uses: actions/upload-artifact@v4
