@@ -11,9 +11,10 @@ is active on Bitcoin.
 - Three rounds of independent review are fixed and re-verified.
 - **Update, 161adb1:** condition 1 (crash-safe enforcement) is met too; see §7. CI is green on all 10
   jobs ([run 39951573833](https://github.com/patrickdugan/blossom-storage-bonds/actions/runs/39951573833)).
-- Still open: **the public signet pilot itself**. Step 1 (sync a signet node with txindex) is approved
-  but blocked on this machine's disk: 12 GB free, about 40 GB needed. Mainnet value at risk stays
-  **NO GO** until that pilot has run.
+- **Public signet pilot, step 1 done (2026-10-23):** one full signet node with txindex synced to tip
+  327,643 in 2 h 27 min, using 30 GB (runbook §2). Steps 2 onward (relays, faucet coins, starting
+  parties, more machines) each wait for explicit approval. Mainnet value at risk stays **NO GO**
+  until the pilot has run.
 
 The existing-consensus market works end to end, reproducibly, in CI:
 - Merkle PDP and public Stwo epoch proofs;

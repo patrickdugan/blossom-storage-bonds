@@ -54,6 +54,14 @@ Disk per full node:
 Initial sync time on signet is not published. Measure it on the first machine before scheduling the
 others.
 
+**Measured, phase 7C pilot step 1 (2026-10-23):**
+- **Setup:** Core 31.1 on default signet, `txindex=1`, `dbcache=2000`, below-normal priority, on one
+  Windows laptop over a home connection.
+- **Sync:** from empty to tip 327,643 in **2 h 27 min** (13:04 to 15:31 UTC), with txindex synced at
+  the same height.
+- **On disk:** blocks 24 GB, chainstate 4.2 GB, txindex 1.6 GB, **30 GB in total**. This is inside the
+  estimate above; the 40 GB plan leaves room for growth.
+
 The watchtower can run with no node at all. Its `--headers` mode follows an untrusted header mirror and
 checks every header from genesis with signet's parameters (`layer1/headerchain.ts` `SIGNET`). On signet
 that shows the mechanism and nothing more, for two reasons:
