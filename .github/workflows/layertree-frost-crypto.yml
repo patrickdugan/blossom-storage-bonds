@@ -1,0 +1,83 @@
+name: ZF FROST Taproot BIP340 standalone threshold signing
+
+# Cryptographic 2/3 threshold signatures cross-verified by secp256k1.
+# Not BIP341 transaction authorization, independent key custody or Sapio MID.
+on:
+  push:
+    branches:
+      - research/layertree-storage-bond-overlay-2026-10-23
+    paths:
+      - "experiments/storage-bond-ab/b-layertree/frost-proof/**"
+      - ".github/workflows/layertree-frost-crypto.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  threshold-bip340:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select available Rust compiler
+        run: |
+          rustc --version
+          cargo --version
+      - name: Generate and pin local build resolution
+        run: |
+          set -euo pipefail
+          cargo generate-lockfile --manifest-path experiments/storage-bond-ab/b-layertree/frost-proof/Cargo.toml
+          cargo test --locked --manifest-path experiments/storage-bond-ab/b-layertree/frost-proof/Cargo.toml
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Sign identical shared Alice fault evidence with three independent FROST quorums
+        run: |
+          set -euo pipefail
+          EVIDENCE_HASH="$(node --input-type=module -e '
+            import {scenario,challenge} from "./experiments/storage-bond-ab/shared/scenario.mjs";
+            const e=scenario("storage-fault").events.find(x=>x.kind==="proof"&&x.id==="alice"&&x.epoch===2);
+            const proof=challenge(e);
+            if(proof.verified!==false)throw Error("Alice source fault no longer verified");
+            console.log(proof.evidenceHash);
+          ')"
+          mkdir -p "$RUNNER_TEMP/frost-proof"
+          cargo run --locked --release \
+            --manifest-path experiments/storage-bond-ab/b-layertree/frost-proof/Cargo.toml \
+            -- "$EVIDENCE_HASH" "$RUNNER_TEMP/frost-proof/bip340-proof.json"
+          node - "$RUNNER_TEMP/frost-proof/bip340-proof.json" "$EVIDENCE_HASH" <<'JS'
+          const fs=require("node:fs");
+          const s=JSON.parse(fs.readFileSync(process.argv[2]));
+          const evidence=process.argv[3];
+          if(s.schema!=="bsb-frost-bip340-cryptographic-roundtrip-v1" ||
+             s.sourceEvidenceHash!==evidence || s.threshold!==2 ||
+             s.participants!==3 || s.honestSignatures.length!==3 ||
+             !s.honestSignatures.every(x=>x.secp256k1CrossVerified&&x.missingSecondSignatureShareRejected) ||
+             !s.adversarialThreshold.twoColludersCanSignUnauthorizedMessage ||
+             s.limits.bip341TransactionSighashSigned!==false ||
+             s.limits.p2trTapTweakApplied!==false ||
+             s.limits.distributedFrostSigningCustodyVerified!==false ||
+             s.limits.frostCiphersuiteCoveredByLegacyAudit!==false) {
+             throw Error("incorrect FROST-BIP340 security classification or signature evidence");
+          }
+          console.log("ZF FROST BIP340: all three 2/3 quorums verified; alternate message required fresh signatures.");
+          JS
+      - name: Save public signatures and transitive build lockfile
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frost-bip340-crypto-only-not-bitcoin-transaction
+          path: |
+            ${{ runner.temp }}/frost-proof/bip340-proof.json
+            experiments/storage-bond-ab/b-layertree/frost-proof/Cargo.lock
+          retention-days: 7
+          if-no-files-found: error
+      - name: Emit Cargo.lock base64 for explicit source pinning
+        if: success()
+        run: |
+          echo "BSB_LOCK_BASE64_START"
+          base64 -w0 experiments/storage-bond-ab/b-layertree/frost-proof/Cargo.lock
+          echo
+          echo "BSB_LOCK_BASE64_END"
