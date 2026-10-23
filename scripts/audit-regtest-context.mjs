@@ -17,6 +17,8 @@ import {forfeitContextOk,refundContextOk} from '../model/contextual_finality.mjs
 import {parseBitcoinTxOutProof,proofIncludesTxid} from '../model/bitcoin_merkleblock.mjs';
 import {createWitnessCommitmentEvidence,verifyWitnessCommitmentEvidence}
   from '../model/bitcoin_witness_commitment.mjs';
+import {verifyRegtestHeaderChain,bindInclusionToHeaderChain}
+  from '../model/regtest_header_chain.mjs';
 import {parseCoinbaseWitnessRaw} from '../model/bitcoin_coinbase_witness.mjs';
 
 const BOND=100_000_000n, DELTA=144, CLOSE_FEE=1000n;
@@ -276,6 +278,39 @@ export async function auditContext(report,call=rpc) {
     'MuSig2 keypath test requires a 64-byte signature');
   const tip=await call('getblockcount',[]);
   for(const entry of byId.values())assert.ok(entry.height<=tip);
+  // Check a COMPLETE header chain independently, anchored at the published
+  // regtest genesis. Merkle/witness proofs must also point to exact headers
+  // within this checked chain. A node's "active best" status is still a
+  // trust-in-local-full-node assumption, not a global fork exclusion proof.
+  const relevantHeights=new Set([0,tip,...[...byId.values()].map(x=>x.height)]);
+  const headerRecords=[];
+  for(let height=0;height<=tip;height++){
+    const hash=await call('getblockhash',[height]);
+    const hex=await call('getblockheader',[hash,false]);
+    const record={height,hash,hex};
+    if(relevantHeights.has(height)){
+      const verbose=await call('getblockheader',[hash,true]);
+      assert.equal(verbose.hash,hash);
+      assert.equal(verbose.height,height);
+      assert.ok(typeof verbose.chainwork==='string');
+      record.chainwork=verbose.chainwork;
+      record.merkleRoot=verbose.merkleroot;
+    }
+    headerRecords.push(record);
+  }
+  const expectedTip=await call('getbestblockhash',[]);
+  const verifiedHeaderChain=verifyRegtestHeaderChain(headerRecords,{
+    expectedTip,checkpoints:[...relevantHeights]
+  });
+  assert.equal(verifiedHeaderChain.tipHeight,tip);
+  assert.equal(BigInt('0x'+chain.chainwork),
+    BigInt(verifiedHeaderChain.cumulativeWorkDecimal),
+    'independently derived total header work must equal validated Core tip');
+  for(const entry of byId.values()){
+    assert.equal(bindInclusionToHeaderChain(entry.inclusion,headerRecords,
+      verifiedHeaderChain),true,
+      'confirmed transaction and BIP141 proof must bind to entire genesis-anchored header chain');
+  }
   return {
     schema:'bsb/core-active-chain-context/v1',
     scope:'Fully validating Bitcoin Core 31.1 REGTEST node, trusted local RPC',
@@ -283,6 +318,13 @@ export async function auditContext(report,call=rpc) {
     coreVersion:version,network:'regtest',tip,
     confirmedTransactions:byId.size,
     inclusionProofs:[...byId.values()].map(x=>x.inclusion),
+    headerChain:{
+      ...verifiedHeaderChain,
+      headers:headerRecords,
+      coreClaimedBestTip:expectedTip,
+      coreClaimedChainworkHex:chain.chainwork,
+      bestChainProofLimitation:'The selected active chain is trusted from Bitcoin Core RPC; a lone header chain cannot exclude unknown higher-work branches.'
+    },
     parents:[
       {path:'challenge-0',txid:challenge0.txid,confirmedHeight:challenge0.height,sourceHeight:fund.height},
       {path:'response-0',txid:response0.txid,confirmedHeight:response0.height,sourceHeight:challenge0.height},
@@ -329,6 +371,18 @@ if(process.argv[1]&&import.meta.url===new URL('file://'+process.argv[1]).href){
   corrupted[36]^=1; // mutate the header's Merkle commitment
   assert.throws(()=>parseBitcoinTxOutProof(corrupted.toString('hex')),
     /merkle root does not match/);
+  const forgedHeaders=result.headerChain.headers.map(x=>({...x}));
+  forgedHeaders[2]={...forgedHeaders[2],chainwork:'ffffffffffffffff'};
+  assert.throws(()=>verifyRegtestHeaderChain(forgedHeaders),
+    /cumulative chainwork mismatch/);
+  const brokenHeaders=result.headerChain.headers.map(x=>({...x}));
+  const raw=Buffer.from(brokenHeaders[2].hex,'hex');
+  raw[4]^=1;
+  brokenHeaders[2]={...brokenHeaders[2],hex:raw.toString('hex')};
+  assert.throws(()=>verifyRegtestHeaderChain(brokenHeaders),
+    /claimed block hash|previous header hash|proof-of-work/);
   console.log(JSON.stringify({...result,adversarialWrongActiveChainRejected:true,
-    adversarialMerkleProofTamperRejected:true},null,2));
+    adversarialMerkleProofTamperRejected:true,
+    adversarialForgedChainworkRejected:true,
+    adversarialBrokenHeaderLinkRejected:true},null,2));
 }

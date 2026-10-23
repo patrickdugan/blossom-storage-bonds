@@ -11,6 +11,7 @@ on:
       - "model/contextual_finality.mjs"
       - "model/bitcoin_merkleblock.mjs"
       - "model/bitcoin_witness_commitment.mjs"
+      - "model/regtest_header_chain.mjs"
       - "model/bitcoin_coinbase_witness.mjs"
       - "model/fixture.ts"
       - "layer1/onchain.ts"
