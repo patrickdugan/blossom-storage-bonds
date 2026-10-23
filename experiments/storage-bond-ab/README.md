@@ -116,6 +116,38 @@ records a trust-qualified report that refuses a misleading cost winner.
 Those combined observations are strictly regtest evidence, not signet
 deployments or a consensus-verified LayerTree covenant.
 
+### Shared SHA-256/PDP commitments in real A Taproot tests
+
+The shared-proof bridge is `shared/export_sentinels.mjs`, backed by the
+actual `shared/scenario.mjs` encrypted replicas and `storage_bonds.ts`
+Merkle verifier. It emits private, immutable, holder-specific JSON fixtures
+and a SHA-256 manifest, without modifying the original Rust Phase 1 harness.
+Its invariants are checked by `shared/export_sentinels.test.mjs`.
+
+With `BSB_A_SHARED_PDP=1`, `a-sentinel/regtest/run_matched.sh` uses
+the generated Alice and Bob fixtures. Its separately compiled Rust test
+loads the exact corresponding commitments, signs actual BIP341 Taproot
+witnesses and returns those commitment hashes in the Core report. The
+runner compares the hashes to the manifest and source Merkle roots after
+both physical Bitcoin executions.
+
+Alice's epoch 2 produces an actual **failing Merkle sample** from deleted
+encrypted bytes. Bob's epochs pass. The B surrogate evaluates that same
+reference storage-fault evidence, and `compare-funded.mjs` now rejects
+disagreement between A's source evidence hash and B's payout evidence.
+
+**Interpretation limits:** The original fixture also publishes the
+counterfactual valid 80-byte witness for the deleted data, because the
+historical Rust harness expects it at setup. Consequently a malicious
+provider with a copy of the fixture can still answer; this is *not* a
+storage erasure/non-availability proof. The original A branch also includes
+a Bob-only silent-provider forfeit test despite Bob's valid storage; it
+must be classified as a hypothetical Bitcoin Script exercise, not a
+statement that Bob failed PDP. Finally, the historical CSV delay is
+144 blocks, whereas the abstract B scenario uses 6, and A's terminal
+1,000-sat fees are not externally sponsored. A/B still has unmatched
+timing, adversarial custody, fee, and refresh conditions.
+
 ## Testnet evidence route
 
 `testnet/observe.mjs` is deliberately read-only and permits only
