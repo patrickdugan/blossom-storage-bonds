@@ -78,6 +78,44 @@ from B's **unknown** Bitcoin transaction sizes. Both candidates have
 `actual_testnet_confirmations` unpopulated. There is no aggregate safety
 score or statistically meaningful speed winner from these model runs.
 
+## Funded Bitcoin Core regtest ladder (23 October 2026)
+
+The parallel folders now also carry funded Bitcoin Core executions, beyond
+the abstract shared-Merkle simulation:
+
+| Route | Consensus execution | Evidence |
+| --- | --- | --- |
+| `a-sentinel/regtest/run_original.sh` | Original 1-BTC presigned Taproot, MuSig2, CSV/CLTV and P2A reference, 21/21 Core checks | [Passing A run](https://github.com/patrickdugan/blossom-storage-bonds/actions/runs/39971673555) |
+| `a-sentinel/regtest/run_matched.sh` | **Two** copies of unchanged original Rust source compiled with 60k/40k bond sizes, 42/42 checks | [Passing matched-capital A run](https://github.com/patrickdugan/blossom-storage-bonds/actions/runs/39972992480) |
+| `b-layertree/regtest/surrogate.mjs` | One funded 100k P2WSH 2-of-3 principal, real external fee wallet, refresh and Bitcoin-confirmed 60k/40k payout; mock 2-person quorum theft Bitcoin-valid | [Passing B run](https://github.com/patrickdugan/blossom-storage-bonds/actions/runs/39971028444) |
+| `compare-funded.mjs` | Refuses misleading security rankings or byte/fee ratios until conditions match | Model regression CI |
+
+The A version compiles the source at `regtest/src/main.rs` through a separate
+Cargo `build.rs`. It does not edit the original. It accepts only 60,000- and
+40,000-sat principal and leaves the original transaction graph unchanged.
+
+The B surrogate is actual P2WSH multisig, **not FROST and not LayerTree MID**.
+Bitcoin Core refuses a single quorum signer and accepts a complete two-signer
+signature. Two dishonest signers can spend the entire pooled principal to a
+third-party script, even though the shared Blossom Merkle verifier actually
+accepted the challenged storage proof. That malicious spend is tested with
+`testmempoolaccept` and deliberately NOT broadcast. The honest 60k/40k split
+is independently confirmed and the 6,000-sat aggregate transaction fees
+come from a separate 50,000-sat sponsor input chain.
+
+A and B now match **100,000 initial satoshis**, but are not directly
+comparable on challenge/refresh workload, signer policy, timeout behavior or
+fee funding. Original A terminal payouts deduct 1,000 sats apiece; B's
+surrogate keeps principal intact through two transactions using external
+fee sponsorship. A's 42 Core tests verify two isolated histories, not
+a single shared Merkle fault schedule over two clients.
+
+The [combined funded CI workflow](../../.github/workflows/layertree-combined-core-regtest.yml)
+runs both funded candidates under one pinned Bitcoin Core release and
+records a trust-qualified report that refuses a misleading cost winner.
+Those combined observations are strictly regtest evidence, not signet
+deployments or a consensus-verified LayerTree covenant.
+
 ## Testnet evidence route
 
 `testnet/observe.mjs` is deliberately read-only and permits only
