@@ -93,7 +93,8 @@ if(shared) {
         hashes[holder]={fixtureSha256:digest,
             referenceStorageRoot:parsed.root,
             commitmentHashes:report.ab_sentinel_h,
-            pdpVerdicts:record.observations.map(x=>x.sourceVerdict)};
+            pdpVerdicts:record.observations.map(x=>x.sourceVerdict),
+            referenceEvidenceHashes:record.observations.map(x=>x.sourceEvidenceHash)};
     }
     if(hashes.alice.pdpVerdicts[1]!=='fault' ||
        hashes.bob.pdpVerdicts.some(x=>x!=='pass'))
