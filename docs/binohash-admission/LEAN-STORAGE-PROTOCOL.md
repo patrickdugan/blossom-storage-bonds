@@ -128,3 +128,13 @@ LEAN_PATH=formal lean formal/RecipientAuthority.lean
 ```
 
 To compile the importing Lean module, first produce `formal/Blossom.olean` and `formal/UTXORefinement.olean` using the commands in the preceding reproduction section.
+
+## ADR-012 update: signer disposition and contextual finality
+
+[ADR-012](entitlement-contextual-finality.md) is the current refinement boundary. The real 39-case BIP341/342 witness matrix accepts terminal redirection when authorized by a **fresh signature** from the rightful signer. Hence the `Account.provider` and `Account.client` fields now represent the party whose collateral-disposition right was exercised, rather than on-chain proof that coins arrived at that person's fixed address. `UTXORefinement.recipientExpected` constrains pre-signed successor destinations and recognizes unilateral signer discretion. The former fixed-address rule survives as `RecipientAuthority.strictAdmitted`, with a positive logical counterexample and a theorem for the revised terminal authorization.
+
+`formal/ContextualFinality.lean` (seventh kernel-checked Lean module) separates BIP112/68 relative Script checks and UTXO maturity from BIP65 CLTV Script checks and absolute transaction finality. Symbolic proofs establish required height inequalities; `model/contextual_finality.mjs` verifies the numeric 144-block sequence and 960000/960001 nLockTime examples with the **real serialized Rust template fields**. The independent runtime intentionally rejects unsupported time-based sequences that need MTP. Consult BIP68 and BIP65 for consensus definitions; implementation-wide proof remains pending.
+
+Contextual authorization additionally needs a trusted candidate block and UTXO height, a complete Bitcoin Script+block verifier, and actual spend-path enumeration. This module does not make the offline per-input Core library a full-chain validator. No property here eliminates the independent refund bypass, the challenge/refund race, or permissionless Binohash fork-certificate settlement work.
+
+Current verified baseline: [Lean #39879404477](https://github.com/patrickdugan/blossom-storage-bonds/actions/runs/39879404477) and [research #39879778019](https://github.com/patrickdugan/blossom-storage-bonds/actions/runs/39879778019): seven Lean proof files, 380 Node model tests, 33 TypeScript tests and the existing offline Core Script cases.

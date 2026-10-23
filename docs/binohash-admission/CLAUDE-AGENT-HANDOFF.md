@@ -51,6 +51,13 @@ Critical API trap: `bitcoinconsensus::verify()` enables `VERIFY_TAPROOT` ONLY wh
 **Remaining high-value development:** formalize the actual BIP341 signature context, verify complete Taproot keypath/leaf enumeration for funded states, verify contextual BIP68 finality/CLTV inclusion against real chain heights, and link the discovered recipient-discretion semantics to the storage-bond economics. Use Core's verified witness result only for per-input Script checks; do not claim the offline library checked synthetic UTXO membership, active chain, block economics, relay, mining or the still-blocked dynamic Binohash fork proof.
 
 Full proof scope and reproduction: `docs/binohash-admission/LEAN-STORAGE-PROTOCOL.md`.
+## ADR-012 verified continuation (2026-10-23)
+
+Branch proof baseline now includes [ADR-012](entitlement-contextual-finality.md), `formal/ContextualFinality.lean`, and `model/contextual_finality.mjs`. The old fixed-recipient `ConsensusCoverage` claim was repaired in `UTXORefinement.lean`: the provider or client on a unilateral exit controls payout disposition, and can sign an output to another person's address. `RecipientAuthority.lean` retains the previous strict rule as a falsified counterexample and proves revised terminal admissibility. Treat `Account.provider/client` as economic disposal counters, not physical Bitcoin-address receipt assertions.
+
+The contextual finality proof separates BIP65 CLTV Script conditions from transaction block-height finality and BIP112 CSV Script conditions from BIP68 output-age finality. Height-only model checks actual Rust transaction locktime and sequence bytes, without pretending to have verified active-chain UTXO ancestry. [Lean #39879404477](https://github.com/patrickdugan/blossom-storage-bonds/actions/runs/39879404477) passed seven kernel modules; [research #39879778019](https://github.com/patrickdugan/blossom-storage-bonds/actions/runs/39879778019) passed 380 Node regressions, 33 TypeScript tests and the Core witness checks.
+
+Next: supply and verify UTXO heights / block context, Bitcoin consensus path coverage and authentic signer evidence as refinements, plus the unresolved exact-work fork-cert BitVM payout. The original six-storage-transaction 151-header Phase 7 fixture remains unavailable.
 ## Research goal
 
 Create a Bitcoin-enforced storage-bond construction allowing arbitrary permissionless stronger-fork certificates with exact 256-bit verified chain work and appropriate inclusion/cutoff proofs to control collateral settlement, while protecting timely stronger challenges and requiring the provider to answer the *actual submitted certificate* if that original protocol policy is retained.
