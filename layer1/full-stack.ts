@@ -70,6 +70,7 @@ import { fileURLToPath } from "node:url";
 import { keyFromSeed } from "../model/schnorr.ts";
 import { CHUNK, encryptReplica, replicaKey, sentinelSurvival } from "../model/storage_bonds.ts";
 import { BondTool, rpc } from "./bondtool.ts";
+import { readEnforceState, writeEnforceState } from "./enforce.ts";
 import { StorageClient, type BondSentinel, type Replica } from "./client.ts";
 import { KIND_DEAL, findOffers, parseDeal, proposeDeal, type ProviderOffer } from "./deals.ts";
 import { HeaderChain, paramsFor, serveHeaders, syncFrom } from "./headerchain.ts";
@@ -210,6 +211,17 @@ try {
   // Keys: fixed labels on regtest, as in phases 4 to 6; fresh for this run anywhere else (net.ts).
   const SEED = partySeed(NET, join(dir, "client"), "bsb/client/full-stack");
   const tool = new BondTool(SEED);
+  // Phase 7C condition 1: each deal's enforcement inputs on disk from the moment its bond exists, and the
+  // flag set the moment a watchtower attests against it. If this process dies, an operator resumes with
+  //   BSB_SEED=<this client's bond seed> node layer1/enforce.ts --state <dir>/enforce-<slug>.json
+  // which challenges and forfeits from the file and the chain alone.
+  const enforcePath = (i: number) => join(dir, `enforce-${ROLES[i].slug}.json`);
+  const saveEnforceState = (i: number, deal: string, ks: { r: string }[]) =>
+    writeEnforceState(enforcePath(i), { deal, kept: ks.map((s) => ({ r: s.r })), delta: DELTA, bondSats: BOND_SATS, challenges: [], forfeits: [] });
+  const flagEnforce = (i: number, cause: string, at: number) => {
+    try { const s = readEnforceState(enforcePath(i)); if (!s.flagged) { s.flagged = { cause, at }; writeEnforceState(enforcePath(i), s); } }
+    catch { /* a remote provider's deal may have no local state */ }
+  };
   const me = await tool.run("info");
   const nostrKey = keyFromSeed(`nostr|${SEED}`);
   const secret = storageSecret(NET, SEED, "full-stack client storage secret");
@@ -330,6 +342,7 @@ try {
     if (ONCHAIN) {
       if (o.terms.pay.kind !== "onchain" || !o.terms.pay.onchain_key || o.terms.pay.payee !== o.pubkey) throw new Error(`${ROLES[i].slug}: no on-chain pay key in its offer`);
       reps.push(rs); roots.push(rr); kept.push(ks); deals.push(dealPath); fundTx.push(d.fund_txid); payees.push(o.terms.pay.payee); payKeys.push(o.terms.pay.onchain_key); dealEvents.push(d.events);
+      saveEnforceState(i, dealPath, ks);
       say(`  ${ROLES[i].name.padEnd(12)} zk roots match; bond ${d.fund_txid.slice(0, 12)}… (${d.checked.provider_signatures} signatures checked; deal ${d.events.live.slice(0, 12)}… live); pay key ${o.terms.pay.onchain_key.slice(0, 12)}…`);
       continue;
     }
@@ -353,6 +366,7 @@ try {
       await post(`${p.url}/channel/open`, { channel_point: point, client_pubkey: ln.pubkey });
     }
     reps.push(rs); roots.push(rr); kept.push(ks); deals.push(dealPath); fundTx.push(d.fund_txid); chans.push(point); payees.push(o.terms.pay.payee); dealEvents.push(d.events);
+    saveEnforceState(i, dealPath, ks);
     say(`  ${ROLES[i].name.padEnd(12)} zk roots match; bond ${d.fund_txid.slice(0, 12)}… (${d.checked.provider_signatures} signatures checked; deal ${d.events.live.slice(0, 12)}… live); ${point ? `ln channel ${point.slice(0, 12)}…` : "paid over existing Lightning routes"}`);
   }
   if (SLOW && !FIRST) {
@@ -417,7 +431,7 @@ try {
       return;
     }
     r.tower = c.result; r.towerEvent = e.id;
-    if ((c.result === "missing" || c.result === "invalid") && !adverse.has(i)) adverse.set(i, { height: c.height, result: c.result, event: e.id, why: c.why });
+    if ((c.result === "missing" || c.result === "invalid") && !adverse.has(i)) { adverse.set(i, { height: c.height, result: c.result, event: e.id, why: c.why }); flagEnforce(i, `attested ${c.result} at ${c.height} (${e.id})`, c.height); }
   });
 
   /** Pay everything owed in one transaction, confirm it, publish the receipt, and wait for the

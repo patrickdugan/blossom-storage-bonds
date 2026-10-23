@@ -188,7 +188,17 @@ jobs:
           BSB_ZK_EXE: ${{ github.workspace }}/zkexe
         run: |
           chmod +x bins/* zkexe/bsb-zk
-          node layer1/full-stack.ts --pay ${{ matrix.pay }} --out "$RUNNER_TEMP/full-stack-${{ matrix.pay }}.json" 2>&1 | tee "$RUNNER_TEMP/full-stack.log"
+          node layer1/full-stack.ts --pay ${{ matrix.pay }} --dir "$RUNNER_TEMP/fs-dir" --out "$RUNNER_TEMP/full-stack-${{ matrix.pay }}.json" 2>&1 | tee "$RUNNER_TEMP/full-stack.log"
+      - name: Crash-safe enforcement state exists for every bond, flagged for the attested cheaters
+        run: |
+          node -e '
+            const fs = require("fs"), d = process.argv[1];
+            const s = (slug) => JSON.parse(fs.readFileSync(d + "/enforce-" + slug + ".json", "utf8"));
+            for (const slug of ["honest", "deletes10", "outsources"]) { const x = s(slug); if (!x.deal || x.kept.length < 1) throw new Error(slug + ": no enforcement state"); }
+            if (s("honest").flagged) throw new Error("honest provider flagged");
+            for (const slug of ["deletes10", "outsources"]) if (!s(slug).flagged) throw new Error(slug + ": attested but not flagged");
+            console.log("::notice title=full-stack enforcement state::enforce-*.json written for every bond; cheaters flagged, honest not");
+          ' "$RUNNER_TEMP/fs-dir"
       - name: Check outcomes
         run: node scripts/check-e2e.mjs "$RUNNER_TEMP/full-stack-${{ matrix.pay }}.json" full-stack
       - if: always()
