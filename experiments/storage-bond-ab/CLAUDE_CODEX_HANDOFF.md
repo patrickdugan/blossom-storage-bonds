@@ -28,6 +28,32 @@ node --test model/layertree_bond_overlay.test.mjs \
 node experiments/storage-bond-ab/run.mjs --out /tmp/storage-bond-ab
 ```
 
+## Revised checkpoints: funded regtest already available
+
+Do not start by rebuilding the existing source from scratch. The parallel
+A folder already executes the original Rust BIP341/Taproot chain on Bitcoin
+Core at both 60k and 40k; see [matched A CI](https://github.com/patrickdugan/blossom-storage-bonds/actions/runs/39972992480).
+Those 42 real Core checks include presigned v3 parents, P2A children, real
+MuSig2 keypath signatures and Script failure cases.
+
+The B folder already has a funded Bitcoin Core 2-of-3 **P2WSH SURROGATE**.
+[B CI](https://github.com/patrickdugan/blossom-storage-bonds/actions/runs/39971028444) proves
+full principal conservation under a separately funded fee sponsor and
+that two dishonest quorum signers can redirect the entire pooled collateral
+despite a valid independent reference Blossom Merkle proof.
+
+These are not yet genuine signet-ready A/B implementations. Your task is to
+improve the fidelity: translate BOTH into the same real scheduled PDP
+epochs, key-loss/offline conditions, fee targets, participant values and
+output constraints. FROST remains absent: do not relabel 2-of-3 CHECKMULTISIG
+as threshold Schnorr. The actual Sapio MID oracle is absent from B.
+
+Use `compare-funded.mjs` and the combined funded regtest workflow as the
+acceptance gate. It deliberately sets `matchedFullScenarios=false` and
+`feeComparisonPermitted=false` until both agents show identical scenario
+semantics. Preserve the genuine attack receipt; do not hide it to improve
+B's apparent security score.
+
 ### CLAUDE: A sentinel Bitcoin implementation
 
 **Suggested branch:** `claude/storage-ab-sentinel-signet`
