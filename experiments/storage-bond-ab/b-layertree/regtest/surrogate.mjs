@@ -145,6 +145,7 @@ async function run(opts) {
     const commonCase=scenario('storage-fault');
     const terms=commonCase.terms;
     need(terms[0].stake===60000&&terms[1].stake===40000,'shared A/B scenario changed');
+    need(terms.every(t=>t.challengeBlocks===6),'shared A/B challenge interval changed');
     const actualFault=challenge(commonCase.events.find(e=>
       e.kind==='proof'&&e.id==='alice'&&e.epoch===2));
     need(actualFault.verified===false&&actualFault.witness.response===null,
@@ -222,6 +223,7 @@ async function run(opts) {
         filecoinFaultProofVerified:false,clientPayoutScriptEnforced:false,
         bitcoinConsensusAccepted:true},
       principalSats:VALUE,initialSponsorSats:SPONSOR,
+      challengeWindow:{modelBlocks:6,bitcoinConsensusEnforced:false},
       refresh:{...refreshed,rootCommitment:commit1,principalLockedSats:VALUE,sponsorFeeSats:FEE},
       dishonestPayout:{testmempoolacceptAllowed:true,broadcast:false,
         referenceStorageProofPasses:true,
