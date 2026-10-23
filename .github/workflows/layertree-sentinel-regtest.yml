@@ -65,6 +65,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: funded-bitcoin-taproot-sentinel-original-1btc
-          path: A${{ runner.temp }}/a-sentinel/original-sentinel-regtest.json
+          path: ${{ runner.temp }}/a-sentinel/original-sentinel-regtest.json
           if-no-files-found: error
           retention-days: 7
