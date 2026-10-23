@@ -1,17 +1,6 @@
 name: Blossom Lean protocol invariants
 
 on:
-  push:
-    branches: [research/binohash-admission]
-    paths:
-      - "formal/**"
-      - "regtest/src/**"
-      - "regtest/Cargo.toml"
-      - "regtest/Cargo.lock"
-      - "model/verify_formal_evidence.mjs"
-      - "research/consensus-check/**"
-      - "lean-toolchain"
-      - ".github/workflows/blossom-formal.yml"
   pull_request:
     paths:
       - "formal/**"
@@ -22,6 +11,11 @@ on:
       - "research/consensus-check/**"
       - "lean-toolchain"
       - ".github/workflows/blossom-formal.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: bsb-formal-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
