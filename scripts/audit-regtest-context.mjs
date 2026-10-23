@@ -15,9 +15,14 @@ import {readFileSync} from 'node:fs';
 import {parseTx} from '../layer1/onchain.ts';
 import {forfeitContextOk,refundContextOk} from '../model/contextual_finality.mjs';
 import {parseBitcoinTxOutProof,proofIncludesTxid} from '../model/bitcoin_merkleblock.mjs';
+import {createWitnessCommitmentEvidence,verifyWitnessCommitmentEvidence}
+  from '../model/bitcoin_witness_commitment.mjs';
 
 const BOND=100_000_000n, DELTA=144, CLOSE_FEE=1000n;
 const hashInput=b=>createHash('sha256').update(b).digest('hex');
+const sha256d=b=>createHash('sha256').update(
+  createHash('sha256').update(b).digest()).digest();
+const wtxidOfRaw=b=>Buffer.from(sha256d(b)).reverse().toString('hex');
 const sats=x=>{const n=Math.round(x*100_000_000);assert.ok(Number.isSafeInteger(n));return BigInt(n);};
 const isP2TR=x=>/^5120[0-9a-f]{64}$/i.test(x);
 const fail=(label,message)=>{throw Error(label+': '+message);};
@@ -102,13 +107,56 @@ export async function auditContext(report,call=rpc) {
       'partial Merkle proof must embed exact active-chain block header');
     assert.deepEqual(await call('verifytxoutproof',[txoutproof]),[txid],
       'Bitcoin Core must independently verify the inclusion proof');
+    // A BIP37 txid inclusion proof does not commit to the witness. For
+    // the *actual* witnessed tx, derive wtxid from the raw serialization
+    // and verify it against the BIP141 witness commitment in the coinbase.
+    const txIndex=block.tx.findIndex(item=>item.txid===txid);
+    assert.ok(txIndex>=1,'audited bond tx must be a non-coinbase transaction');
+    const computedWtxid=wtxidOfRaw(bytes);
+    assert.equal(t.hash,computedWtxid,'Core wtxid must match raw witness bytes');
+    assert.equal(block.tx[txIndex].hash,computedWtxid);
+    const coinbaseId=block.tx[0].txid;
+    const cb=await call('getrawtransaction',[coinbaseId,true]);
+    assert.equal(cb.txid,coinbaseId);
+    assert.ok(typeof cb.hex==='string'&&typeof cb.vin?.[0]?.coinbase==='string');
+    const coinbaseParsed=parseTx(Buffer.from(cb.hex,'hex'));
+    assert.equal(coinbaseParsed.txid,coinbaseId,
+      'Bitcoin coinbase inclusion must be bound to independently parsed raw bytes');
+    assert.equal(coinbaseParsed.inputs[0].txid,'00'.repeat(32));
+    const reservedHex=cb.vin[0].txinwitness?.[0];
+    assert.ok(typeof reservedHex==='string'&&/^[0-9a-f]{64}$/i.test(reservedHex),
+      'SegWit block coinbase must carry a 32-byte witness reserved value');
+    const coinbaseRaw=Buffer.from(cb.hex,'hex');
+    assert.ok(coinbaseRaw.includes(Buffer.from(reservedHex,'hex')),
+      'reported reserved value must occur in raw coinbase witness bytes');
+    const candidateOutputs=coinbaseParsed.outputs
+      .map(output=>output.script.toString('hex'))
+      .filter(script=>script.startsWith('6a24aa21a9ed') && script.length>=76);
+    assert.ok(candidateOutputs.length>=1,'coinbase missing BIP141 witness commitment');
+    // BIP141 explicitly selects the highest matching coinbase output index.
+    const coinbaseCommitmentScript=candidateOutputs.at(-1);
+    const witnessEvidence=createWitnessCommitmentEvidence({
+      txids:block.tx.map(x=>x.txid),
+      wtxids:block.tx.map((x,i)=>i===0?'00'.repeat(32):x.hash),
+      targetIndex:txIndex,blockHeaderHex:verified.headerHex,
+      reservedHex,coinbaseCommitmentScript
+    });
+    assert.equal(witnessEvidence.blockhash,t.blockhash);
+    assert.equal(witnessEvidence.txid,txid);
+    assert.equal(witnessEvidence.wtxid,computedWtxid);
+    assert.equal(verifyWitnessCommitmentEvidence(witnessEvidence),true);
     const out={txid,height:header.height,blockhash:t.blockhash,
       tx:t,parsed,rawSha256:hashInput(bytes),
       inclusion:{
         txid,blockhash:t.blockhash,height:header.height,
         index:verified.matches[0].index,
         headerHex:verified.headerHex,proofHex:txoutproof,
-        merkleRoot:verified.merkleRoot
+        merkleRoot:verified.merkleRoot,
+        witness:{
+          ...witnessEvidence,
+          coinbaseRawHex:cb.hex,
+          witnessedRawHex:t.hex
+        }
       }};
     byId.set(txid,out);
     return out;
@@ -160,6 +208,11 @@ export async function auditContext(report,call=rpc) {
   assert.equal(proofIncludesTxid(challenge0.inclusion.proofHex,
     substituted.txid,challenge0.blockhash).matches[0].txid,challenge0.txid,
     'txid Merkle proof cannot distinguish a substituted SegWit witness');
+  const corruptedWtxid=wtxidOfRaw(alteredWitnessRaw);
+  assert.notEqual(corruptedWtxid,challenge0.inclusion.witness.wtxid);
+  assert.equal(verifyWitnessCommitmentEvidence({
+    ...challenge0.inclusion.witness,wtxid:corruptedWtxid
+  }),false,'BIP141 coinbase witness commitment rejects the forged witness variant');
   assert.equal(response0.tx.vin[0].txid,challenge0.txid,
     'response must spend first challenged state');
   const challenge1=await confirmed(forfeit.tx.vin[0].txid);
@@ -247,6 +300,7 @@ export async function auditContext(report,call=rpc) {
     reportChecks:report.checks.length,
     nodeAssertsActiveChain:true,
     txidProofDoesNotAuthenticateWitness:true,
+    witnessCommitmentRejectsAlteredWitness:true,
     substitutionCounterexample:{
       confirmedTxid:challenge0.txid,
       confirmedRawSha256:hashInput(actualRaw),
