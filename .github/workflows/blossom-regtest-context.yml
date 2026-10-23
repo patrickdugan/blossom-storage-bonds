@@ -1,0 +1,104 @@
+name: Blossom full-node regtest context
+
+on:
+  pull_request:
+    paths:
+      - "scripts/audit-regtest-context.mjs"
+      - "scripts/regtest-node.sh"
+      - "regtest/src/**"
+      - "regtest/Cargo.toml"
+      - "regtest/Cargo.lock"
+      - "model/contextual_finality.mjs"
+      - "model/bitcoin_merkleblock.mjs"
+      - "model/bitcoin_witness_commitment.mjs"
+      - "model/regtest_header_chain.mjs"
+      - "model/bitcoin_coinbase_witness.mjs"
+      - "model/bitcoin_serialized_receipt.mjs"
+      - "scripts/verify-regtest-receipt.mjs"
+      - "model/fixture.ts"
+      - "layer1/onchain.ts"
+      - ".github/workflows/blossom-regtest-context.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bsb-regtest-context-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contextual-regtest:
+    name: Confirmed UTXOs and heights in Bitcoin Core 31.1 regtest
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Download SHA256-pinned official Bitcoin Core 31.1 binary
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 3 --retry-delay 3 \
+            "https://bitcoincore.org/bin/bitcoin-core-31.1/bitcoin-31.1-x86_64-linux-gnu.tar.gz" \
+            -o /tmp/bitcoin-31.1-x86_64-linux-gnu.tar.gz
+          echo "b80d9c3e04da78fb6f0569685673418cf686fadba9042d926d13fb87ff503f9e  /tmp/bitcoin-31.1-x86_64-linux-gnu.tar.gz" | sha256sum -c -
+          tar -xzf /tmp/bitcoin-31.1-x86_64-linux-gnu.tar.gz -C /tmp
+          /tmp/bitcoin-31.1/bin/bitcoind --version
+      - name: Start isolated Bitcoin Core regtest node with fixed test-only credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/regtest-node.sh /tmp/bsb-regtest-context /tmp/bitcoin-31.1/bin/bitcoind > /tmp/bsb-regtest-node.log 2>&1 &
+          echo $! > /tmp/bsb-regtest-node.pid
+          ready=0
+          for i in $(seq 1 90); do
+            if /tmp/bitcoin-31.1/bin/bitcoin-cli -datadir=/tmp/bsb-regtest-context getblockchaininfo >/dev/null 2>&1; then
+              ready=1
+              break
+            fi
+            sleep 1
+          done
+          test "$ready" -eq 1 || { tail -100 /tmp/bsb-regtest-node.log; exit 1; }
+          /tmp/bitcoin-31.1/bin/bitcoin-cli -datadir=/tmp/bsb-regtest-context getblockcount
+      - name: Generate deterministic Merkle/sentinel setup and execute full regtest bond paths
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --experimental-strip-types model/fixture.ts 3
+          cargo run --locked --release --manifest-path regtest/Cargo.toml --bin bsb-regtest
+      - name: Audit confirmed active-chain outpoints and contextual CSV/CLTV heights
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --experimental-strip-types scripts/audit-regtest-context.mjs results/regtest.json | tee /tmp/bsb-regtest-context.json
+      - name: Independently verify archived receipt with no RPC or network
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --experimental-strip-types scripts/verify-regtest-receipt.mjs /tmp/bsb-regtest-context.json
+      - name: Save contextual evidence from isolated regtest execution
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bsb-regtest-context-evidence
+          path: |
+            results/regtest.json
+            /tmp/bsb-regtest-context.json
+          retention-days: 14
+      - name: Print regtest diagnostics on failure
+        if: failure()
+        shell: bash
+        run: |
+          tail -150 /tmp/bsb-regtest-node.log || true
+          tail -150 /tmp/bsb-regtest-context/regtest/debug.log || true
+      - name: Stop isolated regtest node
+        if: always()
+        shell: bash
+        run: |
+          if [ -f /tmp/bsb-regtest-node.pid ]; then
+            kill "$(cat /tmp/bsb-regtest-node.pid)" || true
+          fi

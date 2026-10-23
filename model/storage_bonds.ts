@@ -115,8 +115,12 @@ export function merkleVerify(root: Uint8Array, n: number, idx: number, c: Uint8A
 
 // ───────────────────────────── layer 1: pay per proof ─────────────────────────────
 
-export const epochIndices = (nonce: Uint8Array, n: number, q: number): number[] =>
-  Array.from({ length: q }, (_, j) => indexFrom(sha256("bsb/epoch|", Buffer.from(nonce), u32(j)), n));
+export const epochIndices = (nonce: Uint8Array, n: number, q: number): number[] => {
+  if (!(nonce instanceof Uint8Array) || nonce.length !== 32 ||
+      !Number.isSafeInteger(n) || n < 1 || !Number.isSafeInteger(q) || q < 1 ||
+      q > 0xffffffff) throw new RangeError("epoch needs a 32-byte nonce, nonempty chunk tree and positive sample count");
+  return Array.from({ length: q }, (_, j) => indexFrom(sha256("bsb/epoch|", Buffer.from(nonce), u32(j)), n));
+};
 
 export interface EpochProof { readonly chunks: Buffer[]; readonly paths: Buffer[][] }
 
@@ -127,8 +131,20 @@ export function proveEpoch(held: Map<number, Buffer>, t: Tree, nonce: Uint8Array
 }
 
 export function verifyEpoch(root: Uint8Array, n: number, nonce: Uint8Array, q: number, p: EpochProof): boolean {
+  // A vacuous q=0 "proof" would pass Array.every and authorize a payment
+  // without a single storage opening. Keep runtime evidence validation aligned
+  // with the formal nonempty sampled-epoch requirement in Blossom.lean.
+  if (!(root instanceof Uint8Array) || root.length !== 32 ||
+      !(nonce instanceof Uint8Array) || nonce.length !== 32 ||
+      !Number.isSafeInteger(n) || n < 1 || !Number.isSafeInteger(q) || q < 1 ||
+      !p || !Array.isArray(p.chunks) || !Array.isArray(p.paths) ||
+      p.chunks.length !== q || p.paths.length !== q) return false;
   const idx = epochIndices(nonce, n, q);
-  return idx.every((i, j) => p.chunks[j].length === CHUNK && merkleVerify(root, n, i, p.chunks[j], [...p.paths[j]]));
+  return idx.every((i, j) =>
+    Buffer.isBuffer(p.chunks[j]) && p.chunks[j].length === CHUNK &&
+    Array.isArray(p.paths[j]) &&
+    p.paths[j].every(s => Buffer.isBuffer(s) && s.length === 32) &&
+    merkleVerify(root, n, i, p.chunks[j], p.paths[j]));
 }
 
 /** A provider that keeps a fraction f of chunks passes an epoch with probability f^q (indices drawn with

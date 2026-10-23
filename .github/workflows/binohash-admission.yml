@@ -1,0 +1,89 @@
+name: Binohash admission model
+
+on:
+  pull_request:
+    paths:
+      - "model/*.mjs"
+      - "model/*.ts"
+      - "layer1/channel.ts"
+      - "layer1/channel-*.test.ts"
+      - "research/consensus-check/**"
+      - ".github/workflows/binohash-admission.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: bsb-binohash-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  model-tests:
+    name: Node 22 research regressions only
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: No mining, GPU proof generation, or pilot execution
+        run: node --test model/*.test.mjs
+      - name: Real TypeScript storage/Merkle verification and adversarial vectors
+        run: node --experimental-strip-types --test model/merkle_refinement.test.ts model/storage_bonds.test.ts layer1/channel-invoice.test.ts layer1/channel-server-race.test.ts
+
+  offline-consensus:
+    name: Offline Core 26 legacy Script verifier (no bitcoind)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Create unfunded deterministic Script vectors
+        run: node model/binohash_consensus_vectors.mjs > /tmp/binohash-vectors.json
+      - name: Cross-check against vendored Bitcoin Core libbitcoinconsensus
+        run: cargo run --release --manifest-path research/consensus-check/Cargo.toml < /tmp/binohash-vectors.json
+      - name: Generate unfunded two-generation cursor vectors
+        run: node model/binohash_linked_cursor_vectors.mjs > /tmp/binohash-linked-cursor-vectors.json
+      - name: Cross-check honest and hostile cursor successors against Bitcoin Core
+        run: cargo run --release --manifest-path research/consensus-check/Cargo.toml < /tmp/binohash-linked-cursor-vectors.json
+      - name: Generate one-hop pre-signed SINGLE|ANYONECANPAY cursor vectors
+        run: node model/single_acp_successor_vectors.mjs > /tmp/binohash-signed-template-vectors.json
+      - name: Check successor amount, script, and unknown next-prevout in Bitcoin Core
+        run: cargo run --release --manifest-path research/consensus-check/Cargo.toml < /tmp/binohash-signed-template-vectors.json
+      - name: Generate composite Binohash and protected cursor vectors
+        run: node model/composite_cursor_consensus_vectors.mjs > /tmp/binohash-composite-vectors.json
+      - name: Verify both Script inputs on same unfunded transaction
+        run: cargo run --release --manifest-path research/consensus-check/Cargo.toml < /tmp/binohash-composite-vectors.json
+      - name: Generate witness-stable two-generation cursor scripts
+        run: node model/witness_stable_chain_vectors.mjs > /tmp/bsb-witness-stable-vectors.json
+      - name: Verify both generations and alternate witnesses with Bitcoin Core
+        run: cargo run --release --manifest-path research/consensus-check/Cargo.toml < /tmp/bsb-witness-stable-vectors.json
+      - name: Generate independent CLTV refund bypass vectors
+        run: node model/refund_bypass_consensus_vectors.mjs > /tmp/bsb-refund-bypass.json
+      - name: Verify refund signature, CLTV and unrelated witness cases against Bitcoin Core
+        run: cargo run --release --manifest-path research/consensus-check/Cargo.toml < /tmp/bsb-refund-bypass.json
+      - name: Generate fixed-certificate P2WSH and ALL-guardian vectors
+        run: node model/fixed_certificate_gate_vectors.mjs > /tmp/bsb-fixed-certificate-gate.json
+      - name: Check witness substitution and adversarial regrinding against Bitcoin Core
+        run: cargo run --release --manifest-path research/consensus-check/Cargo.toml < /tmp/bsb-fixed-certificate-gate.json
+      - name: Generate fixed-cert certificate-specific payout and timeout vectors
+        run: node model/fixed_payout_consensus_vectors.mjs > /tmp/bsb-fixed-payout.json
+      - name: Check mock response, guarded payouts, expiration and late-race boundaries in Core
+        run: cargo run --release --manifest-path research/consensus-check/Cargo.toml < /tmp/bsb-fixed-payout.json
+      - name: Generate bond-only bypass attempts against optional guardian
+        run: node model/bond_only_bypass_vectors.mjs > /tmp/bsb-bond-only.json
+      - name: Check malicious bond-only spends against Bitcoin Core
+        run: cargo run --release --manifest-path research/consensus-check/Cargo.toml < /tmp/bsb-bond-only.json
+      - name: Generate self-guarding BIP143 bond signature vectors
+        run: node model/self_guarded_payout_vectors.mjs > /tmp/bsb-self-guarded.json
+      - name: Verify BIP143 input-bound payout signature and dispute branches against Bitcoin Core
+        run: cargo run --release --manifest-path research/consensus-check/Cargo.toml < /tmp/bsb-self-guarded.json
+      - name: Generate one-input self-guarded payout vectors without a sponsor
+        run: node model/one_input_self_guarded_vectors.mjs > /tmp/bsb-one-input.json
+      - name: Verify sponsor-free payout binding and timeout boundaries in Bitcoin Core
+        run: cargo run --release --manifest-path research/consensus-check/Cargo.toml < /tmp/bsb-one-input.json
