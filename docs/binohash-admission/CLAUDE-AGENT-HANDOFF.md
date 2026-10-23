@@ -98,7 +98,8 @@ Trap: `tapscript-vectors` needs a Linux build. The vendored C++ library fails to
 ADR-016 ran the §7 experiment on Core 26 with a local BIP347 patch:
 - **Pieces:** `research/bip347-check/` (with `prepare.sh` and `bip347.patch`) and `bsb-cat-verifier-vectors`, independently checked by `model/verify_cat_vectors.mjs`.
 - **Result:** 13 cases. Honest forks pass and all 10 attacks fail under BIP347; on stock Core all 10 are valid.
-- **Next:** an Inquisition cross-check (needs approval), retarget-aware work, BIP141 timeliness in the leaf, and dynamic claims.
+- **ADR-017:** dynamic claims via a presigned freeze set ( cases).
+- **Next:** an Inquisition cross-check (needs approval), retarget-aware work, and BIP141 timeliness in the leaf.
 
 ## Research goal
 

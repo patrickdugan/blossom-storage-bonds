@@ -126,13 +126,13 @@ fn leaf(setup: &bitcoin::XOnlyPublicKey, checkpoint: &[u8; 32], n: usize) -> Scr
     b.push_opcode(OP_DROP).push_int(1).into_script()
 }
 
-struct Case { name: String, attack: &'static str, tx: Transaction, spent: Vec<TxOut>, core: bool, bip347: bool, design: bool, note: &'static str }
+struct Case { name: String, attack: &'static str, tx: Transaction, spent: Vec<TxOut>, core: bool, bip347: bool, design: bool, note: &'static str, extra: Value }
 fn row(c: &Case) -> Value {
     json!({
         "name": c.name, "attack": c.attack, "raw_hex": serialize_hex(&c.tx),
         "spent_outputs": c.spent.iter().map(|o| json!({"script_pub_key": hex(o.script_pubkey.as_bytes()), "value": o.value.to_sat()})).collect::<Vec<_>>(),
         "input_index": 0, "core_valid": c.core, "bip347_valid": c.bip347, "design_ok": c.design,
-        "counterexample": c.core && !c.design, "weight": c.tx.weight().to_wu(), "note": c.note,
+        "counterexample": c.core && !c.design, "weight": c.tx.weight().to_wu(), "note": c.note, "check": c.extra,
     })
 }
 fn hex(b: &[u8]) -> String { b.iter().map(|x| format!("{x:02x}")).collect() }
@@ -182,7 +182,8 @@ fn main() {
             t
         };
         let mut add = |name: &str, attack: &'static str, tx: Transaction, spent: Vec<TxOut>, ok: bool, note: &'static str| {
-            cases.push(Case { name: format!("N{n}/{name}"), attack, tx, spent, core: true, bip347: ok, design: ok, note });
+            cases.push(Case { name: format!("N{n}/{name}"), attack, tx, spent, core: true, bip347: ok, design: ok, note,
+                extra: json!({"kind": "fork", "n": n}) });
         };
         let honest_tx = spend(&base, header_items(&honest));
         report.push(json!({"n": n, "leaf_bytes": lf.len(), "witness_items": honest_tx.input[0].witness.len(),
@@ -251,6 +252,116 @@ fn main() {
         add("empty_witness", "no headers, no signature", bare, vec![prev.clone()], false,
             "invalid once CAT is real; anyone-can-spend on stock Core (OP_SUCCESS126)");
     }
+
+    // ── ADR-017: dynamic frozen claims through a presigned freeze set ──
+    // Bond B has two leaves. In the freeze leaf, the provider picks one of the setup-presigned
+    // freeze_k transactions. In the forfeit leaf, the client takes the bond if no freeze happened by
+    // T_FREEZE. Each freeze output F_k holds an exact-(k+1) OP_CAT refutation leaf paying the client,
+    // and a provider refund at T_DEADLINE.
+    let provider = party(&secp, "bsb-adr017-provider");
+    const T_FREEZE: u32 = 500;
+    const T_DEADLINE: u32 = 644;
+    let claims = [3usize, 5, 7];
+    let fee = Amount::from_sat(1_000);
+    let cltv_leaf = |t: u32, who: &bitcoin::XOnlyPublicKey| Builder::new().push_int(t as i64)
+        .push_opcode(OP_CLTV).push_opcode(OP_DROP).push_x_only_key(who).push_opcode(OP_CHECKSIG).into_script();
+    let freeze_leaf = Builder::new().push_x_only_key(&provider.x).push_opcode(OP_CHECKSIGVERIFY)
+        .push_x_only_key(&setup.x).push_opcode(OP_CHECKSIG).into_script();
+    let forfeit_leaf = cltv_leaf(T_FREEZE, &client.x);
+    let refund_leaf = cltv_leaf(T_DEADLINE, &provider.x);
+    let bond = state(&secp, nums(), &[&freeze_leaf, &forfeit_leaf]);
+    let bond_out = TxOut { value: VALUE, script_pubkey: bond.spk.clone() };
+    let bond_op = OutPoint { txid: Txid::from_byte_array([0x18; 32]), vout: 0 };
+    let f_state = |k: usize| {
+        let rl = leaf(&setup.x, &checkpoint, k + 1);
+        let st = state(&secp, nums(), &[&rl, &refund_leaf]);
+        (rl, st)
+    };
+    let one_in = |op: OutPoint, seq: Sequence, lock: u32, out: TxOut| Transaction {
+        version: Version(2), lock_time: LockTime::from_consensus(lock),
+        input: vec![TxIn { previous_output: op, script_sig: ScriptBuf::new(), sequence: seq, witness: Witness::new() }],
+        output: vec![out],
+    };
+    let with_w = |mut tx: Transaction, w: Vec<Vec<u8>>| { tx.input[0].witness = Witness::from_slice(&w); tx };
+    let mut freeze_spks = serde_json::Map::new();
+    // Presign every freeze_k (setup key, SIGHASH_DEFAULT); the provider adds its signature at cutoff.
+    let mut presigned_setup = Vec::new();
+    for &k in &claims {
+        let (_, st) = f_state(k);
+        freeze_spks.insert(k.to_string(), json!(hex(st.spk.as_bytes())));
+        let tx = one_in(bond_op, Sequence::MAX, 0, TxOut { value: VALUE - fee, script_pubkey: st.spk.clone() });
+        let sig = script_sig(&secp, &tx, &bond_out, &freeze_leaf, &setup);
+        presigned_setup.push((k, tx, sig));
+    }
+    let mut fcase = |name: &str, attack: &'static str, tx: Transaction, spent: Vec<TxOut>, core: bool, bip347: bool, design: bool, note: &'static str, extra: Value| {
+        cases.push(Case { name: format!("F/{name}"), attack, tx, spent, core, bip347, design, note, extra });
+    };
+    let bcb_f = control(&bond, &freeze_leaf);
+    let bcb_x = control(&bond, &forfeit_leaf);
+    let f5_tx = presigned_setup[1].1.clone();
+    let setup5 = presigned_setup[1].2.clone();
+    let prov5 = script_sig(&secp, &f5_tx, &bond_out, &freeze_leaf, &provider);
+    fcase("freeze_claim5_honest", "none", with_w(f5_tx.clone(), vec![setup5.clone(), prov5.clone(), freeze_leaf.to_bytes(), bcb_f.clone()]),
+        vec![bond_out.clone()], true, true, true, "the provider completes the presigned freeze for its claim (5 headers)",
+        json!({"kind": "freeze", "claim": 5}));
+    let (_, f4) = f_state(4);
+    let unlisted = one_in(bond_op, Sequence::MAX, 0, TxOut { value: VALUE - fee, script_pubkey: f4.spk.clone() });
+    let prov_u = script_sig(&secp, &unlisted, &bond_out, &freeze_leaf, &provider);
+    fcase("freeze_unlisted_claim", "claim 4, which setup never presigned", with_w(unlisted, vec![setup5.clone(), prov_u, freeze_leaf.to_bytes(), bcb_f.clone()]),
+        vec![bond_out.clone()], false, false, false, "only enumerated claims can be frozen (Game 3)", json!({"kind": "freeze", "claim": 4}));
+    let to_prov = one_in(bond_op, Sequence::MAX, 0, TxOut { value: VALUE - fee, script_pubkey: p2tr_spk(&secp, &provider) });
+    let prov_r = script_sig(&secp, &to_prov, &bond_out, &freeze_leaf, &provider);
+    fcase("freeze_redirect_to_provider", "provider pays itself through the freeze leaf", with_w(to_prov, vec![setup5.clone(), prov_r, freeze_leaf.to_bytes(), bcb_f.clone()]),
+        vec![bond_out.clone()], false, false, false, "the setup signature commits to the freeze output", json!({"kind": "freeze", "claim": null}));
+    fcase("freeze_without_setup_signature", "provider alone", with_w(f5_tx.clone(), vec![vec![], prov5.clone(), freeze_leaf.to_bytes(), bcb_f.clone()]),
+        vec![bond_out.clone()], false, false, false, "the empty setup signature makes CHECKSIG false", json!({"kind": "freeze", "claim": 5}));
+    let lock = Sequence::ENABLE_LOCKTIME_NO_RBF;
+    let forfeit_tx = one_in(bond_op, lock, T_FREEZE, TxOut { value: VALUE - fee, script_pubkey: p2tr_spk(&secp, &client) });
+    let cs = script_sig(&secp, &forfeit_tx, &bond_out, &forfeit_leaf, &client);
+    fcase("no_freeze_forfeit_at_t_freeze", "none", with_w(forfeit_tx.clone(), vec![cs, forfeit_leaf.to_bytes(), bcb_x.clone()]),
+        vec![bond_out.clone()], true, true, true, "a provider that never freezes forfeits", json!({"kind": "cltv", "t": T_FREEZE}));
+    let early = one_in(bond_op, lock, T_FREEZE - 1, forfeit_tx.output[0].clone());
+    let cs_e = script_sig(&secp, &early, &bond_out, &forfeit_leaf, &client);
+    fcase("no_freeze_forfeit_early", "client forfeits before T_FREEZE", with_w(early, vec![cs_e, forfeit_leaf.to_bytes(), bcb_x.clone()]),
+        vec![bond_out.clone()], false, false, false, "CLTV", json!({"kind": "cltv", "t": T_FREEZE}));
+    let ps = script_sig(&secp, &forfeit_tx, &bond_out, &forfeit_leaf, &provider);
+    fcase("provider_uses_forfeit_leaf", "provider signs the client's leaf", with_w(forfeit_tx.clone(), vec![ps, forfeit_leaf.to_bytes(), bcb_x.clone()]),
+        vec![bond_out.clone()], false, false, false, "the bond has no provider exit except a freeze", json!({"kind": "cltv", "t": T_FREEZE, "wrong_signer": true}));
+    // Spends of the frozen output F_5.
+    let (rl5, st5) = f_state(5);
+    let f5_out = TxOut { value: VALUE - fee, script_pubkey: st5.spk.clone() };
+    let f5_op = OutPoint { txid: f5_tx.compute_txid(), vout: 0 };
+    let ref_base = one_in(f5_op, Sequence::MAX, 0, TxOut { value: VALUE - fee - fee, script_pubkey: p2tr_spk(&secp, &client) });
+    let lh = TapLeafHash::from_script(&rl5, LeafVersion::TapScript);
+    let sh = SighashCache::new(&ref_base)
+        .taproot_script_spend_signature_hash(0, &Prevouts::One(0, f5_out.clone()), lh, TapSighashType::SinglePlusAnyoneCanPay).unwrap();
+    let mut rsig = secp.sign_schnorr_no_aux_rand(&Message::from_digest(sh.to_byte_array()), &setup.kp).serialize().to_vec();
+    rsig.push(TapSighashType::SinglePlusAnyoneCanPay as u8);
+    let rcb = control(&st5, &rl5);
+    let refute = |hs: &[Hdr]| {
+        let mut w = header_items(hs);
+        w.push(rsig.clone());
+        w.push(rl5.to_bytes());
+        w.push(rcb.clone());
+        with_w(ref_base.clone(), w)
+    };
+    let six = chain(checkpoint, 6, 0);
+    fcase("refute_claim5_with_6", "none", refute(&six), vec![f5_out.clone()], true, true, true,
+        "a 6-header fork refutes the frozen claim of 5", json!({"kind": "fork", "n": 6}));
+    fcase("refute_claim5_with_5", "a fork equal to the claim", refute(&six[..5]), vec![f5_out.clone()], true, false, false,
+        "needs strictly more work than the claim", json!({"kind": "fork", "n": 6}));
+    let nine = chain(checkpoint, 9, 0);
+    fcase("refute_claim5_with_prefix_of_9", "none (a longer fork truncated to 6)", refute(&nine[..6]), vec![f5_out.clone()], true, true, true,
+        "any longer fork's 6-header prefix is itself a valid stronger fork", json!({"kind": "fork", "n": 6}));
+    let rcb2 = control(&st5, &refund_leaf);
+    let refund_tx = one_in(f5_op, lock, T_DEADLINE, TxOut { value: VALUE - fee - fee, script_pubkey: p2tr_spk(&secp, &provider) });
+    let rs = script_sig(&secp, &refund_tx, &f5_out, &refund_leaf, &provider);
+    fcase("refund_claim5_at_deadline", "none", with_w(refund_tx.clone(), vec![rs, refund_leaf.to_bytes(), rcb2.clone()]),
+        vec![f5_out.clone()], true, true, true, "an unrefuted provider refunds at the deadline", json!({"kind": "cltv", "t": T_DEADLINE}));
+    let refund_early = one_in(f5_op, lock, T_DEADLINE - 1, refund_tx.output[0].clone());
+    let rse = script_sig(&secp, &refund_early, &f5_out, &refund_leaf, &provider);
+    fcase("refund_claim5_early", "provider refunds before the deadline", with_w(refund_early, vec![rse, refund_leaf.to_bytes(), rcb2.clone()]),
+        vec![f5_out.clone()], false, false, false, "CLTV keeps the refutation window open", json!({"kind": "cltv", "t": T_DEADLINE}));
     let out = json!({
         "schema": "bsb/cat-verifier-vectors/v1", "adr": "ADR-016",
         "checkpoint_display": hex(&display),
@@ -259,6 +370,7 @@ fn main() {
             "bip347_valid": "Bitcoin Core 26 libbitcoinconsensus + research/bip347-check/bip347.patch (BIP347 semantics, local research patch, not activated consensus)"
         },
         "sizes": report,
+        "freeze": {"t_freeze": T_FREEZE, "t_deadline": T_DEADLINE, "claims": claims, "freeze_spks": freeze_spks},
         "warning": "unfunded fabricated outpoints, public test keys; never broadcast",
         "cases": cases.iter().map(row).collect::<Vec<_>>(),
     });

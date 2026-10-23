@@ -43,12 +43,26 @@ export function isStrongerFork(items, n, checkpoint = REGTEST_GENESIS) {
   return true;
 }
 
-export function designVerdict(c, clientSpk) {
+// ADR-017 freeze-graph cases carry a check kind:
+// - fork: the ADR-016 header-chain rule for n headers, and output 0 to the client;
+// - freeze: output 0 is one of the presigned freeze templates (an enumerated claim) and the setup
+//   signature slot is non-empty;
+// - cltv: nLockTime >= t, from the serialized bytes. Signature validity, including a wrong signer,
+//   is decided by Core; the generator marks a wrong-signer case explicitly.
+export function designVerdict(c, clientSpk, freeze) {
   const tx = parseTx(c.raw_hex);
   const w = tx.ins[c.input_index].witness;
-  const n = Number(/^N(\d+)\//.exec(c.name)[1]);
-  if (w.length < 3) return false;
-  return isStrongerFork(w.slice(0, -3), n) && tx.outs[0].script.equals(clientSpk);
+  const check = c.check ?? { kind: 'fork', n: Number(/^N(\d+)\//.exec(c.name)[1]) };
+  if (check.kind === 'fork') {
+    if (w.length < 3) return false;
+    return isStrongerFork(w.slice(0, -3), check.n) && tx.outs[0].script.equals(clientSpk);
+  }
+  if (check.kind === 'freeze') {
+    const listed = Object.values(freeze.freeze_spks).some((s) => tx.outs[0].script.equals(Buffer.from(s, 'hex')));
+    return listed && w[0].length > 0;
+  }
+  if (check.kind === 'cltv') return tx.lockTime >= check.t && !check.wrong_signer;
+  throw new Error(`unknown check ${check.kind}`);
 }
 
 if (process.argv[1]?.endsWith('verify_cat_vectors.mjs')) {
@@ -57,7 +71,7 @@ if (process.argv[1]?.endsWith('verify_cat_vectors.mjs')) {
   const clientSpk = parseTx(v.cases.find((c) => c.name === 'N8/honest_stronger_fork').raw_hex).outs[0].script;
   let bad = 0;
   for (const c of v.cases) {
-    const mine = designVerdict(c, clientSpk);
+    const mine = designVerdict(c, clientSpk, v.freeze);
     if (mine !== c.design_ok) bad++;
     console.log(`${mine === c.design_ok ? 'ok' : 'FAIL'}  ${c.name.padEnd(30)} design_ok=${mine} bip347_valid=${c.bip347_valid} weight=${c.weight}`);
   }

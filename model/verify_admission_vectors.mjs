@@ -37,9 +37,9 @@ export function parseTx(hex) {
   const outs = [];
   for (let n = r.varint(); n > 0; n--) { const value = r.take(8).readBigUInt64LE(); outs.push({ value, script: Buffer.from(r.take(r.varint())) }); }
   for (const i of ins) { i.witness = []; for (let n = r.varint(); n > 0; n--) i.witness.push(Buffer.from(r.take(r.varint()))); }
-  r.take(4);
+  const lockTime = r.take(4).readUInt32LE();
   if (!r.done()) throw new Error('trailing bytes');
-  return { ins, outs };
+  return { ins, outs, lockTime };
 }
 
 // BIP342 OP_SUCCESSx set.

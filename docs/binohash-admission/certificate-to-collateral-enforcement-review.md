@@ -164,7 +164,14 @@ See [ADR-016](cat-refutation-verifier.md). There are 13 real-transaction cases:
 1. Cross-check the patch against Bitcoin Inquisition's BIP347 (needs approval to download).
 2. Add per-period targets fixed at setup, to handle mainnet retargets.
 3. Add a BIP141 inclusion check of the certificate's anchor transaction inside the leaf (CAT Merkle path), for timeliness.
-4. Add a presigned leaf per claim value, for dynamic frozen claims.
+4. ~~Add a presigned leaf per claim value, for dynamic frozen claims.~~ Done in [ADR-017](dynamic-claim-freeze.md).
+
+**ADR-017 (dynamic claims).** Setup presigns one freeze transaction per claim. The provider completes one at the cutoff, and a CLTV forfeit pays the client if the provider never freezes. 12 more real-transaction cases match on Core 26 + BIP347:
+- only listed claims can be frozen, and only with the setup signature;
+- the refund cannot come early;
+- a fork equal to the claim does not refute, and any longer fork refutes through its prefix.
+
+The whole file has 25 cases with 0 mismatches. Stock Core shows 11 counterexamples, and the BIP347 build shows 0.
 
 ## 8. Commit and CI record
 
@@ -194,4 +201,5 @@ The issues and PR could not be updated from here: comments need auth, and this f
 > - Lean `CertificateAdmission.lean`: refutation safety, liveness and incentives are conditional on A2–A5, plus the fixed-graph journal impossibility.
 > - Selected: stateless refutation with a presigned SINGLE|ACP payout.
 > - ADR-016: on Core 26 with a local BIP347 patch, a one-tx OP_CAT refutation leaf accepts real stronger regtest forks (N=8, N=151 at 19,428 WU) and rejects all 10 attacks. On stock Core all 10 are valid. BIP347 activation is the exact missing primitive.
-> - Next: an Inquisition cross-check, retarget-aware work, BIP141 timeliness inside the leaf, and dynamic claims.
+> - ADR-017: dynamic frozen claims via a presigned freeze set (25 cases total, 0 counterexamples under BIP347).
+> - Next: an Inquisition cross-check, retarget-aware work, and BIP141 timeliness inside the leaf.
