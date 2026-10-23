@@ -46,7 +46,8 @@ theorem contextual_csv_waits_at_least_contract_delay
     (c : CsvHeightCase) (h : csvContextOk c) :
     c.outputConfirmedHeight + c.contractDelayBlocks ≤ c.candidateBlockHeight := by
   rcases h with ⟨⟨_, _, _, minSequence⟩, matured⟩
-  exact (Nat.add_le_add_left minSequence c.outputConfirmedHeight).trans matured
+  change c.outputConfirmedHeight + c.sequenceBlocks ≤ c.candidateBlockHeight at matured
+  omega
 
 /-- The exact operational sequence (144 blocks) can satisfy the CSV opcode
 while still lacking the BIP68 age needed for confirmed inclusion. -/
@@ -102,7 +103,8 @@ theorem refund_confirmation_follows_contract_height
     (c : CltvHeightCase) (h : cltvContextOk c) :
     c.contractEndHeight < c.candidateBlockHeight := by
   rcases h with ⟨⟨_, _, _, enoughLock, _⟩, finalHeight⟩
-  exact lt_of_le_of_lt enoughLock finalHeight
+  change c.txLockHeight < c.candidateBlockHeight at finalHeight
+  omega
 
 def earlyRefundFixture : CltvHeightCase :=
   { contractEndHeight := 960000, txLockHeight := 960000,
