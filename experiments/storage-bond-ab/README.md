@@ -148,6 +148,33 @@ statement that Bob failed PDP. Finally, the historical CSV delay is
 1,000-sat fees are not externally sponsored. A/B still has unmatched
 timing, adversarial custody, fee, and refresh conditions.
 
+### Genuine threshold-Schnorr signing, separate from B's funded P2WSH
+
+The B folder now also includes [`frost-proof/`](b-layertree/frost-proof/README.md),
+a pinned Rust implementation using Zcash Foundation
+`frost-secp256k1-tr = 3.0.0` with its 72-package `Cargo.lock`.
+[Passing FROST CI](https://github.com/patrickdugan/blossom-storage-bonds/actions/runs/39983580968)
+runs all three 2-of-3 signer pairings, aggregates actual RFC 9591-style
+Taproot-compatible signatures, cross-verifies every 64-byte signature
+against the BIP340 x-only public key using independent `secp256k1`,
+and rejects missing signature shares and wrong message digests.
+
+It signs a domain-separated SHA256 research digest of the **same Alice
+epoch-2 PDP evidence hash** as the real funded A/B experiment. It also
+demonstrates that two colluding threshold share holders can sign an
+arbitrary alternate settlement statement. Key packages are
+trusted-dealer-generated and remain in one disposable OS process.
+This is real cryptography but **not yet an actual P2TR Bitcoin spend**;
+B's successful funded transaction demo is still the separate
+2-of-3 P2WSH surrogate.
+
+The next B integration needs a real BIP341 signature hash, appropriate
+TapTweak calculation (the crate exposes `aggregate_with_tweak`), actual
+signing rounds across isolated participants, and Bitcoin Core
+confirmation of a 60k/40k P2TR payout. The experimental Sapio MID
+policy, proof admission and a usable federation-offline exit remain
+unimplemented.
+
 ## Testnet evidence route
 
 `testnet/observe.mjs` is deliberately read-only and permits only
