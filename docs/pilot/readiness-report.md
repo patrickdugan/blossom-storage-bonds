@@ -9,13 +9,11 @@ is active on Bitcoin.
 **Final state (118e2df).**
 - Conditions 2 (forfeit fee policy) and 3 (sentinel budget discipline) are met.
 - Three rounds of independent review are fixed and re-verified.
-- Still open:
-  - **condition 1**, a restartable client loop: until it lands, an operator stands by to enforce from
-    the deal files;
-  - **the public signet pilot itself**, which needs explicit approval of each public-network step
-    (runbook §8).
-
-  Mainnet value at risk stays **NO GO** until both are done.
+- **Update, 161adb1:** condition 1 (crash-safe enforcement) is met too; see §7. CI is green on all 10
+  jobs ([run 39951573833](https://github.com/patrickdugan/blossom-storage-bonds/actions/runs/39951573833)).
+- Still open: **the public signet pilot itself**. Step 1 (sync a signet node with txindex) is approved
+  but blocked on this machine's disk: 12 GB free, about 40 GB needed. Mainnet value at risk stays
+  **NO GO** until that pilot has run.
 
 The existing-consensus market works end to end, reproducibly, in CI:
 - Merkle PDP and public Stwo epoch proofs;
@@ -134,9 +132,18 @@ Deployment and recovery: `docs/pilot/deployment.md`.
 
 ## 7. Pilot conditions (the "conditional")
 
-1. **Open: a restartable client loop.** `full-stack.ts` keeps its epoch and enforcement loop in
-   memory (runbook §11). Payments and deal files survive a crash, but enforcement must be resumable
-   before Δ expires. Until it is, an operator stands by to enforce from the deal files.
+1. **Met: crash-safe enforcement** (`161adb1`). `layer1/enforce.ts` enforces a flagged deal from a
+   durable state file plus the chain. Every challenge and forfeit bid is written ahead, and every
+   decision is re-derived from `bond-status`, so it can be killed anywhere and restarted.
+
+   The CI job `channel-enforcer-crash` SIGKILLs the first enforcer after its first challenge. The
+   restarted one found that sentinel answered on chain, challenged the next, and forfeited the
+   deleter's bond (`check-e2e --expect-enforcer-crash`).
+
+   The orchestrators' epoch loops restart only through the payment ledgers. An epoch missed while the
+   client is down goes unproved and unpaid, which costs nothing; the part with a deadline is
+   enforcement, and that no longer depends on memory. `full-stack.ts` writes no enforcer state files
+   yet; wiring it is mechanical, and `market.ts` shows it.
 2. **Met: a forfeit fee policy** (`a387fbe`). `forfeitWithPolicy` bids at the first eligible block and
    re-bids one step higher each unconfirmed block, capped so the fee stays below half the bond
    (FP01–FP05; the market uses it). Harness S1 on Core 31.1 shows what it does and does not buy:
