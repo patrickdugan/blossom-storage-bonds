@@ -41,7 +41,7 @@ jobs:
         run: |
           ! grep -En '(^|[[:space:]])(sorry|admit)([[:space:]]|$)' formal/*.lean
           lean -o formal/Blossom.olean formal/Blossom.lean
-          LEAN_PATH=formal lean formal/UTXORefinement.lean
+          LEAN_PATH=formal lean -o formal/UTXORefinement.olean formal/UTXORefinement.lean
           LEAN_PATH=formal lean formal/MerkleBinding.lean
           LEAN_PATH=formal lean formal/PaymentChannel.lean
           LEAN_PATH=formal lean formal/PresignedParents.lean
