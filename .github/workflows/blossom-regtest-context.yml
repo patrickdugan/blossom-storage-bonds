@@ -1,20 +1,6 @@
 name: Blossom full-node regtest context
 
 on:
-  push:
-    branches: [research/binohash-admission]
-    paths:
-      - "scripts/audit-regtest-context.mjs"
-      - "scripts/regtest-node.sh"
-      - "regtest/src/**"
-      - "regtest/Cargo.toml"
-      - "regtest/Cargo.lock"
-      - "model/contextual_finality.mjs"
-      - "model/bitcoin_merkleblock.mjs"
-      - "model/bitcoin_witness_commitment.mjs"
-      - "model/fixture.ts"
-      - "layer1/onchain.ts"
-      - ".github/workflows/blossom-regtest-context.yml"
   pull_request:
     paths:
       - "scripts/audit-regtest-context.mjs"
@@ -28,6 +14,7 @@ on:
       - "model/fixture.ts"
       - "layer1/onchain.ts"
       - ".github/workflows/blossom-regtest-context.yml"
+  workflow_dispatch:
 
 permissions:
   contents: read

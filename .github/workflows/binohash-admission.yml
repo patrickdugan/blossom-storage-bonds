@@ -1,15 +1,6 @@
 name: Binohash admission model
 
 on:
-  push:
-    branches: [research/binohash-admission]
-    paths:
-      - "model/*.mjs"
-      - "model/*.ts"
-      - "layer1/channel.ts"
-      - "layer1/channel-*.test.ts"
-      - "research/consensus-check/**"
-      - ".github/workflows/binohash-admission.yml"
   pull_request:
     paths:
       - "model/*.mjs"
@@ -18,6 +9,7 @@ on:
       - "layer1/channel-*.test.ts"
       - "research/consensus-check/**"
       - ".github/workflows/binohash-admission.yml"
+  workflow_dispatch:
 
 concurrency:
   group: bsb-binohash-${{ github.event.pull_request.number || github.ref }}
