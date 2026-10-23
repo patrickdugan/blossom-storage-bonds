@@ -10,6 +10,7 @@ const root = s => H([s.carrier,s.usedOutpoints,s.bonds,s.usedLineages,s.signers,
 function verify(s) {
   check(s.carrier.value === principal(s), 'principal mismatch');
   check(s.root === root(s), 'state commitment mismatch');
+  check(s.bonds.every(b=>b.termsHash===H(b.terms)), 'immutable bond terms mutated');
   check(new Set(s.usedOutpoints).size === s.usedOutpoints.length, 'reused carrier history');
 }
 function quorum(s,a,voters) {
@@ -56,6 +57,7 @@ const bond = (s,id) => {const b=s.bonds.find(b=>b.terms.id===id);check(b,'unknow
 export function refresh(s,a,voters) {
   quorum(s,a,voters);
   check(a.kind==='refresh', 'wrong transition');
+  check(s.carrier.value>0 && s.carrier.outpoint!==null, 'cannot refresh closed bond carrier');
   check(a.from===s.carrier.outpoint && op(a.to) && a.to!==a.from &&
     !s.usedOutpoints.includes(a.to), 'bad carrier lineage');
   check(a.generation===s.carrier.generation+1 && a.value===principal(s), 'stale generation or value theft');
@@ -112,6 +114,7 @@ export function admit(s,a,voters) {
   const t=a.terms,lineage=t.provider+'|'+t.nonce;
   check(!s.usedLineages.includes(lineage) && !s.bonds.some(b=>b.terms.id===t.id),
     'historical nonce or duplicate id');
+  check(s.carrier.value>0 && s.carrier.outpoint!==null, 'cannot join a closed carrier');
   check(a.from===s.carrier.outpoint && op(a.to) && a.to!==a.from &&
     !s.usedOutpoints.includes(a.to),'bad parent');
   check(sat(a.value) && a.value===principal(s)+t.stake, 'underfunded join');
