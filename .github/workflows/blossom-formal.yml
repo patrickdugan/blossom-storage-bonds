@@ -9,6 +9,8 @@ on:
       - "regtest/Cargo.lock"
       - "model/verify_formal_evidence.mjs"
       - "model/verify_admission_vectors.mjs"
+      - "model/verify_cat_vectors.mjs"
+      - "research/bip347-check/**"
       - "research/consensus-check/**"
       - "lean-toolchain"
       - ".github/workflows/blossom-formal.yml"
@@ -46,7 +48,7 @@ jobs:
           LEAN_PATH=formal lean formal/ContextualFinality.lean
           LEAN_PATH=formal lean -o formal/CertificateAdmission.olean formal/CertificateAdmission.lean
           LEAN_PATH=formal lean formal/CertificateAdmissionAxioms.lean | tee /tmp/bsb-axioms.txt
-          test "$(grep -c "axioms" /tmp/bsb-axioms.txt)" -eq 14
+          test "$(grep -c "axioms" /tmp/bsb-axioms.txt)" -eq 16
           ! grep -vE "does not depend on any axioms|depends on axioms: \[(propext|Classical.choice|Quot.sound)(, (propext|Classical.choice|Quot.sound))*\]$" /tmp/bsb-axioms.txt
 
   taproot-templates:
@@ -71,3 +73,13 @@ jobs:
         run: node model/verify_admission_vectors.mjs /tmp/bsb-adr015.json
       - name: ADR-015 Bitcoin Core 26 consensus with Taproot flags and spent outputs
         run: cargo run --release --manifest-path research/consensus-check/Cargo.toml --bin tapscript-vectors < /tmp/bsb-adr015.json
+      - name: ADR-016 OP_CAT refutation vectors (real mined regtest headers)
+        run: cargo run --locked --release --manifest-path regtest/Cargo.toml --bin bsb-cat-verifier-vectors > /tmp/bsb-adr016.json
+      - name: ADR-016 independent verdicts with the real regtest PoW rule
+        run: node model/verify_cat_vectors.mjs /tmp/bsb-adr016.json
+      - name: ADR-016 on stock Bitcoin Core 26 (OP_CAT is OP_SUCCESS, every attack valid)
+        run: cargo run --release --manifest-path research/consensus-check/Cargo.toml --bin tapscript-vectors < /tmp/bsb-adr016.json
+      - name: ADR-016 on Bitcoin Core 26 with the local BIP347 patch (research build)
+        run: |
+          bash research/bip347-check/prepare.sh
+          cargo run --release --manifest-path research/bip347-check/Cargo.toml < /tmp/bsb-adr016.json

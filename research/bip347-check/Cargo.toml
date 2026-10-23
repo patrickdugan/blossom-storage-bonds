@@ -1,0 +1,14 @@
+[package]
+name = "bsb-bip347-check"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "ADR-016: the shared Taproot checker linked against Bitcoin Core 26 libbitcoinconsensus with a local BIP347 (OP_CAT) patch. Research only: not activated consensus."
+
+[dependencies]
+bitcoinconsensus = "=0.106.0"
+serde_json = "1"
+
+# prepare.sh copies the registry crate here and applies bip347.patch.
+[patch.crates-io]
+bitcoinconsensus = { path = "vendor/bitcoinconsensus-0.106.0+26.0" }

@@ -27,3 +27,7 @@ path = "src/bin/formal_vectors.rs"
 [[bin]]
 name = "bsb-admission-vectors"
 path = "src/bin/admission_vectors.rs"
+
+[[bin]]
+name = "bsb-cat-verifier-vectors"
+path = "src/bin/cat_verifier_vectors.rs"

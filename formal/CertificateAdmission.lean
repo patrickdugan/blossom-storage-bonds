@@ -335,6 +335,39 @@ watchtowers. -/
 theorem outsider_exists (C : Chunked) : ∃ k, ¬ CanCommit C k :=
   ⟨maxList C.keys + 1, fun h => Nat.lt_irrefl _ (Nat.lt_of_lt_of_le (Nat.lt_succ_self _) (le_maxList h))⟩
 
+/-! ## Fixed-difficulty refinement (ADR-016)
+
+On a fixed-target chain (regtest: nBits 0x207fffff, no retarget) every valid header carries the same
+work `w > 0`, so a chain of `n` headers has work `n * w`. The ADR-016 OP_CAT leaf accepts exactly `N`
+linked, target-meeting headers from the checkpoint. This was observed in Core 26 with the BIP347 patch
+and is a premise here, not proved about Script. That leaf is sound for the frozen claim "at most
+`N - 1` headers" in this sense: -/
+
+def chainWork (w n : Nat) : Nat := n * w
+
+/-- `N` headers are strictly stronger than a claim of `N - 1`. -/
+theorem exactN_stronger (w N : Nat) (hw : 0 < w) (hN : 0 < N) :
+    chainWork w (N - 1) < chainWork w N := by
+  unfold chainWork
+  cases N with
+  | zero => exact absurd hN (Nat.lt_irrefl 0)
+  | succ k =>
+    show k * w < (k + 1) * w
+    rw [Nat.succ_mul]
+    exact Nat.lt_add_of_pos_right hw
+
+/-- The bridge from the leaf's acceptance to A2's soundness. If the leaf accepts only certificates
+whose work is `N * w`, then every accepted certificate refutes the frozen claim `(N - 1) * w`. Validity
+and timeliness (`E.valid`, `c.time ≤ E.cutoff`) remain separate premises: the ADR-016 leaf checks PoW
+and linkage, but not BIP141 inclusion or a cutoff. -/
+theorem exactN_leaf_sound (E : Env) (G : Graph) (w N : Nat) (hw : 0 < w) (hN : 0 < N)
+    (work_of_leaf : ∀ c, G.leaf c → c.work = chainWork w N)
+    (valid_timely : ∀ c, G.leaf c → E.valid c ∧ c.time ≤ E.cutoff) :
+    ∀ c, G.leaf c → TimelyStronger E (chainWork w (N - 1)) c := by
+  intro c hc
+  obtain ⟨hv, ht⟩ := valid_timely c hc
+  exact ⟨hv, by rw [work_of_leaf c hc]; exact exactN_stronger w N hw hN, ht⟩
+
 /-! ## Incentives (economic layer, distinct from safety and liveness) -/
 
 /-- Provider payoff from the settlement: the bond `B` on refund, nothing otherwise. -/

@@ -24,6 +24,7 @@ No bitcoind, block mining, GPU proofs, or funded pilot runs are invoked by these
   - A hidden leaf drains the bond.
 - **Lean `formal/CertificateAdmission.lean`:** refutation safety, liveness and incentive theorems under explicit hypotheses A1–A6, plus model-level impossibility for a fixed-graph journal.
 - **Selected design:** stateless refutation with a presigned SINGLE|ANYONECANPAY payout.
+- **[ADR-016](cat-refutation-verifier.md):** on Core 26 with a local BIP347 patch, a one-transaction OP_CAT refutation leaf accepts real stronger regtest forks and rejects all 10 attacks (19,428 WU at 151 headers). On stock Core all 10 attacks are valid. Activation is the missing primitive.
 
 ## Two protocol directions
 

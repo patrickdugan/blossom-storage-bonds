@@ -95,7 +95,10 @@ What was added:
 
 Trap: `tapscript-vectors` needs a Linux build. The vendored C++ library fails to link with MSVC (LNK1120).
 
-Next experiment (review §7): run the CAT verifier against a BIP347 interpreter such as Bitcoin Inquisition. That download needs owner approval.
+ADR-016 ran the §7 experiment on Core 26 with a local BIP347 patch:
+- **Pieces:** `research/bip347-check/` (with `prepare.sh` and `bip347.patch`) and `bsb-cat-verifier-vectors`, independently checked by `model/verify_cat_vectors.mjs`.
+- **Result:** 13 cases. Honest forks pass and all 10 attacks fail under BIP347; on stock Core all 10 are valid.
+- **Next:** an Inquisition cross-check (needs approval), retarget-aware work, BIP141 timeliness in the leaf, and dynamic claims.
 
 ## Research goal
 

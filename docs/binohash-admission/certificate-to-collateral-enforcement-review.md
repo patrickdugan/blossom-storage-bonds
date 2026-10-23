@@ -8,7 +8,15 @@ Bitcoin Core 26 consensus cannot verify a stronger-fork certificate it didn't kn
 - it has no way to read a header's fields;
 - it has no way to compare a hash with a target.
 
-It also cannot bind a verdict to the payout except through a key presigned at setup. The missing enforcement primitive is **OP_CAT (BIP347)**. The next experiment is in §7.
+It also cannot bind a verdict to the payout except through a key presigned at setup. The missing enforcement primitive is **OP_CAT (BIP347)**.
+
+**Update, ADR-016 (§7 run):** the experiment was run on Bitcoin Core 26 with a local BIP347 patch (no download). It shows that OP_CAT is *sufficient* for the scoped construction:
+- one fixed tapscript leaf accepts any stronger fork of a fixed-difficulty chain, from any challenger, on real mined regtest headers;
+- the leaf rejects all 10 attack classes;
+- the leaf binds the payout through a presigned SINGLE|ANYONECANPAY signature;
+- the spend is 19,428 WU at 151 headers.
+
+On stock Core the same output is anyone-can-spend. The verdict therefore stays **BLOCKED**, and the exact missing primitive is BIP347 activation. The residual items are engineering: retarget-aware work, dynamic claims, timeliness via BIP141 inclusion, and a covenant in place of A5 (§7a).
 
 ## 1. Baseline and what was run
 
@@ -141,6 +149,23 @@ This needs your approval to download and build Inquisition. Until then the vecto
 
 A no-soft-fork alternative to measure alongside it: the script size of BitVM's limb-arithmetic SHA256 for one 80-byte header (from the BitVM clone used in phase 6), which bounds how many headers one non-standard transaction can verify.
 
+## 7a. Result of the experiment (ADR-016)
+
+See [ADR-016](cat-refutation-verifier.md). There are 13 real-transaction cases:
+
+| Interpreter | Honest refutations | Attacks rejected | Consensus-valid counterexamples |
+| --- | --- | --- | --- |
+| Stock Bitcoin Core 26 | 3 valid | 0 of 10 | 10 |
+| Core 26 + `research/bip347-check/bip347.patch` | 3 valid (N8, N151, sponsored) | 10 of 10 | 0 |
+
+`model/verify_cat_vectors.mjs` recomputes every verdict with the real 256-bit regtest PoW rule and agrees on all 13. In Lean, `exactN_stronger` and `exactN_leaf_sound` connect the leaf's exact-N acceptance to A2's soundness (fixed difficulty). Both depend on no axioms.
+
+**Next implementable experiments**, in order of value:
+1. Cross-check the patch against Bitcoin Inquisition's BIP347 (needs approval to download).
+2. Add per-period targets fixed at setup, to handle mainnet retargets.
+3. Add a BIP141 inclusion check of the certificate's anchor transaction inside the leaf (CAT Merkle path), for timeliness.
+4. Add a presigned leaf per claim value, for dynamic frozen claims.
+
 ## 8. Commit and CI record
 
 Commit `ba8138d`. All three workflows passed, as read from the public API:
@@ -160,4 +185,5 @@ The issues and PR could not be updated from here: comments need auth, and this f
 > - Core 26 Taproot vectors: 16 cases, 5 consensus-valid counterexamples. Unlinked headers pass a no-CAT linkage leaf; no 256-bit target check is expressible; a CAT leaf is OP_SUCCESS (anyone-can-spend) today; an output-blind verdict can be front-run; a hidden leaf drains the bond.
 > - Lean `CertificateAdmission.lean`: refutation safety, liveness and incentives are conditional on A2–A5, plus the fixed-graph journal impossibility.
 > - Selected: stateless refutation with a presigned SINGLE|ACP payout.
-> - Next: the CAT verifier against a BIP347 interpreter.
+> - ADR-016: on Core 26 with a local BIP347 patch, a one-tx OP_CAT refutation leaf accepts real stronger regtest forks (N=8, N=151 at 19,428 WU) and rejects all 10 attacks. On stock Core all 10 are valid. BIP347 activation is the exact missing primitive.
+> - Next: an Inquisition cross-check, retarget-aware work, BIP141 timeliness inside the leaf, and dynamic claims.

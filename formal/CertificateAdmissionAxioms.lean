@@ -16,3 +16,5 @@ open BSB.Admission
 #print axioms outsider_exists
 #print axioms truthful_keeps_bond
 #print axioms underclaim_forfeits
+#print axioms exactN_stronger
+#print axioms exactN_leaf_sound
