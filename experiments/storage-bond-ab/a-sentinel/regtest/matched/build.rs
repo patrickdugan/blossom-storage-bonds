@@ -31,7 +31,7 @@ fn bond() -> Amount {
     let fixture="concat!(env!(\"CARGO_MANIFEST_DIR\"), \"/../fixtures/sentinels.json\")";
     assert_eq!(code.matches(fixture).count(),1);
     code=code.replace(fixture,
-        "concat!(env!(\"CARGO_MANIFEST_DIR\"), \"/../../../../../fixtures/sentinels.json\")");
+        "std::env::var(\"BSB_A_SENTINELS_JSON\").unwrap_or_else(|_| concat!(env!(\"CARGO_MANIFEST_DIR\"), \"/../../../../../fixtures/sentinels.json\").to_owned())");
     let output="let path = concat!(env!(\"CARGO_MANIFEST_DIR\"), \"/../results/regtest.json\");";
     assert_eq!(code.matches(output).count(),1);
     code=code.replace(output,
@@ -40,6 +40,12 @@ fn bond() -> Amount {
     assert_eq!(code.matches(mk).count(),1);
     code=code.replace(mk,
         "std::fs::create_dir_all(std::path::Path::new(&path).parent().unwrap()).unwrap();");
+    // Commitments in Bitcoin witnesses must match the original shared PDP
+    // Merkle-derived fixture exactly, not only a test label in Node.
+    let anchor="\"k\": k, \"delta\": DELTA, \"bond_sats\": bond().to_sat(),";
+    assert_eq!(code.matches(anchor).count(),1,"upstream report shape changed");
+    code=code.replace(anchor,
+        "\"k\": k, \"delta\": DELTA, \"bond_sats\": bond().to_sat(), \"ab_sentinel_h\": sen.iter().map(|s| s.h.iter().map(|byte| format!(\"{byte:02x}\")).collect::<String>()).collect::<Vec<_>>(),");
     let target=PathBuf::from(env::var("OUT_DIR").unwrap()).join("original_sentinel_adapted.rs");
     fs::write(target,code).unwrap();
 }
