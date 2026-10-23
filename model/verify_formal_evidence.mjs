@@ -12,6 +12,8 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {createHash} from 'node:crypto';
 import {parseTx} from '../layer1/onchain.ts';
+import {csvScriptHeightOk,forfeitContextOk,cltvScriptHeightOk,refundContextOk}
+  from './contextual_finality.mjs';
 
 const sha256d=b=>createHash('sha256').update(
   createHash('sha256').update(b).digest()).digest();
@@ -96,7 +98,19 @@ export function verifyEvidence(e){
   assert.equal(rt.inputs[0].txid,records.get('response-0').txid);
   assert.equal(f.input_sequence,144);
   assert.equal(f.expected_csv,144);
+  assert.equal(csvScriptHeightOk({version:ft.version,sequence:ft.inputs[0].sequence,
+    delay:f.expected_csv}),true);
+  assert.equal(forfeitContextOk({version:ft.version,sequence:ft.inputs[0].sequence,
+    delay:f.expected_csv,outpointHeight:500,candidateHeight:643}),false);
+  assert.equal(forfeitContextOk({version:ft.version,sequence:ft.inputs[0].sequence,
+    delay:f.expected_csv,outpointHeight:500,candidateHeight:644}),true);
   assert.equal(r.lock_time,960_000);
+  assert.equal(cltvScriptHeightOk({contractEndHeight:r.lock_time,
+    nLockTime:rt.locktime,sequence:rt.inputs[0].sequence}),true);
+  assert.equal(refundContextOk({contractEndHeight:r.lock_time,
+    nLockTime:rt.locktime,sequence:rt.inputs[0].sequence,candidateHeight:960000}),false);
+  assert.equal(refundContextOk({contractEndHeight:r.lock_time,
+    nLockTime:rt.locktime,sequence:rt.inputs[0].sequence,candidateHeight:960001}),true);
   assert.equal(ft.locktime,0);
   assert.equal(rt.locktime,960_000);
   assert.equal(ft.outputs.length,1);
@@ -129,6 +143,17 @@ export function verifyEvidence(e){
   expectTerminal('refund',r,rt,
     ['stale_signature_redirect','fresh_signature_before_cltv',
      'fresh_signature_final_sequence','wrong_signer']);
+  // The real Core-positive witness authorizes the rightful signer to
+  // dispose of its claim to the other party's chosen Bitcoin address.
+  // Preserve that distinction in the formal economic-accounting bridge.
+  const redirectedForfeit=parseTx(Buffer.from(f.authorized_redirect_raw_hex,'hex'));
+  const redirectedRefund=parseTx(Buffer.from(r.authorized_redirect_raw_hex,'hex'));
+  assert.equal(redirectedForfeit.outputs[0].script.toString('hex'),
+    rt.outputs[0].script.toString('hex'));
+  assert.equal(redirectedRefund.outputs[0].script.toString('hex'),
+    ft.outputs[0].script.toString('hex'));
+  assert.equal(redirectedForfeit.inputs[0].txid,ft.inputs[0].txid);
+  assert.equal(redirectedRefund.inputs[0].txid,rt.inputs[0].txid);
   return {ok:true,parents:4,terminals:2,certificate:'UNFUNDED'};
 }
 if(process.argv[1] && import.meta.url===new URL('file://'+process.argv[1]).href) {
