@@ -58,6 +58,19 @@ Branch proof baseline now includes [ADR-012](entitlement-contextual-finality.md)
 The contextual finality proof separates BIP65 CLTV Script conditions from transaction block-height finality and BIP112 CSV Script conditions from BIP68 output-age finality. Height-only model checks actual Rust transaction locktime and sequence bytes, without pretending to have verified active-chain UTXO ancestry. [Lean #39879404477](https://github.com/patrickdugan/blossom-storage-bonds/actions/runs/39879404477) passed seven kernel modules; [research #39879778019](https://github.com/patrickdugan/blossom-storage-bonds/actions/runs/39879778019) passed 380 Node regressions, 33 TypeScript tests and the Core witness checks.
 
 Next: supply and verify UTXO heights / block context, Bitcoin consensus path coverage and authentic signer evidence as refinements, plus the unresolved exact-work fork-cert BitVM payout. The original six-storage-transaction 151-header Phase 7 fixture remains unavailable.
+## ADR-013 real Bitcoin inclusion and storage-payout proof checkpoint (2026-10-23)
+
+Current validated research-branch baseline:
+
+- [Regtest CI #39883245984](https://github.com/patrickdugan/blossom-storage-bonds/actions/runs/39883245984): Bitcoin Core 31.1 regtest, 21/21 protocol harness scenarios, nine audited confirmed spends and verified source UTXO heights; BIP68 forfeit source height 224 and confirmed height 368; CLTV refund nLockTime 380 confirmed at 381.
+- [Lean CI #39883570653](https://github.com/patrickdugan/blossom-storage-bonds/actions/runs/39883570653): nine kernel-checked Lean modules, including two new transaction/witness Merkle collision reductions.
+- [Node/Core CI #39883245968](https://github.com/patrickdugan/blossom-storage-bonds/actions/runs/39883245968): 392 Node model tests, 33 TypeScript tests; offline Core legacy/SegWit plus 39 P2TR cases are independent checker suites.
+
+Source [ADR-013](confirmed-regtest-witness-refinement.md). `scripts/audit-regtest-context.mjs` now exports raw Bitcoin Core-validated inclusion bundles: BIP37 ordinary txid Merkle proof, BIP141 witness Merkle path, coinbase reserved value, coinbase commitment output, coinbase raw transaction and its txid Merkle path, with block header, transaction data and confirmation/source heights. Independent verifier modules: `model/bitcoin_merkleblock.mjs`, `model/bitcoin_witness_commitment.mjs`. The negative control substitutes an unconfirmed witness with the SAME txid: BIP37 still matches but BIP141 fails. Never equate a legacy txid proof to a witness/certificate inclusion proof.
+
+Formal [BitcoinInclusion.lean](../../formal/BitcoinInclusion.lean) and [BitcoinWitnessBinding.lean](../../formal/BitcoinWitnessBinding.lean) prove conditional collision reductions at a fixed indexed Merkle position, with explicit no-collision assumptions. They do NOT prove SHA256 computational hardness, Bitcoin chainwork, best-chain selection, transaction-context finality without a trusted full node, or that an arbitrary certificate controls a BitVM payout.
+
+Next priority: authenticate the Bitcoin block-header chain's exact 256-bit work from genesis/checkpoint and ensure BIP141 witness inclusion is bound to the SAME certificate/public input used for final BitVM adjudication. Integrate active-chain/reorg assumptions into Lean only after obtaining concrete validated proof data. The storage-sentinel bond and the Binohash fork-certificate arbitration remain different security games. Keep Draft PR #1 blocked.
 ## Research goal
 
 Create a Bitcoin-enforced storage-bond construction allowing arbitrary permissionless stronger-fork certificates with exact 256-bit verified chain work and appropriate inclusion/cutoff proofs to control collateral settlement, while protecting timely stronger challenges and requiring the provider to answer the *actual submitted certificate* if that original protocol policy is retained.
