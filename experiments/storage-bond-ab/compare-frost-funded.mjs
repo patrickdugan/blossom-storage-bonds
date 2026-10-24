@@ -67,6 +67,26 @@ export function compareFrostFunded(a,b) {
     b.honestTwoSharePayout?.sixConfirmations===true &&
     b.honestTwoSharePayout?.postSignatureOutputTamperRejected===true,
     'real BIP341 FROST quorum or adversarial safeguards incomplete');
+  // This is a real Bitcoin counterexample: an actual two-share P2TR
+  // signature authorizes exactly the SAME 60/40 payouts and fee accounting,
+  // but changes the opaque application state commitment in OP_RETURN.
+  // Bitcoin enforces the signature, not that commitment's MID semantics.
+  const spoof=b.stateCommitmentBypass;
+  insist(spoof?.bitcoinMempoolAccepted===true &&
+    spoof.broadcast===false &&
+    spoof.realTwoOfThreeFrostTaprootSignature===true &&
+    spoof.alicePayoutSatsUnchanged===60_000 &&
+    spoof.bobPayoutSatsUnchanged===40_000 &&
+    spoof.sponsorFeeUnchangedSats===3_000 &&
+    spoof.originalRecipientScriptsUnchanged===true &&
+    spoof.bitcoinChecksStateRootSemantics===false &&
+    spoof.scriptPathCovenantCannotConstrainThisKeypath===true &&
+    h64(spoof.legitimateApplicationCommitment) &&
+    h64(spoof.maliciousApplicationCommitment) &&
+    spoof.legitimateApplicationCommitment!==
+      spoof.maliciousApplicationCommitment &&
+    h64(spoof.txid)&&h64(spoof.wtxid),
+    'FROST root-only bypass evidence missing or wrong');
   const limits=b.limits;
   insist(limits?.bitcoinCoreBip341AndP2TRKeyPathAccepted===true &&
     limits?.realSapioMidCovenant===false &&
@@ -145,6 +165,7 @@ export function compareFrostFunded(a,b) {
     holderIndependentExitOnBProven:false,
     holderIndependentPostSettlementSpendProven:true,
     onchainMidCovenantProven:false,
+    opaqueStateRootBypassDemonstratedOnBitcoin:true,
     distinction:'BIP341 FROST can authorize malicious outputs; Bitcoin does not check storage verdict or LayerTree state',
     A:{
       principalSats:100_000,independentBonds:2,
@@ -161,6 +182,7 @@ export function compareFrostFunded(a,b) {
       sponsorFeeSats:6_000,
       maliciousThresholdPayoutBitcoinValid:true,
       maliciousThresholdPayoutBroadcast:false,
+      thresholdSignedWrongStateRootMempoolValid:true,
       independentPeers:false,productionConsensusPolicy:false,
       postSettlementIndependentWalletRedemptions:{
         alice:{receivedSats:60_000,redeemedSats:59_000,
