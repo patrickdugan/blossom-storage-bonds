@@ -1,0 +1,73 @@
+name: Real FROST v3 P2A dynamic sponsor fee recovery
+
+# Funded Bitcoin Core 30.3 real regtest. Each FROST zero-fee parent
+# has NO committed sponsor input; the fee-child chooses a live coin
+# only after the FROST signer process terminates.
+on:
+  push:
+    branches:
+      - research/frost-p2a-dynamic-fee-2026-10-24
+    paths:
+      - "experiments/storage-bond-ab/b-layertree/p2a-fee-child/**"
+      - "experiments/storage-bond-ab/b-layertree/frost-proof/src/bin/p2tr_frost_regtest/p2a_*.rs"
+      - "experiments/storage-bond-ab/b-layertree/frost-proof/src/bin/p2tr-frost-regtest.rs"
+      - ".github/workflows/frost-p2a-dynamic-fee-regtest.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  actual-bitcoin-p2a:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      CARGO_BUILD_JOBS: "2"
+      CARGO_INCREMENTAL: "0"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Compile pinned FROST and independent relay code
+        run: |
+          set -euo pipefail
+          cargo test --locked \
+            --manifest-path experiments/storage-bond-ab/b-layertree/frost-proof/Cargo.toml
+          node --check experiments/storage-bond-ab/b-layertree/p2a-fee-child/core.mjs
+          node --check experiments/storage-bond-ab/b-layertree/p2a-fee-child/relay_p2a.mjs
+          bash -n experiments/storage-bond-ab/b-layertree/p2a-fee-child/run_regtest.sh
+
+      - name: Verify Bitcoin Core 30.3 release tarball checksum
+        env:
+          BITCOIN_CORE_SHA256: 4753cd70416c629a2090503e8545a3c05e94a0f5037f8fb97b4c35c6e1afee0e
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/bitcoin"
+          cd "$RUNNER_TEMP/bitcoin"
+          curl --proto '=https' --tlsv1.2 -fsSLo bitcoin.tar.gz \
+            https://bitcoincore.org/bin/bitcoin-core-30.3/bitcoin-30.3-x86_64-linux-gnu.tar.gz
+          echo "$BITCOIN_CORE_SHA256  bitcoin.tar.gz" | sha256sum -c -
+          tar -xzf bitcoin.tar.gz
+          test -x bitcoin-30.3/bin/bitcoind
+          test -x bitcoin-30.3/bin/bitcoin-cli
+
+      - name: Execute frozen parent and independently funded P2A children after FROST shutdown
+        env:
+          BITCOIND_EXEC: ${{ runner.temp }}/bitcoin/bitcoin-30.3/bin/bitcoind
+          BITCOIN_CLI_EXEC: ${{ runner.temp }}/bitcoin/bitcoin-30.3/bin/bitcoin-cli
+          BSB_P2A_RECEIPT_DIR: ${{ runner.temp }}/p2a-receipts
+        run: |
+          set -euo pipefail
+          bash experiments/storage-bond-ab/b-layertree/p2a-fee-child/run_regtest.sh
+
+      - name: Archive outcome receipts, not presigned raw transaction exports or keys
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: confirmed-FROST-v3-P2A-live-fee-substitution-two-orderings
+          path: |
+            ${{ runner.temp }}/p2a-receipts/alice-first.json
+            ${{ runner.temp }}/p2a-receipts/bob-first.json
+          if-no-files-found: error
+          retention-days: 7

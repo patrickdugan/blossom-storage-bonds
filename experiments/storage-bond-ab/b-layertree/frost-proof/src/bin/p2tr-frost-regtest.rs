@@ -30,6 +30,10 @@ type ResultX<T> = Result<T, Box<dyn Error>>;
 mod offline_preparation;
 #[path = "p2tr_frost_regtest/owner_branch_preparation.rs"]
 mod owner_branch_preparation;
+#[path = "p2tr_frost_regtest/p2a_preparation.rs"]
+mod p2a_preparation;
+#[path = "p2tr_frost_regtest/p2a_parent.rs"]
+mod p2a_parent;
 #[path = "p2tr_frost_regtest/holder_redemption.rs"]
 mod holder_redemption;
 type Packages = BTreeMap<frost::Identifier, frost::keys::KeyPackage>;
@@ -170,12 +174,15 @@ fn sign_frost_keypath(
     identifiers:&[frost::Identifier],
     selected:[usize;2],
     unsigned:&Transaction,
-    prevouts:&[TxOut;2],
+    prevouts:&[TxOut],
     taproot_key:XOnlyPublicKey,
     rng:&mut OsRng,
 )->ResultX<(Transaction,bool)>{
     require(selected[0]!=selected[1]&&selected.iter().all(|i|*i<identifiers.len()),
         "invalid 2-of-3 signing pair")?;
+    require(!prevouts.is_empty()&&unsigned.input.len()==prevouts.len(),
+        "FROST BIP341 prevout count must equal exact transaction input count")?;
+
     let message=SighashCache::new(unsigned).taproot_key_spend_signature_hash(
         0,&Prevouts::All(prevouts),TapSighashType::Default)?.to_byte_array();
     let mut nonces=BTreeMap::new();
@@ -511,6 +518,8 @@ fn main(){
         offline_preparation::prepare(args[1..].to_vec())
     }else if args.first().map(String::as_str)==Some("--freeze-owner-branches"){
         owner_branch_preparation::prepare(args[1..].to_vec())
+    }else if args.first().map(String::as_str)==Some("--freeze-p2a"){
+        p2a_preparation::prepare(args[1..].to_vec())
     }else{
         run(args)
     };
