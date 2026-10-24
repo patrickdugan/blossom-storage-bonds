@@ -36,17 +36,26 @@ Core at both 60k and 40k; see [matched A CI](https://github.com/patrickdugan/blo
 Those 42 real Core checks include presigned v3 parents, P2A children, real
 MuSig2 keypath signatures and Script failure cases.
 
-The B folder already has a funded Bitcoin Core 2-of-3 **P2WSH SURROGATE**.
-[B CI](https://github.com/patrickdugan/blossom-storage-bonds/actions/runs/39971028444) proves
-full principal conservation under a separately funded fee sponsor and
-that two dishonest quorum signers can redirect the entire pooled collateral
-despite a valid independent reference Blossom Merkle proof.
+The B folder now has **two distinct Bitcoin regtest variants**:
 
-These are not yet genuine signet-ready A/B implementations. Your task is to
-improve the fidelity: translate BOTH into the same real scheduled PDP
-epochs, key-loss/offline conditions, fee targets, participant values and
-output constraints. FROST remains absent: do not relabel 2-of-3 CHECKMULTISIG
-as threshold Schnorr. The actual Sapio MID oracle is absent from B.
+- The historical funded 2-of-3 P2WSH CHECKMULTISIG surrogate still
+  demonstrates that an authorized malicious quorum can redirect collateral
+  despite a valid reference Blossom Merkle proof.
+- [Real FROST P2TR CI](https://github.com/patrickdugan/blossom-storage-bonds/actions/runs/40077856631)
+  uses actual 2-of-3 `frost-secp256k1-tr=3.0.0`, BIP341 Taproot-tweaked
+  key-path signatures, a 100k-sat carrier refresh, an externally sponsored
+  **60k/40k** payout, and separate six-confirmation Alice/Bob PSBT spends.
+  Pre-settlement unilateral holder-wallet attempts fail, and malicious
+  quorum theft remains Bitcoin-valid before the honest spend confirms.
+
+**Important:** FROST cryptography is no longer absent. Its signing
+shares are still created by a trusted dealer inside ONE process, and the
+actual Sapio MID oracle is not bound to those Bitcoin key-path outputs.
+Alice/Bob only gain independent wallet control *after* threshold settlement.
+
+These are not yet signet-ready A/B equivalents. Align actual PDP epoch
+transitions, missing-signer scenarios, proof timestamps, fee targets and
+beneficiary entitlement assertions before claiming cost or security parity.
 
 Use `compare-funded.mjs` and the combined funded regtest workflow as the
 acceptance gate. It deliberately sets `matchedFullScenarios=false` and
@@ -130,15 +139,20 @@ and the adversarial replay findings in Sapio PR #1. Preserve one shared
 100,000-sat principal with Alice=60,000 and Bob=40,000 through
 parent/outpoint-preserving refreshes and eventual separate exits.
 
-Your first milestone is a real Bitcoin Core regtest transaction graph
-with frozen independently agreed payout scripts, signed witness copies,
-saved Merkle-sum proofs and state-root history. Test the current
-experimental MID policy **through the actual oracle/wrapper signatures**.
-Record every threshold signer identity, precisely identify who has
-signing authority, and never describe the MID predicate as Bitcoin
-consensus. If a reviewed FROST-secp256k1 implementation is brought in,
-pin its exact version and exercise 2-of-3 signing, key-share isolation,
-missing quorum, equivocation and guardian compromise.
+The funded P2TR **transaction graph already passes** on Bitcoin Core
+with 60k/40k payouts, separate sponsor fees and real FROST Schnorr
+signatures. Do not duplicate that work. The next milestone is to run a
+**pinned actual Sapio LayerTree MID transition** over the separately
+agreed terms and document its oracle/wrapper signing authority. Compare
+the MID successor script, Merkle-sum conservation, beneficiary authority
+and historical replay protections to the Bitcoin transactions already
+produced; Bitcoin mainnet cannot execute these experimental MID opcodes.
+
+Then replace single-process trusted-dealer FROST with authenticated
+separate-process signing participants, pin and audit all dependencies,
+and prove key-share isolation, nonce reuse rejection, missing quorum,
+equivocation and compromise. This is independent of MID enforcement;
+two colluding real FROST shares demonstrably sign a redirected payout.
 
 Mandatory adversarial tests: unauthorized old voucher replay, stale
 successor, parent-child double counting, changed payout scripts, invalid
