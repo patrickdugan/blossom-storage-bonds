@@ -77,6 +77,53 @@ export function compareFrostFunded(a,b) {
     limits?.independentHolderExitWithoutFederation===false &&
     limits?.publicTestnetSpend===false,
     'incorrect consensus, custody or Filecoin security classification');
+  // Holder independence only begins AFTER a responsive quorum has signed
+  // the settlement that transfers each participant's economic entitlement.
+  // A wallet signing its own released P2WPKH output is not a covenant-enforced
+  // unilateral exit from the still-pooled FROST P2TR carrier.
+  const before=b.preSettlementCustodyChecks;
+  const owners=b.beneficiaryRedemptions;
+  insist(before?.payoutsNotYetReleased===true &&
+    before.noBip341FrostSignature===true &&
+    before.sponsorAlreadySignedItsOnlyInput===true &&
+    before.ownerOnlyCarrierSpendRejected?.alice===true &&
+    before.ownerOnlyCarrierSpendRejected?.bob===true &&
+    before.unilateralCarrierRecoveryProven===false &&
+    limits?.preSettlementCarrierExitByEitherHolder===false,
+    'pre-settlement unilateral bearer exit must not be claimed');
+  insist(owners?.actualBitcoinCoreConfirmed===true &&
+    owners.noFrostSigningRoundNeededAfterSplit===true &&
+    owners.noSponsorInputUsed===true &&
+    owners.crossSigningBlocked===true &&
+    owners.walletsSeparatelyKeyed===true &&
+    owners.provesPreSplitFederationFreeExit===false &&
+    owners.combinedBeneficiaryWalletFeesSats===2_000 &&
+    limits?.independentHolderSpendAfterQuorumSettlement===true,
+    'post-settlement wallet custody and security boundary incomplete');
+  for(const [name,original,payout] of [
+    ['alice',60_000,59_000],['bob',40_000,39_000],
+  ]){
+    const owner=owners[name];
+    insist(owner?.originalValueSats===original &&
+      owner.reclaimedSats===payout &&
+      owner.ownerWalletFeeSats===1_000 &&
+      owner.originalPayoutOutpoint===b.honestTwoSharePayout?.[name+'Outpoint'] &&
+      h64(owner.rawTransaction?.txid) &&
+      h64(owner.rawTransaction?.wtxid) &&
+      Number.isInteger(owner.rawTransaction?.confirmations) &&
+      owner.rawTransaction.confirmations>=6 &&
+      Number.isSafeInteger(owner.rawTransaction?.vsize) &&
+      owner.rawTransaction.vsize>0 &&
+      owner.rawTransaction.outputs?.length===1 &&
+      owner.rawTransaction.outputs[0].sats===payout,
+      'independent beneficiary wallet spend receipt incorrect');
+  }
+  insist(owners.alice.rawTransaction.txid!==owners.bob.rawTransaction.txid &&
+    owners.alice.rawTransaction.wtxid!==owners.bob.rawTransaction.wtxid &&
+    owners.alice.rawTransaction.outputs[0].script_pubkey_hex !==
+      owners.bob.rawTransaction.outputs[0].script_pubkey_hex,
+    'Alice and Bob beneficiary control is not independent');
+
   for(const name of ['refresh','payout']) {
     const tx=b[name];
     insist(h64(tx?.txid) && h64(tx?.wtxid) &&
@@ -96,6 +143,7 @@ export function compareFrostFunded(a,b) {
     matchedFullScenarios:false,feesComparable:false,
     securityRankPermitted:false,
     holderIndependentExitOnBProven:false,
+    holderIndependentPostSettlementSpendProven:true,
     onchainMidCovenantProven:false,
     distinction:'BIP341 FROST can authorize malicious outputs; Bitcoin does not check storage verdict or LayerTree state',
     A:{
@@ -114,6 +162,14 @@ export function compareFrostFunded(a,b) {
       maliciousThresholdPayoutBitcoinValid:true,
       maliciousThresholdPayoutBroadcast:false,
       independentPeers:false,productionConsensusPolicy:false,
+      postSettlementIndependentWalletRedemptions:{
+        alice:{receivedSats:60_000,redeemedSats:59_000,
+          walletFeeSats:1_000,vsize:owners.alice.rawTransaction.vsize},
+        bob:{receivedSats:40_000,redeemedSats:39_000,
+          walletFeeSats:1_000,vsize:owners.bob.rawTransaction.vsize},
+        requiresFurtherFederationSignatures:false,
+        beforeFederationSettlementPossible:false
+      },
     },
     nextGates:[
       'Run both under identical storage-proof epoch schedule and fee funding',
