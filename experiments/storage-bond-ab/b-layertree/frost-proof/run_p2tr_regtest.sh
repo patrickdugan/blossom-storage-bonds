@@ -92,6 +92,20 @@ if(p.schema!=="bsb-ab-p2tr-real-frost-regtest-v1"||
    p.maliciousTwoShareRedirect.conflictingAlternativeRejectedAfterHonestConfirmation!==true||
    p.honestTwoSharePayout.confirmed!==true||
    p.honestTwoSharePayout.sixConfirmations!==true||
+   p.preSettlementCustodyChecks.ownerOnlyCarrierSpendRejected.alice!==true||
+   p.preSettlementCustodyChecks.ownerOnlyCarrierSpendRejected.bob!==true||
+   p.preSettlementCustodyChecks.unilateralCarrierRecoveryProven!==false||
+   p.beneficiaryRedemptions.actualBitcoinCoreConfirmed!==true||
+   p.beneficiaryRedemptions.noFrostSigningRoundNeededAfterSplit!==true||
+   p.beneficiaryRedemptions.crossSigningBlocked!==true||
+   p.beneficiaryRedemptions.noSponsorInputUsed!==true||
+   p.beneficiaryRedemptions.alice.reclaimedSats!==59000||
+   p.beneficiaryRedemptions.bob.reclaimedSats!==39000||
+   p.beneficiaryRedemptions.alice.rawTransaction.confirmations<6||
+   p.beneficiaryRedemptions.bob.rawTransaction.confirmations<6||
+   p.beneficiaryRedemptions.provesPreSplitFederationFreeExit!==false||
+   p.limits.independentHolderSpendAfterQuorumSettlement!==true||
+   p.limits.unilateralCarrierExitBeforeFederationSettlement!==false||
    p.limits.bitcoinCoreBip341AndP2TRKeyPathAccepted!==true||
    p.limits.realSapioMidCovenant!==false||
    p.limits.realFrostAcrossNetworkPeers!==false||
