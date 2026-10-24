@@ -260,7 +260,7 @@ pub(super) fn prepare(args:Vec<String>)->ResultX<()>{
         &bad,&[carrier_output.clone(),sponsor_thief_out],taproot_key,&mut rng)?;
     let malicious_tx=checked_sponsor(&rpc,&malicious_sig,&carrier_output)?;
     require(rpc.witness_authorization(&malicious_tx)?,
-        "missing live quorum theft counterexample");
+        "missing live quorum theft counterexample")?;
     for old in generations.iter().take(2) {
         let original=old["carrierBefore"].as_str().ok_or("missing old carrier")?;
         let mut fields=original.split(':');
