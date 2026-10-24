@@ -1,0 +1,74 @@
+name: FROST service-dead presigned carrier recovery
+
+# Isolated topic branch: no public testnet Bitcoin. Real BIP341 FROST signs
+# in one process; a separate Node-only worker publishes frozen signed bytes
+# after the signer terminates and sponsor/beneficiary wallets are unloaded.
+on:
+  push:
+    branches:
+      - research/frost-offline-exit-proof-2026-10-24
+    paths:
+      - experiments/storage-bond-ab/b-layertree/offline-exit/**
+      - experiments/storage-bond-ab/b-layertree/frost-proof/src/bin/p2tr-frost-regtest.rs
+      - experiments/storage-bond-ab/b-layertree/frost-proof/src/bin/p2tr_frost_regtest/**
+      - .github/workflows/layertree-frost-offline-exit.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  signed-service-dead:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      CARGO_BUILD_JOBS: "2"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Check pinned FROST and Bitcoin dependency resolution
+        run: |
+          set -euo pipefail
+          rustc --version
+          test -s experiments/storage-bond-ab/b-layertree/frost-proof/Cargo.lock
+          cargo test --locked \
+            --manifest-path experiments/storage-bond-ab/b-layertree/frost-proof/Cargo.toml
+          node --check experiments/storage-bond-ab/b-layertree/offline-exit/relay_current.mjs
+          bash -n experiments/storage-bond-ab/b-layertree/offline-exit/run_regtest.sh
+
+      - name: Obtain SHA256-pinned Bitcoin Core 30.3
+        env:
+          EXPECTED_SHA256: 4753cd70416c629a2090503e8545a3c05e94a0f5037f8fb97b4c35c6e1afee0e
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/core"
+          cd "$RUNNER_TEMP/core"
+          curl --proto '=https' --tlsv1.2 -fsSLo bitcoin.tar.gz \
+            https://bitcoincore.org/bin/bitcoin-core-30.3/bitcoin-30.3-x86_64-linux-gnu.tar.gz
+          echo "$EXPECTED_SHA256  bitcoin.tar.gz" | sha256sum -c -
+          tar -xzf bitcoin.tar.gz
+          test -x bitcoin-30.3/bin/bitcoin-cli
+          test -x bitcoin-30.3/bin/bitcoind
+
+      - name: Prove Alice and Bob independently publish a current full split after signer death
+        env:
+          BITCOIND_EXEC: ${{ runner.temp }}/core/bitcoin-30.3/bin/bitcoind
+          BITCOIN_CLI_EXEC: ${{ runner.temp }}/core/bitcoin-30.3/bin/bitcoin-cli
+          BSB_OFFLINE_RECEIPT_DIR: ${{ runner.temp }}/offline-proof
+        run: |
+          set -euo pipefail
+          bash experiments/storage-bond-ab/b-layertree/offline-exit/run_regtest.sh
+
+      - name: Preserve only public proof, not original signed spend exports
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: signer-dead-FROST-fullsplit-regtest-not-unilateral-owner-claims
+          path: |
+            ${{ runner.temp }}/offline-proof/alice-signer-free-recovery.json
+            ${{ runner.temp }}/offline-proof/bob-signer-free-recovery.json
+          retention-days: 7
+          if-no-files-found: error
