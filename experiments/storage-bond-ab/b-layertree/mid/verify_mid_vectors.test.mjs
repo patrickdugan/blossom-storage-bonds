@@ -18,8 +18,7 @@ const tx=(raw,id,value,script,parent)=>({
   inputOutpoints:[parent,H('9')+':0'],allWitnessInputsNonempty:true,
   outputs:[
     {index:0,sats:value,scriptPubkeyHex:'51'},
-    {index:1,sats:100_000-value- (value===0?60_000:0),scriptPubkeyHex:script},
-    {index:2,sats:9_000,scriptPubkeyHex:'0014'+'cc'.repeat(20)}
+    {index:1,sats:100_000-value- (value===0?60_000:0),scriptPubkeyHex:script}
   ]
 });
 function fixture(){
