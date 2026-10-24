@@ -1,0 +1,78 @@
+name: Funded B federation-surrogate regtest
+
+# This is REAL Bitcoin Script P2WSH 2-of-3, NOT FROST, Sapio MID or Filecoin.
+# Requires independent fee sponsors; proves the 2-of-3 payout redirection attack.
+on:
+  push:
+    branches:
+      - research/layertree-storage-bond-overlay-2026-10-23
+    paths:
+      - "experiments/storage-bond-ab/b-layertree/regtest/**"
+      - ".github/workflows/layertree-federation-regtest.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: b-federation-regtest-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  real-bitcoin-p2wsh:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Obtain independently checksum-verified Bitcoin Core 30.3
+        env:
+          EXPECTED_SHA256: 4753cd70416c629a2090503e8545a3c05e94a0f5037f8fb97b4c35c6e1afee0e
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/core"
+          cd "$RUNNER_TEMP/core"
+          curl --proto '=https' --tlsv1.2 -fsSLo bitcoin.tar.gz \
+            https://bitcoincore.org/bin/bitcoin-core-30.3/bitcoin-30.3-x86_64-linux-gnu.tar.gz
+          echo "$EXPECTED_SHA256  bitcoin.tar.gz" | sha256sum -c -
+          tar -xzf bitcoin.tar.gz
+          test -x bitcoin-30.3/bin/bitcoind
+          test -x bitcoin-30.3/bin/bitcoin-cli
+
+      - name: Run funded 2-of-3 Bitcoin and malicious payout acceptance proof
+        run: |
+          set -euo pipefail
+          node --check experiments/storage-bond-ab/b-layertree/regtest/surrogate.mjs
+          node experiments/storage-bond-ab/b-layertree/regtest/surrogate.mjs \
+            --bitcoind "$RUNNER_TEMP/core/bitcoin-30.3/bin/bitcoind" \
+            --bitcoin-cli "$RUNNER_TEMP/core/bitcoin-30.3/bin/bitcoin-cli" \
+            --out "$RUNNER_TEMP/federation-surrogate"
+          node - "$RUNNER_TEMP/federation-surrogate/p2wsh-surrogate.json" <<'JS'
+          const fs=require("node:fs");
+          const r=JSON.parse(fs.readFileSync(process.argv[2]));
+          if(r.kind!=="actual-funded-2of3-P2WSH-surrogate-NOT-FROST" ||
+              !r.threshold.oneSignerRejected ||
+              !r.threshold.dishonestQuorumOutputAcceptedByCore ||
+              !r.threshold.honestQuorumOutputConfirmed ||
+              !r.dishonestPayout.witnessTamperingRejected.coreRejected ||
+              r.honestPayout.aliceSats!==60000 ||
+              r.honestPayout.bobSats!==40000 ||
+              r.refresh.principalLockedSats!==100000 ||
+              r.totalSponsorFeesSats!==6000 ||
+              r.securityLimits.frostSigned!==false ||
+              r.securityLimits.sapioMidPolicyEnforced!==false)
+            throw Error("real Bitcoin Core federation surrogate security evidence incomplete");
+          console.log("Verified funded 100k carrier, 60k/40k independent payouts, 2-of-3 redirection attack.");
+          JS
+
+      - name: Upload public regtest-only proof, never private keys
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: funded-bitcoin-2of3-not-frost-regtest-evidence
+          path: ${{ runner.temp }}/federation-surrogate/p2wsh-surrogate.json
+          if-no-files-found: error
+          retention-days: 7

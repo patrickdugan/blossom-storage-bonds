@@ -1,0 +1,96 @@
+name: Funded BIP341 P2TR FROST threshold regtest
+
+# Real FROST 2-of-3 threshold Taproot keypath authorization on disposable
+# Bitcoin Core regtest; does not enforce LayerTree MID or storage adjudication.
+on:
+  push:
+    branches:
+      - research/layertree-storage-bond-overlay-2026-10-23
+    paths:
+      - "experiments/storage-bond-ab/b-layertree/frost-proof/**"
+      - ".github/workflows/layertree-frost-bitcoin-regtest.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  p2tr-threshold:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Build source-pinned FROST Taproot Bitcoin transaction harness
+        run: |
+          cargo build --locked --release \
+            --manifest-path experiments/storage-bond-ab/b-layertree/frost-proof/Cargo.toml \
+            --bin regtest-keyspend
+      - name: Fetch checksum-pinned disposable Bitcoin Core 30.3
+        env:
+          EXPECTED_SHA256: 4753cd70416c629a2090503e8545a3c05e94a0f5037f8fb97b4c35c6e1afee0e
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/core"
+          cd "$RUNNER_TEMP/core"
+          curl --proto '=https' --tlsv1.2 -fsSLo bitcoin.tar.gz \
+            https://bitcoincore.org/bin/bitcoin-core-30.3/bitcoin-30.3-x86_64-linux-gnu.tar.gz
+          echo "$EXPECTED_SHA256  bitcoin.tar.gz" | sha256sum -c -
+          tar -xzf bitcoin.tar.gz
+      - name: Actual signed BIP341 transaction and dishonest-quorum mempool test
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/p2tr-node" "$RUNNER_TEMP/proof"
+          cat > "$RUNNER_TEMP/p2tr-node/bitcoin.conf" <<'CONF'
+          regtest=1
+          server=1
+          txindex=1
+          fallbackfee=0.00002
+          [regtest]
+          listen=0
+          rpcbind=127.0.0.1
+          rpcallowip=127.0.0.1
+          CONF
+          chmod 600 "$RUNNER_TEMP/p2tr-node/bitcoin.conf"
+          "$RUNNER_TEMP/core/bitcoin-30.3/bin/bitcoind" \
+            -datadir="$RUNNER_TEMP/p2tr-node" -daemon
+          trap '"$RUNNER_TEMP/core/bitcoin-30.3/bin/bitcoin-cli" -regtest -datadir="$RUNNER_TEMP/p2tr-node" stop || true' EXIT
+          for i in $(seq 1 120); do
+            if "$RUNNER_TEMP/core/bitcoin-30.3/bin/bitcoin-cli" -regtest -datadir="$RUNNER_TEMP/p2tr-node" getblockcount >/dev/null 2>&1; then break; fi
+            sleep 0.1
+          done
+          EVIDENCE_HASH="$(node --input-type=module -e '
+            import {scenario,challenge} from "./experiments/storage-bond-ab/shared/scenario.mjs";
+            const e=scenario("storage-fault").events.find(x=>x.kind==="proof"&&x.id==="alice"&&x.epoch===2);
+            const p=challenge(e);if(p.verified)throw Error("expected failing source storage PDP");
+            console.log(p.evidenceHash);
+          ')"
+          experiments/storage-bond-ab/b-layertree/frost-proof/target/release/regtest-keyspend \
+            "$RUNNER_TEMP/core/bitcoin-30.3/bin/bitcoin-cli" "$RUNNER_TEMP/p2tr-node" "$EVIDENCE_HASH" \
+            > "$RUNNER_TEMP/proof/real-frost-p2tr.json"
+          node - "$RUNNER_TEMP/proof/real-frost-p2tr.json" "$EVIDENCE_HASH" <<'JS'
+          const fs=require('node:fs'),p=JSON.parse(fs.readFileSync(process.argv[2]));
+          if(p.schema!=='bsb-frost-bip341-funded-regtest-v1' ||
+             p.sourceEvidenceHash!==process.argv[3] ||
+             !p.realBip341P2trKeySpendConfirmed ||
+             !p.tapTweakApplied ||
+             !p.oneSignerAggregateRejected ||
+             !p.maliciousQuorumRedirectAllowedByBitcoinMempool ||
+             p.maliciousTransactionBroadcast!==false ||
+             p.sourcePdpVerdictEnforcedByBitcoin!==false ||
+             p.sapioMidEnforced!==false ||
+             p.entitlement60k40kSplitPerformed!==false ||
+             p.confirmationDepth<6 || p.feeSats!==1000)
+            throw Error('BIP341 FROST witness/Bitcoin Core proof incomplete');
+          console.log('Confirmed real 2-of-3 tweaked BIP341 keypath FROST spend.');
+          JS
+      - name: Save only nonsecret Bitcoin Core P2TR receipt
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: real-FROST-tweaked-BIP341-regtest-not-MID
+          path: ${{ runner.temp }}/proof/real-frost-p2tr.json
+          if-no-files-found: error
+          retention-days: 7

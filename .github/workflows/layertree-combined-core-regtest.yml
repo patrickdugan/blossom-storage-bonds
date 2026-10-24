@@ -1,0 +1,142 @@
+name: Combined funded A/B Bitcoin Core comparison
+
+# A 60k/40k Taproot sentinel and B P2TR real FROST now execute in Core 30.3.
+# The prior 2-of-3 P2WSH SURROGATE remains an adversarial baseline.
+# This is still NOT a real Sapio MID covenant or independent networked custody.
+# The challenge and terminal-fee policies are not economically identical.
+on:
+  push:
+    branches:
+      - research/layertree-storage-bond-overlay-2026-10-23
+    paths:
+      - experiments/storage-bond-ab/a-sentinel/regtest/matched/**
+      - experiments/storage-bond-ab/a-sentinel/regtest/run_matched.sh
+      - experiments/storage-bond-ab/shared/**
+      - experiments/storage-bond-ab/b-layertree/regtest/surrogate.mjs
+      - experiments/storage-bond-ab/b-layertree/frost-proof/**
+      - experiments/storage-bond-ab/compare-funded*
+      - experiments/storage-bond-ab/compare-frost-funded*
+      - .github/workflows/layertree-combined-core-regtest.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: combined-real-core-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  capital-matched-but-not-scenario-matched:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      CARGO_BUILD_JOBS: "2"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Show toolchain
+        run: |
+          rustc --version
+          cargo --version
+          node --version
+      - name: Fetch SHA256-verified Bitcoin Core 30.3 x86_64
+        env:
+          CORE_SHA256: 4753cd70416c629a2090503e8545a3c05e94a0f5037f8fb97b4c35c6e1afee0e
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/core"
+          cd "$RUNNER_TEMP/core"
+          curl --proto '=https' --tlsv1.2 -fsSLo bitcoin.tar.gz \
+            https://bitcoincore.org/bin/bitcoin-core-30.3/bitcoin-30.3-x86_64-linux-gnu.tar.gz
+          echo "$CORE_SHA256  bitcoin.tar.gz" | sha256sum -c -
+          tar -xzf bitcoin.tar.gz
+      - name: Real A - independent 60k and 40k Taproot sentinel bond histories
+        env:
+          BITCOIND_EXEC: ${{ runner.temp }}/core/bitcoin-30.3/bin/bitcoind
+          BITCOIN_CLI_EXEC: ${{ runner.temp }}/core/bitcoin-30.3/bin/bitcoin-cli
+          BSB_A_AB_RECEIPT_DIR: ${{ runner.temp }}/combined-A
+          BSB_A_SHARED_PDP: "1"
+        run: |
+          set -euo pipefail
+          bash experiments/storage-bond-ab/a-sentinel/regtest/run_matched.sh
+      - name: Real B - pooled P2WSH 2-of-3 with malicious-quorum payout test
+        run: |
+          set -euo pipefail
+          node experiments/storage-bond-ab/b-layertree/regtest/surrogate.mjs \
+            --bitcoind "$RUNNER_TEMP/core/bitcoin-30.3/bin/bitcoind" \
+            --bitcoin-cli "$RUNNER_TEMP/core/bitcoin-30.3/bin/bitcoin-cli" \
+            --out "$RUNNER_TEMP/combined-B"
+      - name: Real B - actual FROST threshold BIP341 P2TR on disposable Bitcoin Core
+        env:
+          BITCOIND_EXEC: ${{ runner.temp }}/core/bitcoin-30.3/bin/bitcoind
+          BITCOIN_CLI_EXEC: ${{ runner.temp }}/core/bitcoin-30.3/bin/bitcoin-cli
+          BSB_B_FROST_RECEIPT_DIR: ${{ runner.temp }}/combined-FROST
+        run: |
+          set -euo pipefail
+          bash experiments/storage-bond-ab/b-layertree/frost-proof/run_p2tr_regtest.sh
+      - name: Reject invalid comparisons and emit trust-qualified Bitcoin metrics
+        run: |
+          set -euo pipefail
+          node experiments/storage-bond-ab/compare-funded.mjs \
+            --a "$RUNNER_TEMP/combined-A/matched-A-summary.json" \
+            --b "$RUNNER_TEMP/combined-B/p2wsh-surrogate.json" \
+            --out "$RUNNER_TEMP/combined-comparison.json"
+          node - "$RUNNER_TEMP/combined-comparison.json" <<'JS'
+          const fs=require("node:fs");
+          const r=JSON.parse(fs.readFileSync(process.argv[2]));
+          if(r.network!=="regtest" || !r.matchedCapital ||
+              r.matchedFullScenarios!==false ||
+              r.sharedPdpWitnessAligned!==true ||
+              r.A.actualSourceMerkleWitnessesVerified!==true ||
+              r.A.deletedWindowNonavailabilityProven!==false ||
+              r.feeComparisonPermitted!==false ||
+              r.securityRankPermitted!==false ||
+              r.A.checksPassed!==42 ||
+              r.A.twoIndependentBonds!==true ||
+              r.B.twoSignerWrongPayoutBitcoinValid!==true ||
+              r.B.trueFrost!==false || r.B.trueSapioMid!==false)
+            throw Error("unsafe or incomplete actual A/B Bitcoin comparison");
+          console.log("Core-real A/B compared on 100k starting principal. No equivalence claim.");
+          JS
+      - name: Cross-check genuine FROST Bitcoin signatures against identical source PDP
+        run: |
+          set -euo pipefail
+          node experiments/storage-bond-ab/compare-frost-funded.mjs             --a "$RUNNER_TEMP/combined-A/matched-A-summary.json"             --b "$RUNNER_TEMP/combined-FROST/real-frost-p2tr-regtest.json"             --out "$RUNNER_TEMP/combined-frost-comparison.json"
+          node - "$RUNNER_TEMP/combined-frost-comparison.json" <<'JS'
+          const fs=require("node:fs");
+          const r=JSON.parse(fs.readFileSync(process.argv[2]));
+          if(r.schema!=="bsb-ab-actual-frost-core-comparison-v1" ||
+             r.matchedCapital!==true ||
+             r.matchedSourcePdpEvidence!==true ||
+             r.realFrostBip341!==true ||
+             r.matchedFullScenarios!==false ||
+             r.feesComparable!==false ||
+             r.securityRankPermitted!==false ||
+             r.A.actualBitcoinCoreScriptTests!==42 ||
+             r.B.maliciousThresholdPayoutBitcoinValid!==true ||
+             r.holderIndependentExitOnBProven!==false ||
+             r.holderIndependentPostSettlementSpendProven!==true ||
+             r.B.postSettlementIndependentWalletRedemptions.alice.redeemedSats!==59000 ||
+             r.B.postSettlementIndependentWalletRedemptions.bob.redeemedSats!==39000 ||
+             r.B.postSettlementIndependentWalletRedemptions.requiresFurtherFederationSignatures!==false ||
+             r.onchainMidCovenantProven!==false)
+             throw Error("real FROST/A Taproot receipt improperly claims economic equivalence");
+          console.log("A and B: real Bitcoin Core Taproot, matched collateral and PDP hashes; trust differs.");
+          JS
+      - name: Save no-secret, clearly classified Core evidence
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: core-A-Taproot-vs-B-FROST-and-P2WSH-trust-qualified
+          path: |
+            ${{ runner.temp }}/combined-A/*.json
+            ${{ runner.temp }}/combined-A/pdp/*.json
+            ${{ runner.temp }}/combined-B/p2wsh-surrogate.json
+            ${{ runner.temp }}/combined-FROST/real-frost-p2tr-regtest.json
+            ${{ runner.temp }}/combined-comparison.json
+            ${{ runner.temp }}/combined-frost-comparison.json
+          if-no-files-found: error
+          retention-days: 14
