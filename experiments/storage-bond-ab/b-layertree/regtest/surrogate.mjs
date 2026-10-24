@@ -217,6 +217,12 @@ async function run(opts) {
     need(rpc('gettxout',[alice.txid,alice.vout])!==null&&
       rpc('gettxout',[bob.txid,bob.vout])!==null,
       'Alice or Bob payout not unspent on Bitcoin Core');
+    // A spent carrier is NOT an additional source of participant liquidity.
+    // bitcoin-cli's empty/null response must be checked, not ignored.
+    need(rpc('gettxout',[locked.txid,locked.vout])===null,
+      'spent shared principal carrier remained live in the Bitcoin UTXO set');
+    need(rpc('gettxout',[sponsor.txid,sponsor.vout])===null,
+      'previous external sponsor coin remained spendable after fee payment');
     const result={
       schema:'bsb-ab-federation-surrogate-core-regtest-v1',
       kind:'actual-funded-2of3-P2WSH-surrogate-NOT-FROST',
