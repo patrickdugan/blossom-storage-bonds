@@ -233,6 +233,9 @@ function publishParentAndChild(node,manifest,parent,step,attack){
   const dec=decode(node,parentRaw);
   required(dec.txid===parent.txid&&dec.hash===originalHash,
     'fresh fee payer caused a different FROST-signed parent transaction');
+  const aggregateRate=5000/(parent.vsize+child.vsize);
+  required(aggregateRate>5,
+    'dynamic CPFP child provided insufficient effective sat/vbyte package fee');
   const result=node('submitpackage',[[parentRaw,child.raw]]);
   required(result?.package_msg==='success',
     'real Bitcoin Core v3 P2A package rejected: '+JSON.stringify(result).slice(0,600));
@@ -251,6 +254,7 @@ function publishParentAndChild(node,manifest,parent,step,attack){
     childConfirmations:childConfirmed.confirmations,
     freshChosenFeeInput:child.feeOutpoint,
     externalFeeSats:5000,
+    effectivePackageFeeRateSatVb:aggregateRate,
     oldCandidateFeeInputSpent:attack,
     oldChildInvalidatedBySpentFeeCoin:attack,
     oldChildTxid:rejectedOriginalChild,
@@ -273,6 +277,27 @@ export async function run({binary,datadir,dir,sha256,first,attackStep,out}){
   required(JSON.stringify(node('listwallets'))===JSON.stringify(['miner']),
     'FROST, sponsor or beneficiary wallet remained online during P2A relay');
   verifyFrozen(manifest,node);
+  const unsignedFeeParent=manifest.generations[2].branches[first].first;
+  const alone=node('testmempoolaccept',[[unsignedFeeParent.signedHex]]);
+  required(alone?.length===1&&alone[0].allowed!==true,
+    'unfunded zero-fee v3 parent was unexpectedly acceptable without a CPFP child');
+  // Provide an actual freshly funded CPFP child to EACH obsolete
+  // owner-first parent. The Bitcoin package must still reject these
+  // stale principal outpoints, independently of child fee availability.
+  let staleP2aPackagesRejected=0;
+  for(const old of manifest.generations.slice(0,2)){
+    for(const candidate of ['alice','bob']){
+      const expired=old.branches[candidate].first;
+      const fee=fundNewFeeCoin(node,
+        'stale-fee-g'+old.generation+'-'+candidate,manifest.minerAddress);
+      const replacement=feeChild(node,expired,fee);
+      const verdict=node('testmempoolaccept',[
+        [expired.signedHex,replacement.raw]]);
+      required(verdict?.length===2&&verdict.some(x=>x.allowed!==true),
+        'a stale carrier generation was accepted with an independent P2A fee child');
+      staleP2aPackagesRejected++;
+    }
+  }
   const path=manifest.generations[2].branches[first],losing=
     manifest.generations[2].branches[first==='alice'?'bob':'alice'];
   // No fee sponsor input in any signed parent. The first payer can
@@ -310,6 +335,8 @@ export async function run({binary,datadir,dir,sha256,first,attackStep,out}){
     publisherFirst:first,publisherSecond:path.otherOwner,
     selectedFeeSabotageStage:attackStep,externalSignedManifestSha256:sha256,
     frozenGenerations:3,staleGenerationCarriersNotSpendable:true,
+    staleGenerationsWithNewFeeChildrenRejected:staleP2aPackagesRejected,
+    zeroFeeStandaloneParentRejectedByCore:true,
     sourcePdpEvidenceHash:manifest.sourceBlossomReferencePdpHash,
     firstPackage,secondPackage,
     sixConfirmationPayouts:{
