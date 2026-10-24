@@ -55,7 +55,7 @@ export function decodedParent(node,rec,expectedValue){
   need(a===tx.vout.length-1&&sats(tx.vout[a].value)===0&&
     tx.vout[a].scriptPubKey.hex==='51024e73',
     'v3 parent is missing standard zero-value P2A anchor');
-  return tx;
+  return {...tx,hex:rec.signedHex};
 }
 export function child(node,parent,feeWallet,feeSats=3000){
   need(parent.version===3&&parent.vout.length>=2 &&
