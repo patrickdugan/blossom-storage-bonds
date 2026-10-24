@@ -143,37 +143,57 @@ provider with a copy of the fixture can still answer; this is *not* a
 storage erasure/non-availability proof. The original A branch also includes
 a Bob-only silent-provider forfeit test despite Bob's valid storage; it
 must be classified as a hypothetical Bitcoin Script exercise, not a
-statement that Bob failed PDP. Finally, the historical CSV delay is
-144 blocks, whereas the abstract B scenario uses 6, and A's terminal
-1,000-sat fees are not externally sponsored. A/B still has unmatched
-timing, adversarial custody, fee, and refresh conditions.
+statement that Bob failed PDP. The historical A-only regression retains its 144-block CSV default;
+the shared-PDP A regtest sets a real Bitcoin CSV delay of 6 blocks to
+match B's **modeled** (not consensus-enforced) six-block fault interval.
+A's 1,000-sat terminal fees are still not externally sponsored, and
+the candidates still differ in custody, fee, and refresh conditions.
 
-### Genuine threshold-Schnorr signing, separate from B's funded P2WSH
+### Real 2-of-3 FROST Taproot settlement and post-settlement spending
 
-The B folder now also includes [`frost-proof/`](b-layertree/frost-proof/README.md),
-a pinned Rust implementation using Zcash Foundation
-`frost-secp256k1-tr = 3.0.0` with its 72-package `Cargo.lock`.
-[Passing FROST CI](https://github.com/patrickdugan/blossom-storage-bonds/actions/runs/39983580968)
-runs all three 2-of-3 signer pairings, aggregates actual RFC 9591-style
-Taproot-compatible signatures, cross-verifies every 64-byte signature
-against the BIP340 x-only public key using independent `secp256k1`,
-and rejects missing signature shares and wrong message digests.
+B now includes [`frost-proof/`](b-layertree/frost-proof/README.md)
+with the pinned Zcash Foundation `frost-secp256k1-tr=3.0.0` and
+72-package Cargo lockfile. The signer uses proper BIP341
+transaction sighashes, tweaked BIP340 threshold signatures and a
+**real Bitcoin Core P2TR keypath**. It is separate from the earlier
+P2WSH CHECKMULTISIG surrogate.
 
-It signs a domain-separated SHA256 research digest of the **same Alice
-epoch-2 PDP evidence hash** as the real funded A/B experiment. It also
-demonstrates that two colluding threshold share holders can sign an
-arbitrary alternate settlement statement. Key packages are
-trusted-dealer-generated and remain in one disposable OS process.
-This is real cryptography but **not yet an actual P2TR Bitcoin spend**;
-B's successful funded transaction demo is still the separate
-2-of-3 P2WSH surrogate.
+[Confirmed funded B regtest and custody run](https://github.com/patrickdugan/blossom-storage-bonds/actions/runs/40077856631)
+contains a 100,000-sat shared P2TR carrier, a FROST-authorized refresh
+with 3,000 sats externally sponsored, and a separate two-wallet
+settlement of 60,000 sats to Alice and 40,000 sats to Bob with another
+3,000 sats of sponsor-paid fees. A conflicting two-signer redirected
+100,000-sat transaction passed Bitcoin's mempool validation but was
+never broadcast.
 
-The next B integration needs a real BIP341 signature hash, appropriate
-TapTweak calculation (the crate exposes `aggregate_with_tweak`), actual
-signing rounds across isolated participants, and Bitcoin Core
-confirmation of a 60k/40k P2TR payout. The experimental Sapio MID
-policy, proof admission and a usable federation-offline exit remain
-unimplemented.
+After the signed settlement, *Alice alone* used her separate Bitcoin
+Core wallet to sign a one-input PSBT and spend 59,000 sats (1,000-sat
+fee). *Bob alone* independently spent 39,000 sats (1,000-sat fee).
+Both confirmed six deep. Cross-wallet signing was rejected. Bitcoin
+Core also rejected each wallet's attempts to spend the original pooled
+carrier when the independent sponsor had already signed its own fee
+input but no FROST quorum authorization existed.
+
+Thus the report distinguishes two claims:
+
+- `independentHolderSpendAfterQuorumSettlement=true`: real confirmed
+  Bitcoin wallet custody once the pooled funds are released
+- `independentHolderExitWithoutFederation=false`: no offline or
+  unilateral exit from the original pooled FROST carrier has been proven
+
+The preliminary CI check revealed a Bitcoin CLI gotcha: a `gettxout`
+request for a **spent** outpoint can be printed as an empty string
+instead of JSON text `null`. The FROST and P2WSH regressions now
+normalize this response before testing UTXO liveness, so spent
+carrier coins cannot be miscounted as still available.
+
+The all-in-one [comparison](compare-frost-funded.mjs) preserves
+`matchedCapital=true` and `matchedSourcePdpEvidence=true`, while
+refusing to set `matchedFullScenarios`, `feesComparable`, or
+`onchainMidCovenantProven` to true. Only temporary disposable
+regtest keys are used, from an ephemeral dealer in one OS process.
+Real LayerTree MID oracle execution, distributed FROST shares and
+federation-offline carrier recovery remain outstanding.
 
 ## Testnet evidence route
 
