@@ -49,6 +49,17 @@ function records(){
       conflictingAlternativeRejectedAfterHonestConfirmation:true,
       sourceBlossomStorageEvidenceHash:fault,
     },
+    stateCommitmentBypass:{
+      bitcoinMempoolAccepted:true,broadcast:false,
+      realTwoOfThreeFrostTaprootSignature:true,
+      alicePayoutSatsUnchanged:60_000,bobPayoutSatsUnchanged:40_000,
+      sponsorFeeUnchangedSats:3_000,originalRecipientScriptsUnchanged:true,
+      bitcoinChecksStateRootSemantics:false,
+      scriptPathCovenantCannotConstrainThisKeypath:true,
+      legitimateApplicationCommitment:H('1'),
+      maliciousApplicationCommitment:H('2'),
+      txid:H('3'),wtxid:H('4')
+    },
     honestTwoSharePayout:{confirmed:true,sixConfirmations:true,
       postSignatureOutputTamperRejected:true,
       aliceOutpoint:H('3')+':0',bobOutpoint:H('3')+':1'},
@@ -167,4 +178,22 @@ test('reject false beneficiary custody, cross-wallet signing and repeated Bitcoi
   assert.throws(()=>compareFrostFunded(r.a,r.b),/not independent/);
   const t=records();t.b.beneficiaryRedemptions.alice.originalPayoutOutpoint=H('0')+':0';
   assert.throws(()=>compareFrostFunded(t.a,t.b),/independent beneficiary wallet spend/);
+});
+
+test('two real FROST shares may sign a different opaque root without changing payouts',()=>{
+  const {a,b}=records();
+  const verified=compareFrostFunded(a,b);
+  assert.equal(verified.opaqueStateRootBypassDemonstratedOnBitcoin,true);
+  assert.equal(verified.B.thresholdSignedWrongStateRootMempoolValid,true);
+  assert.equal(verified.onchainMidCovenantProven,false);
+  const same=records();
+  same.b.stateCommitmentBypass.maliciousApplicationCommitment=
+    same.b.stateCommitmentBypass.legitimateApplicationCommitment;
+  assert.throws(()=>compareFrostFunded(same.a,same.b),/root-only bypass/);
+  const stolen=records();
+  stolen.b.stateCommitmentBypass.alicePayoutSatsUnchanged=59_999;
+  assert.throws(()=>compareFrostFunded(stolen.a,stolen.b),/root-only bypass/);
+  const bypass=records();
+  bypass.b.stateCommitmentBypass.bitcoinChecksStateRootSemantics=true;
+  assert.throws(()=>compareFrostFunded(bypass.a,bypass.b),/root-only bypass/);
 });
