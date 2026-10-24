@@ -149,6 +149,10 @@ if(r.schema!=='bsb-frost-p2a-fee-independent-recovery-v1'||
    r.sixConfirmationPayouts.aliceSats!==60000||
    r.sixConfirmationPayouts.bobSats!==40000||
    r.sixConfirmationPayouts.minerFeesPaidByExternalChildrenSats!==10000||
+   r.staleGenerationsWithNewFeeChildrenRejected!==4||
+   r.zeroFeeStandaloneParentRejectedByCore!==true||
+   r.firstPackage.effectivePackageFeeRateSatVb<=5||
+   r.secondPackage.effectivePackageFeeRateSatVb<=5||
    !r.parentTxidStableAfterFeeReplacement||
    r.FROSTKeypathResignedDuringRelay!==false||
    r.originalBondFeeSponsorWalletAvailable!==false||
