@@ -50,7 +50,34 @@ function records(){
       sourceBlossomStorageEvidenceHash:fault,
     },
     honestTwoSharePayout:{confirmed:true,sixConfirmations:true,
-      postSignatureOutputTamperRejected:true},
+      postSignatureOutputTamperRejected:true,
+      aliceOutpoint:H('3')+':0',bobOutpoint:H('3')+':1'},
+    preSettlementCustodyChecks:{
+      payoutsNotYetReleased:true,noBip341FrostSignature:true,
+      sponsorAlreadySignedItsOnlyInput:true,
+      ownerOnlyCarrierSpendRejected:{alice:true,bob:true},
+      unilateralCarrierRecoveryProven:false,
+    },
+    beneficiaryRedemptions:{
+      actualBitcoinCoreConfirmed:true,
+      noFrostSigningRoundNeededAfterSplit:true,
+      noSponsorInputUsed:true,crossSigningBlocked:true,
+      walletsSeparatelyKeyed:true,
+      provesPreSplitFederationFreeExit:false,
+      combinedBeneficiaryWalletFeesSats:2_000,
+      alice:{
+        originalPayoutOutpoint:H('3')+':0',originalValueSats:60_000,
+        reclaimedSats:59_000,ownerWalletFeeSats:1_000,
+        rawTransaction:{txid:H('a'),wtxid:H('b'),confirmations:6,
+          vsize:110,outputs:[{sats:59_000,script_pubkey_hex:'0014'+'11'.repeat(20)}]},
+      },
+      bob:{
+        originalPayoutOutpoint:H('3')+':1',originalValueSats:40_000,
+        reclaimedSats:39_000,ownerWalletFeeSats:1_000,
+        rawTransaction:{txid:H('c'),wtxid:H('d'),confirmations:6,
+          vsize:110,outputs:[{sats:39_000,script_pubkey_hex:'0014'+'22'.repeat(20)}]},
+      },
+    },
     refresh:{txid:H('1'),wtxid:H('2'),vsize:253,confirmations:7,
       outputs:[{sats:100_000},{sats:47_000},{sats:0}]},
     payout:{txid:H('3'),wtxid:H('4'),vsize:272,confirmations:6,
@@ -59,7 +86,9 @@ function records(){
       realSapioMidCovenant:false,realLayerTreeRefresh:false,
       realFrostAcrossNetworkPeers:false,blossomPdpVerifiedByBitcoin:false,
       filecoinFaultVerifiedByBitcoin:false,
-      independentHolderExitWithoutFederation:false,publicTestnetSpend:false},
+      independentHolderExitWithoutFederation:false,publicTestnetSpend:false,
+      preSettlementCarrierExitByEitherHolder:false,
+      independentHolderSpendAfterQuorumSettlement:true},
   };
   return {a,b};
 }
@@ -75,6 +104,10 @@ test('actual A/B FROST receipt is capital/evidence matched but NOT security comp
   assert.equal(r.A.actualCsvDelayBlocks,6);
   assert.equal(r.B.physicalRefreshVbytes,253);
   assert.equal(r.B.physicalPayoutVbytes,272);
+  assert.equal(r.holderIndependentExitOnBProven,false);
+  assert.equal(r.holderIndependentPostSettlementSpendProven,true);
+  assert.equal(r.B.postSettlementIndependentWalletRedemptions.alice.redeemedSats,59_000);
+  assert.equal(r.B.postSettlementIndependentWalletRedemptions.bob.redeemedSats,39_000);
 });
 test('prevent a cryptographically valid but mismatched Alice storage fault statement',()=>{
   const {a,b}=records();b.sharedPdpEvidenceHash=H('0');
@@ -114,4 +147,24 @@ test('A 144-block CSV or missing true Taproot checks invalidate fairness claims'
 test('completed honest settlement must disable malicious double spend before evidence accepted',()=>{
   const {a,b}=records();b.maliciousTwoShareRedirect.conflictingAlternativeRejectedAfterHonestConfirmation=false;
   assert.throws(()=>compareFrostFunded(a,b),/adversarial safeguards/);
+});
+
+test('beneficiary PSBT confirmations never establish an earlier unilateral carrier exit',()=>{
+  const r=records();
+  r.b.preSettlementCustodyChecks.ownerOnlyCarrierSpendRejected.alice=false;
+  assert.throws(()=>compareFrostFunded(r.a,r.b),/pre-settlement unilateral/);
+  const x=records();
+  x.b.limits.preSettlementCarrierExitByEitherHolder=true;
+  assert.throws(()=>compareFrostFunded(x.a,x.b),/pre-settlement unilateral/);
+});
+test('reject false beneficiary custody, cross-wallet signing and repeated Bitcoin spends',()=>{
+  const p=records();p.b.beneficiaryRedemptions.crossSigningBlocked=false;
+  assert.throws(()=>compareFrostFunded(p.a,p.b),/post-settlement wallet custody/);
+  const q=records();q.b.beneficiaryRedemptions.alice.rawTransaction.confirmations=0;
+  assert.throws(()=>compareFrostFunded(q.a,q.b),/independent beneficiary wallet spend/);
+  const r=records();r.b.beneficiaryRedemptions.bob.rawTransaction.txid=
+    r.b.beneficiaryRedemptions.alice.rawTransaction.txid;
+  assert.throws(()=>compareFrostFunded(r.a,r.b),/not independent/);
+  const t=records();t.b.beneficiaryRedemptions.alice.originalPayoutOutpoint=H('0')+':0';
+  assert.throws(()=>compareFrostFunded(t.a,t.b),/independent beneficiary wallet spend/);
 });
