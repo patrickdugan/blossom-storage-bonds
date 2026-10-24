@@ -13,14 +13,15 @@ const REFERENCE="34363851a11d0f2b3ddb27c050537c1a2e5b7e9b";
 const need=(x,s)=>{if(!x)throw Error(s);};
 export function attestation({commit=REFERENCE,tests=[]}={}) {
   need(commit===REFERENCE,'unreviewed Sapio source revision');
-  need(Array.isArray(tests)&&tests.length===3,'run all three MID identity and owner tests');
+  need(Array.isArray(tests)&&tests.length===4,'run all three MID identity and owner tests');
   const expected=[
     'two_members_exit_sequentially_without_either_coparticipants_signature',
     'historical_owner_nonce_reuse_revives_a_signed_voucher_in_the_real_mid_guest',
     'synced_signing_reservation_survives_restart_and_binds_both_exits',
+    'fresh_owner_signatures_cannot_change_state_principal_or_exact_payout',
   ];
   for(const name of expected)need(tests.includes(name),'missing genuine pinned MID regression: '+name);
-  need(new Set(tests).size===3,'duplicate MID test evidence');
+  need(new Set(tests).size===4,'duplicate MID test evidence');
   const config=scenario('storage-fault');
   need(config.terms.length===2 &&
     config.terms[0].id==='alice'&&config.terms[0].stake===60_000 &&
@@ -58,13 +59,14 @@ async function main(args) {
     'two_members_exit_sequentially_without_either_coparticipants_signature',
     'historical_owner_nonce_reuse_revives_a_signed_voucher_in_the_real_mid_guest',
     'synced_signing_reservation_survives_restart_and_binds_both_exits',
+    'fresh_owner_signatures_cannot_change_state_principal_or_exact_payout',
   ];
   need(args.length===1,'usage: node check_expected.mjs OUTPUT-NEW-JSON');
   const receipt=attestation({tests});
   const f=await open(resolve(args[0]),'wx',0o600);
   try{await f.writeFile(JSON.stringify(receipt,null,2)+'\n');await f.sync();}
   finally{await f.close();}
-  console.log(JSON.stringify({verifiedPinnedScope:true,testCount:3,
+  console.log(JSON.stringify({verifiedPinnedScope:true,testCount:4,
     oracleStillRequired:true,bitcoinMidConsensus:false}));
 }
 if(process.argv[1]&&import.meta.url===new URL('file://'+resolve(process.argv[1])).href){
