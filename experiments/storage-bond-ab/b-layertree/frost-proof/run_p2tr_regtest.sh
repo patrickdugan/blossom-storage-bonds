@@ -90,6 +90,16 @@ if(p.schema!=="bsb-ab-p2tr-real-frost-regtest-v1"||
    p.maliciousTwoShareRedirect.broadcast!==false||
    p.maliciousTwoShareRedirect.validBitcoinMempoolSpend!==true||
    p.maliciousTwoShareRedirect.conflictingAlternativeRejectedAfterHonestConfirmation!==true||
+   p.stateCommitmentBypass.bitcoinMempoolAccepted!==true||
+   p.stateCommitmentBypass.broadcast!==false||
+   p.stateCommitmentBypass.realTwoOfThreeFrostTaprootSignature!==true||
+   p.stateCommitmentBypass.originalRecipientScriptsUnchanged!==true||
+   p.stateCommitmentBypass.alicePayoutSatsUnchanged!==60000||
+   p.stateCommitmentBypass.bobPayoutSatsUnchanged!==40000||
+   p.stateCommitmentBypass.sponsorFeeUnchangedSats!==3000||
+   p.stateCommitmentBypass.bitcoinChecksStateRootSemantics!==false||
+   p.stateCommitmentBypass.legitimateApplicationCommitment===
+     p.stateCommitmentBypass.maliciousApplicationCommitment||
    p.honestTwoSharePayout.confirmed!==true||
    p.honestTwoSharePayout.sixConfirmations!==true||
    p.preSettlementCustodyChecks.ownerOnlyCarrierSpendRejected.alice!==true||
