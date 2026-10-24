@@ -210,7 +210,11 @@ export async function run({binary,datadir,dir,sha256,first,out}) {
   const secondTx=node('sendrawtransaction',[winner.second.signedHex]);
   must(secondTx===winner.second.txid,'Bitcoin second owner exit txid not frozen');
   node('generatetoaddress',[6,manifest.minerAddress]);
+  const firstFullyConfirmed=node('getrawtransaction',[firstTx,true]);
   const secondConfirmed=node('getrawtransaction',[secondTx,true]);
+  must(firstFullyConfirmed.hash===winner.first.wtxid&&
+    firstFullyConfirmed.confirmations>=6,
+    'first owner payout not six-confirmation Bitcoin finality');
   must(secondConfirmed.hash===winner.second.wtxid&&
     secondConfirmed.confirmations>=6,
     'other beneficiary exit not confirmed with original frozen witness bytes');
@@ -249,7 +253,7 @@ export async function run({binary,datadir,dir,sha256,first,out}) {
     currentCarrierPrincipalSats:100000,
     externalSponsorFeesSats:6000,
     firstExit:{txid:firstTx,wtxid:winner.first.wtxid,
-      vbytes:firstConfirmed.vsize,confirmations:firstConfirmed.confirmations},
+      vbytes:firstFullyConfirmed.vsize,confirmations:firstFullyConfirmed.confirmations},
     secondExit:{txid:secondTx,wtxid:winner.second.wtxid,
       vbytes:secondConfirmed.vsize,confirmations:secondConfirmed.confirmations},
     signedBytesUntouched:true,
