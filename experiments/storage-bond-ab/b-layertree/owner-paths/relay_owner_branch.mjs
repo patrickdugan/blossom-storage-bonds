@@ -81,7 +81,7 @@ function outputs(node,rec,principal){
     'principal lost value, or sponsor did not pay the 3000 satoshis');
   return tx;
 }
-function checkManifest(p,node,desired){
+export function checkManifest(p,node,desired,{allowOtherSponsorSpent=false}={}){
   must(p.schema==='bsb-frost-owner-branch-prepared-v1'&&
     p.network==='disposable-regtest-only' &&
     p.real2of3TaprootThresholdSignatures===true &&
@@ -171,14 +171,21 @@ function checkManifest(p,node,desired){
       for(const owner of ['alice','bob']){
         const signed=g.branches[owner].first.signedHex;
         const verdict=node('testmempoolaccept',[[signed]]);
-        must(verdict?.length===1&&verdict[0].allowed===true,
-          'one of two owner-first frozen Bitcoin exits invalid before settlement');
+        if(allowOtherSponsorSpent && owner!==desired){
+          const sponsor=point(g.branches[owner].first.sponsorInput);
+          must(node('gettxout',[sponsor.txid,sponsor.vout])===null &&
+            verdict?.length===1 && verdict[0].allowed!==true,
+            'alternate branch must be invalid specifically because its fee coin was spent');
+        }else{
+          must(verdict?.length===1&&verdict[0].allowed===true,
+            'selected first branch lacks valid carrier or fee-sponsor signatures');
+        }
       }
     }
   }
   must(usedSponsor.size===14,'not all 14 confirmed fee UTXOs have distinct binding');
 }
-export async function run({binary,datadir,dir,sha256,first,out}) {
+export async function run({binary,datadir,dir,sha256,first,out,degradedSponsor=false}) {
   must(h64(sha256),'expected separate pre-signer SHA256 receipt commitment');
   const bytes=await readFile(resolve(dir,'owner-frozen.json'));
   const saved=(await readFile(resolve(dir,'owner-frozen.sha256'),'utf8')).trim();
@@ -189,7 +196,7 @@ export async function run({binary,datadir,dir,sha256,first,out}) {
   const wallets=node('listwallets');
   must(Array.isArray(wallets)&&wallets.length===1&&wallets[0]==='miner',
     'holder, oracle or sponsor signing wallet is still online');
-  checkManifest(manifest,node,first);
+  checkManifest(manifest,node,first,{allowOtherSponsorSpent:degradedSponsor});
   const current=manifest.generations[2];
   const winner=current.branches[first],loser=current.branches[first==='alice'?'bob':'alice'];
   const firstTx=node('sendrawtransaction',[winner.first.signedHex]);
@@ -257,6 +264,7 @@ export async function run({binary,datadir,dir,sha256,first,out}) {
     secondExit:{txid:secondTx,wtxid:winner.second.wtxid,
       vbytes:secondConfirmed.vsize,confirmations:secondConfirmed.confirmations},
     signedBytesUntouched:true,
+    alternativeSponsorSpentFallback:degradedSponsor,
     securityBoundaries:{
       eitherHolderCouldPublishOwnFirstExit:true,
       otherHolderCanClaimAfterCompetingFirstExit:true,
@@ -288,6 +296,7 @@ async function main(args){
     else if(k==='--sha256')opts.sha256=v;
     else if(k==='--first')opts.first=v;
     else if(k==='--output')opts.out=resolve(v);
+    else if(k==='--degraded-other-sponsor')opts.degradedSponsor=(v==='true');
     else throw Error('unrecognized no-signer owner exit argument '+k);
   }
   must(opts.binary&&opts.datadir&&opts.dir&&opts.sha256&&opts.first&&opts.out,
