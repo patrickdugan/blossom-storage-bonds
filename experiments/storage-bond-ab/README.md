@@ -1,9 +1,14 @@
 # Storage-bond A/B: parallel implementations
 
-**Status: executable research prototype.** Funded Bitcoin, real FROST signatures,
-Filecoin consensus proofs and live testnet claims are outside this model. The
-separate Bitcoin Core receipt observer is implemented for future signet/testnet4
-runs, and it cannot prove that a storage verdict was economically legitimate.
+**Status: independently passing funded Bitcoin Core regtest tracks plus
+an explicit non-consensus LayerTree/MID experimental guest.** Real FROST
+BIP341 threshold-signature transactions and independent Alice/Bob wallet
+redemptions are confirmed on disposable regtest; four compiled Sapio MID
+oracle guest tests and signed MID transition vectors are also verified.
+**These are different spending authorities**: the current FROST keypath
+is not restricted by Sapio MID. Genuine Filecoin consensus/fault evidence,
+holder recovery during a total oracle outage, and public signet trials
+remain unproven. The separate testnet observer is read-only.
 
 This work stays on the research branch and [draft PR #5](https://github.com/patrickdugan/blossom-storage-bonds/pull/5).
 The original Phase 1 sentinel regtest source under `regtest/` and the
@@ -194,6 +199,30 @@ refusing to set `matchedFullScenarios`, `feesComparable`, or
 regtest keys are used, from an ephemeral dealer in one OS process.
 Real LayerTree MID oracle execution, distributed FROST shares and
 federation-offline carrier recovery remain outstanding.
+
+
+### Current executable MID/FROST authorization differential
+
+[**Combined compiled MID guest and funded real FROST CI**](https://github.com/patrickdugan/blossom-storage-bonds/actions/runs/40081402988)
+runs both programs in one pinned CI job. It exported two genuine
+oracle-signed MID transitions with principal roots 100k -> 40k -> 0,
+recomputed the signed SegWit witness transaction hashes and checked
+the actual MID Taproot carrier script. The four pinned guest regression
+tests passed, including rejection of owner-re-signed payout mutations.
+
+The same job then built and ran real 2-of-3 FROST Taproot transactions
+against Bitcoin Core 30.3. It confirmed the externally sponsored
+60k/40k payouts and demonstrated a threshold-signed alternative
+**state commitment with unchanged payouts** accepted by Core.
+The shared application amounts do not turn the MID and FROST wallet
+into the same physical Bitcoin carrier or enforce the MID oracle's
+Merkle-sum transition policy at consensus.
+
+[Complete nonsecret experimental evidence](https://github.com/patrickdugan/blossom-storage-bonds/actions/runs/40081402988/artifacts/12555322348)
+may be unavailable after GitHub Actions retention; rerun
+`.github/workflows/layertree-mid-pinned-interop.yml` to regenerate.
+The [differential design and acceptance criteria](b-layertree/mid/DIFFERENTIAL.md)
+state precisely which unproven security conditions remain.
 
 ## Testnet evidence route
 
