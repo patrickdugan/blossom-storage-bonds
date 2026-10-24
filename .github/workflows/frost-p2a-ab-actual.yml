@@ -1,0 +1,110 @@
+name: Actual A sentinel versus B FROST P2A Bitcoin Core evidence
+
+# 100k starting principal + same Blossom Merkle reference evidence, but
+# protocols are not cost- or Byzantine-security comparable yet.
+on:
+  push:
+    branches:
+      - research/frost-p2a-dynamic-fee-2026-10-24
+    paths:
+      - experiments/storage-bond-ab/compare-p2a-a*
+      - .github/workflows/frost-p2a-ab-actual.yml
+  pull_request:
+    paths:
+      - experiments/storage-bond-ab/compare-p2a-a*
+      - .github/workflows/frost-p2a-ab-actual.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  actual-a-and-b:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      CARGO_BUILD_JOBS: "2"
+      CARGO_INCREMENTAL: "0"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Independent A/B comparison regression controls
+        run: |
+          set -euo pipefail
+          node --test experiments/storage-bond-ab/compare-p2a-a.test.mjs
+          node --check experiments/storage-bond-ab/compare-p2a-a.mjs
+          rustc --version
+      - name: Obtain checksum-pinned Bitcoin Core 30.3
+        env:
+          CORE_SHA256: 4753cd70416c629a2090503e8545a3c05e94a0f5037f8fb97b4c35c6e1afee0e
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/core"
+          cd "$RUNNER_TEMP/core"
+          curl --proto '=https' --tlsv1.2 -fsSLo bitcoin.tar.gz \
+            https://bitcoincore.org/bin/bitcoin-core-30.3/bitcoin-30.3-x86_64-linux-gnu.tar.gz
+          echo "$CORE_SHA256  bitcoin.tar.gz" | sha256sum -c -
+          tar -xzf bitcoin.tar.gz
+
+      - name: Run actual A two-bond 60k and 40k Taproot sentinel source PDP
+        env:
+          BITCOIND_EXEC: ${{ runner.temp }}/core/bitcoin-30.3/bin/bitcoind
+          BITCOIN_CLI_EXEC: ${{ runner.temp }}/core/bitcoin-30.3/bin/bitcoin-cli
+          BSB_A_SHARED_PDP: "1"
+          BSB_A_AB_RECEIPT_DIR: ${{ runner.temp }}/real-A
+        run: |
+          set -euo pipefail
+          bash experiments/storage-bond-ab/a-sentinel/regtest/run_matched.sh
+          test -s "$RUNNER_TEMP/real-A/matched-A-summary.json"
+
+      - name: Run actual B FROST frozen v3 parents with dynamic P2A fee children
+        env:
+          BITCOIND_EXEC: ${{ runner.temp }}/core/bitcoin-30.3/bin/bitcoind
+          BITCOIN_CLI_EXEC: ${{ runner.temp }}/core/bitcoin-30.3/bin/bitcoin-cli
+          BSB_P2A_RECEIPT_DIR: ${{ runner.temp }}/real-B
+        run: |
+          set -euo pipefail
+          bash experiments/storage-bond-ab/b-layertree/p2a-fee-child/run_regtest.sh
+          test -s "$RUNNER_TEMP/real-B/alice-first.json"
+          test -s "$RUNNER_TEMP/real-B/bob-first.json"
+
+      - name: Audit identical source PDP and exact principal, deny false fee or safety winner
+        run: |
+          set -euo pipefail
+          node experiments/storage-bond-ab/compare-p2a-a.mjs \
+            --a "$RUNNER_TEMP/real-A/matched-A-summary.json" \
+            --b-alice "$RUNNER_TEMP/real-B/alice-first.json" \
+            --b-bob "$RUNNER_TEMP/real-B/bob-first.json" \
+            --out "$RUNNER_TEMP/a-vs-b-real-bitcoin-observations.json"
+          node - "$RUNNER_TEMP/a-vs-b-real-bitcoin-observations.json" <<'JS'
+          const fs=require('node:fs');
+          const j=JSON.parse(fs.readFileSync(process.argv[2]));
+          if(j.schema!=='bsb-a-sentinel-vs-b-frost-p2a-observed-regtest-v1' ||
+             !j.matchedStartingPrincipal ||
+             !j.matchedSourceBlossomReferencePdpHash ||
+             j.protocolWorkloadMatched!==false ||
+             j.overallBitcoinTransactionCostRatioValid!==false ||
+             j.securityScoreWinnerSupported!==false ||
+             j.actualCoreMeasurements.A.originalChecksPassed!==42 ||
+             j.actualCoreMeasurements.B.confirmedFrostParents!==4 ||
+             j.actualCoreMeasurements.B.confirmedFreshP2aChildren!==4 ||
+             j.actualCoreMeasurements.B.previousFeeCandidateCoinsSpentAfterSignerDeath!==2 ||
+             j.actualCoreMeasurements.B.staticCommittedSponsorInputInFrostParent!==false)
+             throw Error('funded A/B receipts have mismatched PDP or false equivalence claim');
+          console.log('Measured genuine Bitcoin Core A+B without claiming identical workload or Byzantine safety.');
+          JS
+
+      - name: Upload only public Bitcoin regtest outcome summaries
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: actual-A-sentinel-B-frost-P2A-same-PDP-not-equal-security
+          path: |
+            ${{ runner.temp }}/real-A/matched-A-summary.json
+            ${{ runner.temp }}/real-B/alice-first.json
+            ${{ runner.temp }}/real-B/bob-first.json
+            ${{ runner.temp }}/a-vs-b-real-bitcoin-observations.json
+          retention-days: 14
+          if-no-files-found: error
