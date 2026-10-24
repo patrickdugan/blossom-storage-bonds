@@ -118,6 +118,10 @@ jobs:
              r.A.actualBitcoinCoreScriptTests!==42 ||
              r.B.maliciousThresholdPayoutBitcoinValid!==true ||
              r.holderIndependentExitOnBProven!==false ||
+             r.holderIndependentPostSettlementSpendProven!==true ||
+             r.B.postSettlementIndependentWalletRedemptions.alice.redeemedSats!==59000 ||
+             r.B.postSettlementIndependentWalletRedemptions.bob.redeemedSats!==39000 ||
+             r.B.postSettlementIndependentWalletRedemptions.requiresFurtherFederationSignatures!==false ||
              r.onchainMidCovenantProven!==false)
              throw Error("real FROST/A Taproot receipt improperly claims economic equivalence");
           console.log("A and B: real Bitcoin Core Taproot, matched collateral and PDP hashes; trust differs.");
