@@ -69,6 +69,28 @@ jobs:
           cargo test --locked -p sapio_integration_tests --test layertree \
             synced_signing_reservation_survives_restart_and_binds_both_exits -- --exact --nocapture
 
+      - name: Real MID guest - reject altered beneficiary payout despite fresh owner signature
+        working-directory: pinned-sapio-mid
+        run: |
+          cargo test --locked -p sapio_integration_tests --test layertree \
+            fresh_owner_signatures_cannot_change_state_principal_or_exact_payout -- --exact --nocapture
+
+      - name: Execute actual pinned MID guest and export Alice/Bob signed exit transactions
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/mid-proof"
+          test -f experiments/storage-bond-ab/b-layertree/mid/sapio_mid_exit_vectors.rs
+          cp experiments/storage-bond-ab/b-layertree/mid/sapio_mid_exit_vectors.rs \
+             pinned-sapio-mid/integration_tests/examples/bsb_mid_exit_vectors.rs
+          (
+            cd pinned-sapio-mid
+            cargo run --locked -p sapio_integration_tests --example bsb_mid_exit_vectors \
+              > "$RUNNER_TEMP/mid-proof/signed-mid-exits.json"
+          )
+          node experiments/storage-bond-ab/b-layertree/mid/verify_mid_vectors.mjs \
+            "$RUNNER_TEMP/mid-proof/signed-mid-exits.json" \
+            "$RUNNER_TEMP/mid-proof/verified-mid-exits.json"
+
       - name: Emit explicitly non-consensus MID oracle attestation
         run: |
           set -euo pipefail
@@ -86,9 +108,9 @@ jobs:
              r.historicalVoucherReplayAttackReproduced!==true ||
              r.bitcoinConsensusEnforcesExperimentalMid!==false ||
              r.realFrostThresholdIntegratedWithMid!==false ||
-             r.testsPassed.length!==3)
+             r.testsPassed.length!==4)
              throw Error("pinned MID test evidence overstates Bitcoin consensus");
-          console.log("Pinned Sapio MID guest: three suite filters passed, oracle trust remains.");
+          console.log("Pinned Sapio MID guest: four suite filters and signed 60/40 oracle vectors passed; oracle trust remains.");
           JS
 
       - name: Preserve public guest test scope without signing keys
@@ -96,6 +118,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: pinned-sapio-mid-oracle-only-60k40k-not-Bitcoin-consensus
-          path: ${{ runner.temp }}/mid-proof/mid-guest-oracle-scope.json
+          path: ${{ runner.temp }}/mid-proof/
           if-no-files-found: error
           retention-days: 7
