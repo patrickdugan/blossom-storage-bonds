@@ -1,0 +1,101 @@
+name: Pinned Sapio LayerTree MID oracle conformance
+
+# Executes the actual EXPERIMENTAL MID WASM guest and oracle-wrapper
+# authorization tests from an exact, reviewed Sapio PR1 commit.
+# The oracle still decides/authorizes spends; Bitcoin itself does NOT
+# execute experimental OP_TX, CSFS or LayerTree MID transaction rules.
+on:
+  push:
+    branches:
+      - research/layertree-storage-bond-overlay-2026-10-23
+    paths:
+      - "experiments/storage-bond-ab/b-layertree/mid/**"
+      - ".github/workflows/layertree-mid-pinned-interop.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  mid-guest:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    env:
+      CARGO_BUILD_JOBS: "2"
+      CARGO_INCREMENTAL: "0"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: patrickdugan/sapio
+          ref: 34363851a11d0f2b3ddb27c050537c1a2e5b7e9b
+          path: pinned-sapio-mid
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Check signed-guest source pin and raw fixture amounts
+        run: |
+          set -euo pipefail
+          test "$(git -C pinned-sapio-mid rev-parse HEAD)" = \
+            34363851a11d0f2b3ddb27c050537c1a2e5b7e9b
+          test -s pinned-sapio-mid/evaluators/artifacts/bitcoin_script_mid.wasm
+          grep -F 'let alice = example::member(210, 60_000);' \
+            pinned-sapio-mid/integration_tests/tests/layertree.rs
+          grep -F 'let bob = example::member(211, 40_000);' \
+            pinned-sapio-mid/integration_tests/tests/layertree.rs
+          sha256sum pinned-sapio-mid/evaluators/artifacts/bitcoin_script_mid.wasm
+          cd pinned-sapio-mid
+          rustup show
+          rustc --version
+
+      - name: Real MID guest - owner-authorized 60k and 40k sequential exits
+        working-directory: pinned-sapio-mid
+        run: |
+          cargo test --locked -p sapio_integration_tests --test layertree \
+            two_members_exit_sequentially_without_either_coparticipants_signature -- --exact --nocapture
+
+      - name: Real MID guest - historical signed voucher resurrection negative finding
+        working-directory: pinned-sapio-mid
+        run: |
+          cargo test --locked -p sapio_integration_tests --test layertree \
+            historical_owner_nonce_reuse_revives_a_signed_voucher_in_the_real_mid_guest -- --exact --nocapture
+
+      - name: Real MID guest - crash-persisted dual holder signing reservations
+        working-directory: pinned-sapio-mid
+        run: |
+          cargo test --locked -p sapio_integration_tests --test layertree \
+            synced_signing_reservation_survives_restart_and_binds_both_exits -- --exact --nocapture
+
+      - name: Emit explicitly non-consensus MID oracle attestation
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/mid-proof"
+          node experiments/storage-bond-ab/b-layertree/mid/check_expected.mjs \
+            "$RUNNER_TEMP/mid-proof/mid-guest-oracle-scope.json"
+          node - "$RUNNER_TEMP/mid-proof/mid-guest-oracle-scope.json" <<'JS'
+          const fs=require("node:fs");
+          const r=JSON.parse(fs.readFileSync(process.argv[2]));
+          if(r.sapioRevision!=="34363851a11d0f2b3ddb27c050537c1a2e5b7e9b" ||
+             r.totalInitialPrincipalSats!==100000 ||
+             r.actualCompiledMidEmulationGuestExercised!==true ||
+             r.userExitWithoutOtherOwnersSignatureInModel!==true ||
+             r.onlineSapioOracleStillRequired!==true ||
+             r.historicalVoucherReplayAttackReproduced!==true ||
+             r.bitcoinConsensusEnforcesExperimentalMid!==false ||
+             r.realFrostThresholdIntegratedWithMid!==false ||
+             r.testsPassed.length!==3)
+             throw Error("pinned MID test evidence overstates Bitcoin consensus");
+          console.log("Pinned Sapio MID guest: three suite filters passed, oracle trust remains.");
+          JS
+
+      - name: Preserve public guest test scope without signing keys
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pinned-sapio-mid-oracle-only-60k40k-not-Bitcoin-consensus
+          path: ${{ runner.temp }}/mid-proof/mid-guest-oracle-scope.json
+          if-no-files-found: error
+          retention-days: 7
