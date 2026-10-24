@@ -117,8 +117,8 @@ function signedChainAudit(records,node){
         refresh.vin[0].txid+':'+refresh.vin[0].vout===r.carrierBefore &&
         refresh.vin[1].txid+':'+refresh.vin[1].vout===r.sponsorBefore,
         'refresh ancestry differs from original signed evidence');
-      assert(next.carrierBefore===ref.txid+':0 &&
-        next.sponsorBefore===ref.txid+':1 &&
+      assert(next.carrierBefore===ref.txid+':0' &&
+        next.sponsorBefore===ref.txid+':1' &&
         next.sponsorInputSats===r.sponsorInputSats-3000,
         'generation continuity or sponsor fee ledger is broken');
       const prior=splitOutpoint(r.carrierBefore);
