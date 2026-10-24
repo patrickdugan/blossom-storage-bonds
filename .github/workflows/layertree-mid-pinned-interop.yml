@@ -113,11 +113,59 @@ jobs:
           console.log("Pinned Sapio MID guest: four suite filters and signed 60/40 oracle vectors passed; oracle trust remains.");
           JS
 
+      - name: Install SHA256-verified Bitcoin Core 30.3 for genuine FROST control
+        env:
+          CORE_SHA256: 4753cd70416c629a2090503e8545a3c05e94a0f5037f8fb97b4c35c6e1afee0e
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/core"
+          cd "$RUNNER_TEMP/core"
+          curl --proto '=https' --tlsv1.2 -fsSLo bitcoin.tar.gz \
+            https://bitcoincore.org/bin/bitcoin-core-30.3/bitcoin-30.3-x86_64-linux-gnu.tar.gz
+          echo "$CORE_SHA256  bitcoin.tar.gz" | sha256sum -c -
+          tar -xzf bitcoin.tar.gz
+          test -x bitcoin-30.3/bin/bitcoin-cli
+          test -x bitcoin-30.3/bin/bitcoind
+
+      - name: Execute independently funded FROST P2TR carrier on Bitcoin Core
+        env:
+          BITCOIND_EXEC: ${{ runner.temp }}/core/bitcoin-30.3/bin/bitcoind
+          BITCOIN_CLI_EXEC: ${{ runner.temp }}/core/bitcoin-30.3/bin/bitcoin-cli
+          BSB_B_FROST_RECEIPT_DIR: ${{ runner.temp }}/mid-proof/frost
+        run: |
+          set -euo pipefail
+          bash experiments/storage-bond-ab/b-layertree/frost-proof/run_p2tr_regtest.sh
+          test -s "$RUNNER_TEMP/mid-proof/frost/real-frost-p2tr-regtest.json"
+
+      - name: Differential proof - online MID oracle versus Bitcoin-only FROST keypath
+        run: |
+          set -euo pipefail
+          node experiments/storage-bond-ab/b-layertree/mid/compare_mid_frost.mjs \
+            --mid "$RUNNER_TEMP/mid-proof/verified-mid-exits.json" \
+            --oracle "$RUNNER_TEMP/mid-proof/mid-guest-oracle-scope.json" \
+            --frost "$RUNNER_TEMP/mid-proof/frost/real-frost-p2tr-regtest.json" \
+            > "$RUNNER_TEMP/mid-proof/differential-authorities.json"
+          node - "$RUNNER_TEMP/mid-proof/differential-authorities.json" <<'JS'
+          const fs=require("node:fs");
+          const v=JSON.parse(fs.readFileSync(process.argv[2]));
+          if(v.schema!=="bsb-ab-mid-frost-authorization-differential-v1" ||
+             v.initialCollateralMatched!==true ||
+             v.samePhysicalBitcoinCarrier!==false ||
+             v.adversarial.realFrostQuorumCanSignAlternativeCommitmentWithSamePayouts!==true ||
+             v.proofStatus.realSapioMidCompiledOracleGuestExecuted!==true ||
+             v.proofStatus.realP2trBitcoinBip341Confirmed!==true ||
+             v.proofStatus.bitcoinConsensusEnforcesMid!==false ||
+             v.proofStatus.offlineHolderRecoveryWithoutOracleOrFederation!==false) {
+             throw Error("MID/FROST comparison falsely equates the two signing authorities");
+          }
+          console.log("Genuine MID oracle and Bitcoin FROST differ: unauthorized keypath commitment accepted.");
+          JS
+
       - name: Preserve public guest test scope without signing keys
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: pinned-sapio-mid-oracle-only-60k40k-not-Bitcoin-consensus
+          name: pinned-sapio-mid-vs-frost-two-independent-authorities
           path: ${{ runner.temp }}/mid-proof/
           if-no-files-found: error
           retention-days: 7
