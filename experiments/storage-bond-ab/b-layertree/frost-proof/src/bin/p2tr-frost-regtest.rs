@@ -26,6 +26,8 @@ use sha2::{Digest, Sha256};
 use std::{collections::BTreeMap, env, error::Error, fs, io::Write, path::PathBuf, process::Command, str::FromStr};
 
 type ResultX<T> = Result<T, Box<dyn Error>>;
+#[path = "p2tr_frost_regtest/offline_preparation.rs"]
+mod offline_preparation;
 #[path = "p2tr_frost_regtest/holder_redemption.rs"]
 mod holder_redemption;
 type Packages = BTreeMap<frost::Identifier, frost::keys::KeyPackage>;
@@ -503,7 +505,12 @@ fn run(args:Vec<String>)->ResultX<()>{
 }
 fn main(){
     let args=env::args().skip(1).collect::<Vec<_>>();
-    if let Err(err)=run(args){
+    let result=if args.first().map(String::as_str)==Some("--freeze-offline"){
+        offline_preparation::prepare(args[1..].to_vec())
+    }else{
+        run(args)
+    };
+    if let Err(err)=result{
         eprintln!("B FROST P2TR real-regtest integration failed: {err}");
         std::process::exit(1);
     }
