@@ -79,6 +79,9 @@ impl Rpc {
                 String::from_utf8_lossy(&output.stderr).chars().take(550).collect::<String>()).into());
         }
         let text = String::from_utf8(output.stdout)?;
+        // bitcoin-cli represents JSON-RPC null (including spent gettxout)
+        // as empty stdout, not as the literal text "null".
+        if text.trim().is_empty() { return Ok(Value::Null); }
         match serde_json::from_str::<Value>(text.trim()) {
             Ok(value) => Ok(value),
             Err(_) => Ok(Value::String(text.trim().to_owned())),
