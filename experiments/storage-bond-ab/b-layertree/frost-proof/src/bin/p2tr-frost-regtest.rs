@@ -32,6 +32,8 @@ mod offline_preparation;
 mod owner_branch_preparation;
 #[path = "p2tr_frost_regtest/p2a_preparation.rs"]
 mod p2a_preparation;
+#[path = "p2tr_frost_regtest/p2a_parent.rs"]
+mod p2a_parent;
 #[path = "p2tr_frost_regtest/holder_redemption.rs"]
 mod holder_redemption;
 type Packages = BTreeMap<frost::Identifier, frost::keys::KeyPackage>;
