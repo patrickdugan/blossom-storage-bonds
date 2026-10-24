@@ -55,8 +55,8 @@ pub(super) fn prepare(args:Vec<String>)->ResultX<()> {
     let (mining_address,_)=rpc.address("miner")?;
     rpc.mine(101,&mining_address)?;
     let (sponsor_addr,sponsor_script)=rpc.address("sponsor")?;
-    let (alice_addr,alice_script)=rpc.address("alice")?;
-    let (bob_addr,bob_script)=rpc.address("bob")?;
+    let (_alice_addr,alice_script)=rpc.address("alice")?;
+    let (_bob_addr,bob_script)=rpc.address("bob")?;
     require(alice_script!=bob_script,"two beneficiaries share an exit script")?;
     let theft_script=rpc.address("miner")?.1;
     let bond_funding=rpc.text("sendtoaddress", &[
@@ -68,8 +68,7 @@ pub(super) fn prepare(args:Vec<String>)->ResultX<()> {
     let (mut sponsor_point,mut sponsor_output)=rpc.coin(&fee_funding,&sponsor_script,SPONSOR_INITIAL)?;
     let mut snapshots=Vec::new();
     let mut rng=OsRng;
-    let mut malicious_quorum_valid=false;
-    let mut malicious_txid=String::new();
+    // The malicious-committee negative control is generated after freezing.
     for generation in 0..=2u32 {
         let sponsor_input_sats=sponsor_output.value.to_sat();
         require(sponsor_input_sats>=EXTERNAL_FEE+1,
@@ -96,7 +95,7 @@ pub(super) fn prepare(args:Vec<String>)->ResultX<()> {
         let output_sum:u64=exit.output.iter().map(|o|o.value.to_sat()).sum();
         require(input_sum-output_sum==EXTERNAL_FEE &&
             exit.output[0].value.to_sat()+exit.output[1].value.to_sat()==PRINCIPAL,
-            "frozen exit consumed principal for fees or leaked funds");
+            "frozen exit consumed principal for fees or leaked funds")?;
         let refresh_broadcast=if generation<2 {
             let refresh_commit=commit(&format!("advance-generation-{generation}"),
                 &evidence,&carrier_point);
@@ -169,10 +168,10 @@ pub(super) fn prepare(args:Vec<String>)->ResultX<()> {
         &public,&packages,&identifiers,[0,1],&evil_base,
         &[carrier_output,sponsor_output],taproot_key,&mut rng)?;
     let evil=rpc.sign_sponsor(&evil_frost)?;
-    malicious_quorum_valid=rpc.witness_authorization(&evil)?;
+    let malicious_quorum_valid=rpc.witness_authorization(&evil)?;
     require(malicious_quorum_valid,
         "malicious 2-share quorum failed to demonstrate the honest-exit race")?;
-    malicious_txid=evil.compute_txid().to_string();
+    let malicious_txid=evil.compute_txid().to_string();
     for old in snapshots.iter().take(2) {
         let pair=old["carrierBefore"].as_str().ok_or("old carrier outpoint missing")?;
         let mut parts=pair.split(':');
