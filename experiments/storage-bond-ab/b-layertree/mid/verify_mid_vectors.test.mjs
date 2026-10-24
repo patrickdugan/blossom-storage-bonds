@@ -33,6 +33,7 @@ function fixture(){
     pinnedSource:'34363851a11d0f2b3ddb27c050537c1a2e5b7e9b',
     network:'synthetic-Sapio-fixture-outpoints-NOT-chain',
     initialPrincipalSats:100_000,
+    initialMidScriptPubkeyHex:'5120'+'aa'.repeat(32),
     otherMemberSignatureRequired:false,
     onlineSapioEmulationOracleRequired:true,
     bitcoinConsensusRecognizesMidGuest:false,
@@ -52,6 +53,7 @@ test('strictly verify signed oracle MID vectors and classify non-chain scope',()
   assert.deepEqual(r.merkleSumSequenceSats,[100_000,40_000,0]);
   assert.deepEqual(r.syntheticPayoutSats,{alice:60_000,bob:40_000});
   assert.equal(r.bitcoinCoreConfirmed,false);
+  assert.equal(r.physicalMidCarrierScriptPubkeyHex,'5120'+'aa'.repeat(32));
   assert.equal(r.bitcoinConsensusEnforcedMid,false);
   assert.equal(r.sameBitcoinCarrierAsFundedFrost,false);
   assert.equal(r.unilateralExitDuringTotalOracleOutageProven,false);
