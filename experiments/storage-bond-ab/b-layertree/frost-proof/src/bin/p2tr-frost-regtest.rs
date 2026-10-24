@@ -369,6 +369,29 @@ fn run(args:Vec<String>)->ResultX<()>{
         &sponsor_script,SPONSOR_INITIAL-2*EXTERNAL_FEE,honest_commit);
     let pre_settlement_custody=
         holder_redemption::assert_no_unilateral_carrier_exit(&rpc,&honest_base)?;
+    // Two real FROST key holders can also authorize a DIFFERENT OP_RETURN
+    // state commitment while leaving both 60k/40k beneficiary amounts,
+    // output scripts, and fee-sponsor input unchanged. This isolates the
+    // keypath covenant bypass from the more obvious total theft above.
+    let forged_root=commit("fabricated-application-state",&evidence,&carrier_point);
+    require(forged_root!=honest_commit,"forged state root collides with intended root")?;
+    let mut arbitrary_state=honest_base.clone();
+    arbitrary_state.output[3].script_pubkey=Builder::new()
+        .push_opcode(OP_RETURN).push_slice(forged_root).into_script();
+    let (forged_root_frost,forged_root_quorum)=sign_frost_keypath(
+        &public,&packages,&identifiers,[0,1],&arbitrary_state,
+        &[carrier_output.clone(),fee_output.clone()],taproot_key,&mut rng)?;
+    require(forged_root_quorum,"two-share wrong-state signature was incomplete")?;
+    let forged_root_signed=rpc.sign_sponsor(&forged_root_frost)?;
+    inspect_outputs(&forged_root_signed,&[
+        (alice_script.clone(),60_000),(bob_script.clone(),40_000),
+        (sponsor_script.clone(),SPONSOR_INITIAL-2*EXTERNAL_FEE),
+        (Builder::new().push_opcode(OP_RETURN).push_slice(forged_root).into_script(),0)])?;
+    require(rpc.witness_authorization(&forged_root_signed)?,
+        "Bitcoin rejected two-share FROST spend with arbitrarily changed state root")?;
+    require(forged_root_signed.compute_txid()!=honest_base.compute_txid(),
+        "forged state commitment produced the same unsigned Bitcoin transaction")?;
+
     let (honest_frost,honest_quorum)=sign_frost_keypath(
         &public,&packages,&identifiers,[0,2],&honest_base,
         &[carrier_output.clone(),fee_output.clone()],taproot_key,&mut rng)?;
@@ -422,6 +445,21 @@ fn run(args:Vec<String>)->ResultX<()>{
             "sameTxidWitnessMutationRejected":true,
             "conflictingAlternativeRejectedAfterHonestConfirmation":true,
             "sourceBlossomStorageEvidenceHash":evidence
+        },
+        "stateCommitmentBypass":{
+            "bitcoinMempoolAccepted":true,
+            "broadcast":false,
+            "realTwoOfThreeFrostTaprootSignature":true,
+            "alicePayoutSatsUnchanged":60_000,
+            "bobPayoutSatsUnchanged":40_000,
+            "sponsorFeeUnchangedSats":EXTERNAL_FEE,
+            "legitimateApplicationCommitment":hex(honest_commit),
+            "maliciousApplicationCommitment":hex(forged_root),
+            "originalRecipientScriptsUnchanged":true,
+            "bitcoinChecksStateRootSemantics":false,
+            "scriptPathCovenantCannotConstrainThisKeypath":true,
+            "txid":forged_root_signed.compute_txid().to_string(),
+            "wtxid":forged_root_signed.compute_wtxid().to_string()
         },
         "honestTwoSharePayout":{
             "confirmed":true,
