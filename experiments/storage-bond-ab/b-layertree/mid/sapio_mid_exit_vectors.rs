@@ -95,6 +95,7 @@ fn run()->Result<(),ErrBox>{
         "network":"synthetic-Sapio-fixture-outpoints-NOT-chain",
         "initialPrincipalSats":100_000,
         "initialCoinOutpoint":initial_coin.outpoint.to_string(),
+        "initialMidScriptPubkeyHex":hex(initial_coin.txout.script_pubkey.as_bytes()),
         "principalRoots":{
             "initial":root(before),
             "afterAlice":root(first.next.root()),
