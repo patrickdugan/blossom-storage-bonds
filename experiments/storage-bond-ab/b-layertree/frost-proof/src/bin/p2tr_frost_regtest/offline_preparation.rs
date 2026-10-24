@@ -173,10 +173,15 @@ pub(super) fn prepare(args:Vec<String>)->ResultX<()> {
     require(malicious_quorum_valid,
         "malicious 2-share quorum failed to demonstrate the honest-exit race")?;
     malicious_txid=evil.compute_txid().to_string();
-    require(!rpc.call("gettxout",&[
-        json!(snapshots[0]["carrierBefore"].as_str().unwrap().split(':').next().unwrap()),
-        json!(0)],None)?.is_object(),
-        "earliest fully spent P2TR carrier remained in active UTXO set")?;
+    for old in snapshots.iter().take(2) {
+        let pair=old["carrierBefore"].as_str().ok_or("old carrier outpoint missing")?;
+        let mut parts=pair.split(':');
+        let txid=parts.next().ok_or("missing previous txid")?;
+        let vout:u32=parts.next().ok_or("missing previous vout")?.parse()?;
+        require(parts.next().is_none(),"invalid old carrier formatting")?;
+        require(rpc.call("gettxout",&[json!(txid),json!(vout)],None)?.is_null(),
+            "stale carrier generation unexpectedly remained unspent")?;
+    }
     let root=Path::new(&out);
     std::fs::create_dir_all(root)?;
     #[cfg(unix)]{
