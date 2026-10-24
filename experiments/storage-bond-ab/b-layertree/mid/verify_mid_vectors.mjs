@@ -69,6 +69,8 @@ export function verifyVectors(v){
   check(root.initial.merkleSumHash!==root.afterAlice.merkleSumHash&&
     root.afterAlice.merkleSumHash!==root.afterBob.merkleSumHash,
     'MID root was replayed or not advanced');
+  check(/^5120[0-9a-f]{64}$/i.test(v.initialMidScriptPubkeyHex),
+    'pinned MID carrier output does not use a native P2TR covenant wrapper');
   const scripts=v.payoutScripts;
   check(/^5120[a-f0-9]{64}$/i.test(scripts?.alice)&&
     /^5120[a-f0-9]{64}$/i.test(scripts?.bob)&&
@@ -97,6 +99,7 @@ export function verifyVectors(v){
     signedMidExitTxids:{alice:v.aliceExit.txid,bob:v.bobExit.txid},
     witnessTransactionIdsRehashed:true,
     syntheticSeparateSponsorFeesSats:4_000,
+    physicalMidCarrierScriptPubkeyHex:v.initialMidScriptPubkeyHex,
     bitcoinCoreConfirmed:false,
     bitcoinConsensusEnforcedMid:false,
     onlineOracleRequired:true,
