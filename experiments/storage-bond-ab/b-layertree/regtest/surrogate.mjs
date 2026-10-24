@@ -39,7 +39,11 @@ function bitcoinCli(binary,dir,method,args=[],wallet=null) {
   const p=spawnSync(binary,[...flags,method,...params],{
     shell:false,encoding:'utf8',timeout:30000,maxBuffer:6_000_000});
   need(!p.error&&p.status===0,method+' failed: '+String(p.stderr||p.error).slice(0,1000));
-  try{return JSON.parse(p.stdout);}catch{return p.stdout.trim();}
+  // bitcoin-cli emits empty stdout for JSON-RPC null, including spent
+  // gettxout queries. Treating that as an ordinary string fakes UTXO liveness.
+  const raw=p.stdout.trim();
+  if(raw==='')return null;
+  try{return JSON.parse(raw);}catch{return raw;}
 }
 function outpointFrom(tx,script,amount) {
   const matches=tx.vout.filter(o=>sats(o.value)===amount&&
