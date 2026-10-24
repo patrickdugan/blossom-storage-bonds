@@ -28,6 +28,8 @@ use std::{collections::BTreeMap, env, error::Error, fs, io::Write, path::PathBuf
 type ResultX<T> = Result<T, Box<dyn Error>>;
 #[path = "p2tr_frost_regtest/offline_preparation.rs"]
 mod offline_preparation;
+#[path = "p2tr_frost_regtest/owner_branch_preparation.rs"]
+mod owner_branch_preparation;
 #[path = "p2tr_frost_regtest/holder_redemption.rs"]
 mod holder_redemption;
 type Packages = BTreeMap<frost::Identifier, frost::keys::KeyPackage>;
@@ -507,6 +509,8 @@ fn main(){
     let args=env::args().skip(1).collect::<Vec<_>>();
     let result=if args.first().map(String::as_str)==Some("--freeze-offline"){
         offline_preparation::prepare(args[1..].to_vec())
+    }else if args.first().map(String::as_str)==Some("--freeze-owner-branches"){
+        owner_branch_preparation::prepare(args[1..].to_vec())
     }else{
         run(args)
     };
