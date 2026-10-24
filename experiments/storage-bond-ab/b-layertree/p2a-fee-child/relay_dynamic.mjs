@@ -263,8 +263,8 @@ export async function run({binary,datadir,dir,sha256,first,attackStep,out}){
   required(['first','second','none'].includes(attackStep),'unknown P2A fee attack stage');
   const signedBytes=await readFile(resolve(dir,'p2a-frozen.json'));
   const originalSeal=(await readFile(resolve(dir,'p2a-frozen.sha256'),'utf8')).trim();
-  required(h64(sha256)&&sha256===sha256 &&originalSeal===sha256 &&
-    sha256===globalSha(signedBytes),
+  required(h64(sha256)&&originalSeal===sha256.toLowerCase() &&
+    globalSha(signedBytes)===sha256.toLowerCase(),
     'presigner frozen recovery material was modified or rolled back');
   const manifest=JSON.parse(signedBytes);
   const node=(m,a=[],w=null)=>rpc(binary,datadir,m,a,w);
