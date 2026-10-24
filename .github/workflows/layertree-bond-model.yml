@@ -39,7 +39,8 @@ jobs:
             experiments/storage-bond-ab/testnet/observe.test.mjs \
             experiments/storage-bond-ab/compare-funded.test.mjs \
             experiments/storage-bond-ab/shared/export_sentinels.test.mjs \
-            experiments/storage-bond-ab/compare-frost-funded.test.mjs
+            experiments/storage-bond-ab/compare-frost-funded.test.mjs \
+            experiments/storage-bond-ab/b-layertree/mid/verify_mid_vectors.test.mjs
       - name: Produce reproducible scenario A/B receipts
         run: |
           node experiments/storage-bond-ab/run.mjs --out ab-results
