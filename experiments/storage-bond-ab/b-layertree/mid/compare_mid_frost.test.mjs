@@ -67,7 +67,7 @@ function fixture(){
 test('real oracle and Bitcoin FROST paths share only economic amounts, not authorization',()=>{
   const f=fixture(),r=compareMidFrost(f.mid,f.oracle,f.fro);
   assert.equal(r.initialCollateralMatched,true);
-  assert.equal(r.officiallyEquivalent,false);
+  assert.equal(r.beneficiaryReleasePattern.sameAuthorizationTransaction,false);
   assert.equal(r.samePhysicalBitcoinCarrier,false);
   assert.equal(r.proofStatus.bitcoinConsensusEnforcesMid,false);
   assert.equal(r.adversarial.realFrostQuorumCanSignAlternativeCommitmentWithSamePayouts,true);
