@@ -38,7 +38,7 @@ function checkTx(t,expectedSum,ownerScript){
     'missing two-input oracle+fee signed MID witness');
   check(t.wtxid.toLowerCase()===doubleHash(t.hex),
     'real signed MID witness was substituted or mislabeled');
-  check(Array.isArray(t.outputs)&&t.outputs.length>=3 &&
+  check(Array.isArray(t.outputs)&&t.outputs.length===2 &&
     t.outputs[0].index===0&&t.outputs[0].sats===expectedSum &&
     t.outputs[1].index===1&&
     t.outputs[1].scriptPubkeyHex===ownerScript,
