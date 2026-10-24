@@ -105,7 +105,7 @@ if(p.schema!=="bsb-ab-p2tr-real-frost-regtest-v1"||
    p.beneficiaryRedemptions.bob.rawTransaction.confirmations<6||
    p.beneficiaryRedemptions.provesPreSplitFederationFreeExit!==false||
    p.limits.independentHolderSpendAfterQuorumSettlement!==true||
-   p.limits.unilateralCarrierExitBeforeFederationSettlement!==false||
+   p.limits.preSettlementCarrierExitByEitherHolder!==false||
    p.limits.bitcoinCoreBip341AndP2TRKeyPathAccepted!==true||
    p.limits.realSapioMidCovenant!==false||
    p.limits.realFrostAcrossNetworkPeers!==false||
