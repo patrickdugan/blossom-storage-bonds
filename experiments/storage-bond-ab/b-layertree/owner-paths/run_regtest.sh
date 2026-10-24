@@ -141,7 +141,7 @@ if(p.schema!=='bsb-frost-owner-specific-signer-dead-regtest-v1'||
    p.independentlyConfirmedOutputs.bob.sats!==40000||
    p.externalSponsorFeesSats!==6000||
    p.securityBoundaries.activeMaliciousQuorumCanStillSteal!==true||
-   p.securityBoundaries.holderExclusiveCarrierSignature!==false||
+   p.securityBoundaries.noOwnerExclusiveBitcoinKeyForCarrier!==true||
    p.securityBoundaries.anyoneWithSignedBytesCanRelay!==true||
    p.securityBoundaries.bitcoinScriptEnforcesMidPolicy!==false)
   throw Error('owner first-exit proof is incomplete or makes unsupported custody claims');
