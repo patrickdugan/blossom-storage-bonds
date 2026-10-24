@@ -218,7 +218,7 @@ The shared application amounts do not turn the MID and FROST wallet
 into the same physical Bitcoin carrier or enforce the MID oracle's
 Merkle-sum transition policy at consensus.
 
-[Complete nonsecret experimental evidence](https://github.com/patrickdugan/blossom-storage-bonds/actions/runs/40081402988/artifacts/12555322348)
+[Complete nonsecret experimental evidence](https://github.com/patrickdugan/blossom-storage-bonds/actions/runs/40081402988/artifacts/12555197842)
 may be unavailable after GitHub Actions retention; rerun
 `.github/workflows/layertree-mid-pinned-interop.yml` to regenerate.
 The [differential design and acceptance criteria](b-layertree/mid/DIFFERENTIAL.md)
