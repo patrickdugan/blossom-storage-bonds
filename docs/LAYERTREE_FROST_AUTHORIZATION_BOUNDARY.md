@@ -63,6 +63,39 @@ bypassing the leaves. Excluding the keypath with an appropriate
 NUMS construction avoids one bypass but is insufficient if a
 malicious online oracle can independently authorize a wrapper leaf.
 
+## Executed authority differential (24 October)
+
+The [joint pinned CI run](https://github.com/patrickdugan/blossom-storage-bonds/actions/runs/40081402988)
+ran Sapio's actual compiled MID guest and funded FROST P2TR Bitcoin Core
+transactions in one job. Four MID oracle guest tests passed, including
+the wrong-payout rejection even after a fresh owner signature.
+An injected **test-only example** compiled against exactly pinned Sapio
+`34363851a11d0f2b3ddb27c050537c1a2e5b7e9b` exported its real
+oracle-signed 60k/40k EXIT transactions. A separate verifier rehashed
+the witnesses, checked linked input ancestry, and established actual
+Merkle-sum progression **100,000 -> 40,000 -> 0 sats** with distinct
+beneficiary scripts. Those example outpoints are synthetic, NOT Bitcoin
+Core-mined transactions.
+
+The independent FROST run produced a new and narrower physical
+counterexample than outright principal theft: a fresh 2-of-3
+BIP341/Taproot keypath signature authorized a **different application
+state commitment** with the **same Alice 60k, Bob 40k, and sponsor fee**
+outputs. Bitcoin Core accepted that non-broadcast alternative in its
+mempool policy check. This demonstrates the lack of state-transition
+enforcement in the keypath even for an economically identical payout.
+
+The actual compiled MID output script and the funded FROST P2TR
+carrier's output script are different, and the beneficiary scripts
+are not bound together. Their correct principal sums and matching
+external Blossom reference evidence do not make them the same
+cryptographic covenant. The full
+[MID/FROST differential receipt](https://github.com/patrickdugan/blossom-storage-bonds/actions/runs/40081402988/artifacts/12555197842)
+and [test drivers](../experiments/storage-bond-ab/b-layertree/mid/DIFFERENTIAL.md)
+record `samePhysicalBitcoinCarrier=false`,
+`bitcoinConsensusEnforcesMid=false`, and
+`offlineHolderRecoveryWithoutOracleOrFederation=false`.
+
 ## Holder custody has two distinct states
 
 | Stage | Alice | Bob | Material Bitcoin security condition |
