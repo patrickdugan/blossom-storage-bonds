@@ -26,6 +26,8 @@ use sha2::{Digest, Sha256};
 use std::{collections::BTreeMap, env, error::Error, fs, io::Write, path::PathBuf, process::Command, str::FromStr};
 
 type ResultX<T> = Result<T, Box<dyn Error>>;
+#[path = "p2tr_frost_regtest/holder_redemption.rs"]
+mod holder_redemption;
 type Packages = BTreeMap<frost::Identifier, frost::keys::KeyPackage>;
 
 const PRINCIPAL: u64 = 100_000;
@@ -362,6 +364,8 @@ fn run(args:Vec<String>)->ResultX<()>{
             TxOut{value:Amount::from_sat(40_000),script_pubkey:bob_script.clone()},
         ],
         &sponsor_script,SPONSOR_INITIAL-2*EXTERNAL_FEE,honest_commit);
+    let pre_settlement_custody=
+        holder_redemption::assert_no_unilateral_carrier_exit(&rpc,&honest_base)?;
     let (honest_frost,honest_quorum)=sign_frost_keypath(
         &public,&packages,&identifiers,[0,2],&honest_base,
         &[carrier_output.clone(),fee_output.clone()],taproot_key,&mut rng)?;
@@ -388,6 +392,8 @@ fn run(args:Vec<String>)->ResultX<()>{
         "Bitcoin Core admitted a conflicting quorum payout after confirmed honest settlement")?;
     let (alice_point,_)=rpc.coin(&settlement_id,&alice_script,60_000)?;
     let (bob_point,_)=rpc.coin(&settlement_id,&bob_script,40_000)?;
+    let beneficiary_redemptions=holder_redemption::redeem_distinct_wallets(
+        &rpc,&miner_addr,alice_point,bob_point)?;
     let report=json!({
         "schema":"bsb-ab-p2tr-real-frost-regtest-v1",
         "chain":"regtest",
@@ -425,6 +431,8 @@ fn run(args:Vec<String>)->ResultX<()>{
         },
         "refresh":output_summary(&confirmed_refresh)?,
         "payout":output_summary(&confirmed_settlement)?,
+        "preSettlementCustodyChecks":pre_settlement_custody,
+        "beneficiaryRedemptions":beneficiary_redemptions,
         "limits":{
             "filecoinFaultVerifiedByBitcoin":false,
             "blossomPdpVerifiedByBitcoin":false,
@@ -432,6 +440,8 @@ fn run(args:Vec<String>)->ResultX<()>{
             "realLayerTreeRefresh":false,
             "realFrostAcrossNetworkPeers":false,
             "independentHolderExitWithoutFederation":false,
+            "independentHolderSpendAfterQuorumSettlement":true,
+            "preSettlementCarrierExitByEitherHolder":false,
             "publicTestnetSpend":false,
             "bitcoinCoreBip341AndP2TRKeyPathAccepted":true
         }
