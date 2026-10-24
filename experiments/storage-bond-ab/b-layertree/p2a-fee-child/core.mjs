@@ -72,7 +72,9 @@ export function child(node,parent,feeWallet,feeSats=3000){
   const destination=node('getnewaddress',[],feeWallet);
   need(typeof destination==='string','external fee address missing');
   const outputs={[destination]:amount(inSats-feeSats)};
-  const unsigned=node('createrawtransaction',[txinputs,outputs]);
+  // Bitcoin Core 30.x defaults createrawtransaction to v2.
+  // Its fifth positional argument explicitly requests TRUC version 3.
+  const unsigned=node('createrawtransaction',[txinputs,outputs,0,true,3]);
   const p2a=[{txid:anchor.txid,vout:anchor.vout,
     scriptPubKey:'51024e73',amount:0}];
   const sig=node('signrawtransactionwithwallet',[unsigned,p2a],feeWallet);
