@@ -79,13 +79,22 @@ export function child(node,parent,feeWallet,feeSats=3000){
   need(sig&&typeof sig.hex==='string',
     'relay payer did not provide signed TRUC P2A fee-child transaction');
   const signed=node('decoderawtransaction',[sig.hex]);
-  need(signed.version===3&&signed.vin.length===2&&signed.vout.length===1&&
-    signed.vin[0].txid===anchor.txid&&signed.vin[0].vout===anchor.vout&&
-    signed.vin[1].txid===coin.txid&&signed.vin[1].vout===coin.vout&&
-    (signed.vin[0].txinwitness?.length||0)===0&&
-    signed.vin[1].txinwitness?.length>0&&
-    sats(signed.vout[0].value)===inSats-feeSats,
-    'relay-time fee child altered parent reference or was not independently signed');
+  const checks={
+    version3:signed.version===3,
+    inputs2:signed.vin.length===2,
+    outputs1:signed.vout.length===1,
+    anchorTxid:signed.vin[0]?.txid===anchor.txid,
+    anchorVout:signed.vin[0]?.vout===anchor.vout,
+    feeCoinTxid:signed.vin[1]?.txid===coin.txid,
+    feeCoinVout:signed.vin[1]?.vout===coin.vout,
+    anchorWitnessEmpty:!signed.vin[0]?.txinwitness?.length,
+    feeInputSigned:Boolean(signed.vin[1]?.txinwitness?.length),
+    correctChange:signed.vout.length===1 &&
+      sats(signed.vout[0].value)===inSats-feeSats
+  };
+  need(Object.values(checks).every(Boolean),
+    'relay-time fee child disagrees with exact Bitcoin input/output contract: '+
+    JSON.stringify(checks));
   const original=parent.txid;
   need(signed.vin[0].txid===original,'fresh fee child mutated the frozen parent');
   return {signedHex:sig.hex,tx:signed,feeCoin:coin,
