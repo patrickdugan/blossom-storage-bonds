@@ -32,6 +32,7 @@ async function begin(p){
  ok(m.schema==='bsb-frost-v3-p2a-frozen-v1'&&m.network==='disposable-regtest-only'&&
    m.currentGeneration===gen&&m.generations?.length===gen+1&&
    row?.carrierBefore&&m.generations.at(-2).refreshBroadcast?.txid===p['--refresh-txid']&&
+   !Object.hasOwn(m.generations.at(-2).refreshBroadcast,'signedHex')&&
    row.carrierBefore===p['--refresh-txid']+':0'&&
    row.branches?.alice?.first?.carrierInput===row.carrierBefore&&
    row.branches?.bob?.first?.carrierInput===row.carrierBefore,'candidate does not bind presigned next carrier');

@@ -16,7 +16,14 @@ but holds it **unbroadcast** while the prospective holder delivery occurs.
 Each next-generation holder-specific Ed25519 delivery envelope contains the
 identical signed Bitcoin recovery set and is tied to the known future
 refresh txid/outpoint, current prospective manifest digest, owner payout
-script and previous delivery chain. Two distinct Node holder processes
+script and previous delivery chain. The preapproval package omits the
+fully signed witness of the **prospective refresh transaction** while
+retaining its txid and wtxid commitment. This prevents a recipient
+from broadcasting the pending refresh using bytes supplied as part of
+the delivery. The signing coordinator still possesses those bytes,
+and a colluding FROST quorum can create an alternative spend.
+
+Two distinct Node holder processes
 each own a generated Ed25519 ACK key in separate private directories.
 They authenticate the sender envelope, append and fsync the package and
 rollback checkpoint, reread retained state, and sign ACK receipts.

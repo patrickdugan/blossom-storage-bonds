@@ -265,10 +265,12 @@ pub(super) fn prepare(args:Vec<String>)->ResultX<()> {
                 let next_rows=build_branches(generation+1,next_point,&next_output,
                     vault_script.clone(),alice_script.clone(),bob_script.clone(),
                     &public,&packages,&ids,tap,&mut rng)?;
+                // Preapproval holders get the future *recovery* DAG and
+                // only this refresh's txid/wtxid; keep its ready-to-broadcast
+                // signed witness secret until both ACKs have arrived.
                 let signed_refresh=json!({
                     "txid":signed.compute_txid().to_string(),
                     "wtxid":signed.compute_wtxid().to_string(),
-                    "signedHex":serialize_hex(&signed),
                     "staticSponsorInputBeforeOutage":fee_point.to_string(),
                     "feeSats":EXTERNAL_FEE,"principalNextSats":PRINCIPAL,
                 });

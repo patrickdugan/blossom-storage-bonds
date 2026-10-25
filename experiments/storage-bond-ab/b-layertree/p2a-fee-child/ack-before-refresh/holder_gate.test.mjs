@@ -15,3 +15,18 @@ test('two separate holder processes ACK before both prospective carrier refreshe
 for(const [scenario,at] of [['missing-alice',1],['missing-bob',1],['tampered-envelope',1],['forged-ack',1],['partial-before-ack',1],['stale-ack-second',2],['rollback-second',2]]){
  test('ACK gate denies '+scenario,async t=>{const x=await runGate(t,scenario);assert.equal(x.blockedAt,at);assert.equal(x.receipt.status,'blocked');});
 }
+
+test('gate refuses to leak a ready-to-broadcast refresh witness to either holder',async t=>{
+ const root=await mkdtemp(join(tmpdir(),'holder-gate-no-refresh-leak-'));
+ t.after(()=>rm(root,{recursive:true,force:true}));
+ const m=JSON.parse(manifest(1));
+ m.generations[0].refreshBroadcast.signedHex='03000000'+('ee'.repeat(140));
+ const bytes=Buffer.from(JSON.stringify(m)),file=join(root,'source.json'),out=join(root,'result.json');
+ await writeFile(file,bytes);
+ const c=spawnSync(process.execPath,[resolve(import.meta.dirname,'holder_gate.mjs'),
+   '--candidate',file,'--sha256',hash(bytes),'--refresh-txid',refresh[0],
+   '--generation','1','--store',join(root,'storage'),
+   '--scenario','success','--out',out],{encoding:'utf8'});
+ assert.notEqual(c.status,0);assert.match(c.stderr,/REFRESH_BLOCKED/);
+ assert.equal(JSON.parse(await readFile(out)).status,'blocked');
+});
