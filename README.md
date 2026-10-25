@@ -1,7 +1,15 @@
 # blossom-storage-bonds
 
-Filecoin's job, verifiable paid storage, rebuilt from Nostr, Blossom, Lightning and plain Bitcoin
-tapscript. It needs no token, no chain of its own, no committee and no oracle.
+Research on verifiable paid storage using Nostr, Blossom, Lightning and Bitcoin
+Taproot. The original sentinel proposal avoids a committee; the separate
+LayerTree/FROST overlay instead uses threshold signing and exposes different
+trust and custody assumptions.
+
+**Research only. Do not use with real funds.** Passing Bitcoin Core regtest
+checks show bounded script and transaction behavior under their exact fixtures.
+Permissionless fault enforcement, malicious-quorum theft prevention, durable
+independent-holder custody and unattended refresh remain open.
+See [research security status](docs/RESEARCH_SECURITY_STATUS.md).
 
 - **Layer 1, pay per proof (off-chain).** Each epoch the client sends a random nonce over Nostr. The
   Blossom provider answers with Merkle paths for the chunks it selects, and the client checks them and
@@ -9,7 +17,7 @@ tapscript. It needs no token, no chain of its own, no committee and no oracle.
 - **Layer 2, the sentinel bond (on-chain).** The provider's collateral sits in a chain of presigned
   taproot states. To challenge, the client reveals a 16-byte secret. The provider then has Δ blocks to
   publish that secret plus the 64-byte window it names, one 80-byte item checked by `OP_SHA256`, or it
-  forfeits the bond. This works on mainnet today.
+  forfeits the bond. The underlying Taproot script operations are available in Bitcoin, while the complete storage-bond protocol remains experimental.
 
 The full design, findings and plan are in [docs/design.md](docs/design.md).
 
@@ -21,6 +29,8 @@ The full design, findings and plan are in [docs/design.md](docs/design.md).
 | `model/` | Executable TypeScript model: replica encryption, chunk tree, epoch proofs, sentinels, tapscript leaves with an interpreter, sizes, economics |
 | `model/fixture.ts` | Writes `fixtures/sentinels.json`, the seam between the model and the regtest harness |
 | `regtest/` | Rust harness (rust-bitcoin 0.32.7, musig2 0.4.1) that runs the bond chain as real transactions against Bitcoin Core |
+| `experiments/storage-bond-ab/` | Parallel sentinel and pooled LayerTree/FROST research, including signer-dead P2A recovery and holder ACK-before-refresh checks |
+| `docs/RESEARCH_SECURITY_STATUS.md` | What has merged, independently tested properties, and remaining consensus/security blockers |
 | `scripts/regtest-node.sh` | Starts a throwaway regtest node on RPC port 18543 |
 | `results/regtest.json` | Last harness run: measured vsizes and every accept/reject with Core's reason |
 
