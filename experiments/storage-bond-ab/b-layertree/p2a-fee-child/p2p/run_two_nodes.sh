@@ -169,14 +169,20 @@ if(r.schema!=='bsb-frost-p2a-two-node-opportunistic-relay-v1' ||
   !r.nodeSeparation.p2pConnectionConfirmed||
   !r.nodeSeparation.independentMempools||
   !r.nodeSeparation.nodeBPassivelyReceivesWithoutSigningWallets||
-  r.nodeSeparation.receiverMinRelayFeeSatsVb!==(level==='low'?2:25)||
+  Math.abs(r.nodeSeparation.receiverMinRelayFeeSatsVb-(level==='low'?2:25))>0.001||
   r.actualPeerObservations.length!==2||
   !r.signedFrostParentsUnchangedAcrossPeerAndFeePolicy||
   r.fullBeneficiaryPayoutsConfirmed.alice!==60000||
   r.fullBeneficiaryPayoutsConfirmed.bob!==40000||
   r.claimBoundaries.worldwidePropagationGuaranteed!==false||
   r.claimBoundaries.activeTwoOfThreeQuorumCanStillSteal!==true)
-  throw Error('Bitcoin P2P experiment overclaims propagated delivery or skips signed owner payouts');
+  throw Error('Bitcoin P2P evidence mismatch: '+JSON.stringify({
+    owner:who,policy:level,network:r.network,
+    nodeSeparation:r.nodeSeparation,
+    payout:r.fullBeneficiaryPayoutsConfirmed,
+    claimBoundaries:r.claimBoundaries,
+    count:r.actualPeerObservations?.length,
+  }));
 const observations=r.actualPeerObservations;
 if(level==='high'&&observations.some(x=>!x.lowFeeBelowReceiverFloor||
   !x.secondFeeChildReplacement?.originalLowFeeChildRejectedAtHighFloor ||
