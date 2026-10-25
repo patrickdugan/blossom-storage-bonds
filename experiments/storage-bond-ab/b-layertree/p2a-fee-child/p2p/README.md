@@ -1,5 +1,33 @@
 # Physical two-node 1P1C FROST/P2A relay at different fee floors
 
+## Verified head result — 25 October 2026
+
+[**Passing two-node Bitcoin Core CI #40150689489**](https://github.com/patrickdugan/blossom-storage-bonds/actions/runs/40150689489) 
+ran one low-floor and one high-floor sender/receiver pair, with
+[sanitized node-separated receipts](https://github.com/patrickdugan/blossom-storage-bonds/actions/runs/40150689489/artifacts/12581673541).
+
+| Actual receiver minimum relay feerate | Bitcoin Core outcome |
+| --- | --- |
+| 2 sat/vB | Both successive owner recovery packages propagated automatically over real connected P2P before **any** receiving-node `submitpackage` call; no RPC fallback needed |
+| 25 sat/vB | 5,000-sat child packages failed the receiver fee floor; a **different 15,000-sat child** was selected at origin for each frozen parent and both higher-fee packages propagated over P2P without receiving-node package submission |
+
+Four actual parent/child pairs were submitted, propagated and mined
+across the two independent histories; both Bitcoin nodes agreed on
+witness txids, active-chain blocks, payout scripts and the full
+60k/40k satoshi entitlements. No FROST private share was needed
+after the original signer process exited. The evidence flags
+`opportunisticP2PPropagationAllSteps=true` and
+`receiverLocalRpcFallbackNeeded=false` for **both** scenarios.
+
+An initial CI run failed only because the shell receipt verifier used
+strict floating-point equality for a BTC/kB-to-sats/vB conversion:
+2 sats/vB can evaluate to `2.0000000000000004`. The verifier now
+uses a narrow numerical tolerance, while the source experiment
+continues to assert its own fee-floor consistency. The successful
+end-to-end test is linked above; the unsuccessful run was not
+counted as an acceptance result.
+
+
 **Disposable real Bitcoin Core 30.3 regtest, not a global propagation or anti-pinning proof.**
 
 This child of [draft PR #11](https://github.com/patrickdugan/blossom-storage-bonds/pull/11)
