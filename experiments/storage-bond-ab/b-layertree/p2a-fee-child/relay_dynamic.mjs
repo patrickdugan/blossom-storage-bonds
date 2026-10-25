@@ -28,7 +28,7 @@ const outpoint=s=>{
   required(m&&Number.isSafeInteger(Number(m[2])),'bad frozen Bitcoin outpoint');
   return {txid:m[1],vout:Number(m[2])};
 };
-function rpc(binary,dir,method,args=[],wallet=null){
+export function rpc(binary,dir,method,args=[],wallet=null){
   const options=['-regtest','-datadir='+dir];
   if(wallet)options.push('-rpcwallet='+wallet);
   const p=spawnSync(binary,[...options,method,...args.map(x=>
@@ -41,7 +41,7 @@ function rpc(binary,dir,method,args=[],wallet=null){
   try{return JSON.parse(raw);}catch{return raw;}
 }
 const money=n=>{required(Number.isSafeInteger(n)&&n>=0,'bad sats to BTC');return Number((n/1e8).toFixed(8));};
-function decode(node,raw){
+export function decode(node,raw){
   const tx=node('decoderawtransaction',[raw]);
   required(tx&&h64(tx.txid)&&h64(tx.hash),'bad signed Bitcoin witness transaction');
   return tx;
@@ -73,7 +73,7 @@ function verifyParent(node,r,carrierSats){
     'zero-fee FROST parent fails exact principal conservation');
   return tx;
 }
-function verifyFrozen(manifest,node){
+export function verifyFrozen(manifest,node){
   required(manifest.schema==='bsb-frost-v3-p2a-frozen-v1'&&
     manifest.network==='disposable-regtest-only'&&
     manifest.realFrostThreshold==='2-of-3-secp256k1-tr-3.0.0'&&
@@ -142,7 +142,7 @@ function verifyFrozen(manifest,node){
     }
   }
 }
-function fundNewFeeCoin(node,wallet,minerAddress){
+export function fundNewFeeCoin(node,wallet,minerAddress){
   // Wallet created only in the no-FROST worker, not during pre-signing.
   node('createwallet',[wallet]);
   const address=node('getnewaddress',[],wallet);
@@ -156,14 +156,16 @@ function fundNewFeeCoin(node,wallet,minerAddress){
     'new third-party fee wallet not independently confirmed');
   return {wallet,address,script,point:{txid,vout:hits[0].n},value:100000};
 }
-function feeChild(node,parent,feeCoin){
+export function feeChild(node,parent,feeCoin,feeSats=5000){
+  required(Number.isSafeInteger(feeSats)&&feeSats>=1000&&feeSats<feeCoin.value,
+    'fee child must explicitly price its Bitcoin Core v3 package');
   // createrawtransaction defaults to v2; set exact 4-byte LE version to 3
   // BEFORE signing to meet Bitcoin Core TRUC package policy.
   const recipient=node('getnewaddress',[],feeCoin.wallet);
   const raw=node('createrawtransaction',[
     [{txid:parent.txid,vout:parent.anchorIndex},
       {txid:feeCoin.point.txid,vout:feeCoin.point.vout}],
-    {[recipient]:money(95000)},
+    {[recipient]:money(feeCoin.value-feeSats)},
   ]);
   required(typeof raw==='string'&&/^0[23]000000/i.test(raw),
     'Bitcoin Core created an unexpected base tx version for CPFP');
@@ -181,15 +183,15 @@ function feeChild(node,parent,feeCoin){
     decoded.vin[1].txid===feeCoin.point.txid&&
     decoded.vin[1].vout===feeCoin.point.vout &&
     decoded.vin[1].txinwitness?.length>0 &&
-    sats(decoded.vout[0].value)===95000,
+    sats(decoded.vout[0].value)===feeCoin.value-feeSats,
     'external child tries to alter BIP341 parent or does not fully sign fee input');
-  // Parent P2A contributes zero. Entire 5000-sat package fee comes
+  // Parent P2A contributes zero. Entire explicitly selected package fee comes
   // from the new, independently chosen 100k-sat external fee UTXO.
-  required(feeCoin.value-sats(decoded.vout[0].value)===5000,
+  required(feeCoin.value-sats(decoded.vout[0].value)===feeSats,
     'CPFP child does not account for the entire real package fee');
   return {raw:signed.hex,txid:decoded.txid,wtxid:decoded.hash,
     vsize:decoded.vsize,feeOutpoint:feeCoin.point.txid+':'+feeCoin.point.vout,
-    feeWallet:feeCoin.wallet,minerFeeSats:5000};
+    feeWallet:feeCoin.wallet,minerFeeSats:feeSats};
 }
 function sabotageSelectedFeeCoin(node,chosen,minerAddress){
   const doomed=chosen.point;
