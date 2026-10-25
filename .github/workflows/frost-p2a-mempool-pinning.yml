@@ -1,0 +1,72 @@
+name: Adversarial TRUC P2A mempool sibling eviction regtest
+
+# Uses actual frozen one-input BIP341 threshold FROST v3 parents and
+# freshly funded TRUC/P2A CPFP fee children after FROST signer exits.
+# No public Bitcoin funding; no claim that MID or malicious 2/3 is solved.
+on:
+  push:
+    branches:
+      - research/frost-p2a-mempool-pinning-2026-10-25
+    paths:
+      - experiments/storage-bond-ab/b-layertree/p2a-fee-child/pinning/**
+      - experiments/storage-bond-ab/b-layertree/frost-proof/src/bin/p2tr-frost-regtest.rs
+      - experiments/storage-bond-ab/b-layertree/frost-proof/src/bin/p2tr_frost_regtest/p2a_fee_independent.rs
+      - .github/workflows/frost-p2a-mempool-pinning.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  actual-bitcoin-core-p2a:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      CARGO_BUILD_JOBS: "2"
+      CARGO_INCREMENTAL: "0"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Verify reproducible FROST and relay source
+        run: |
+          set -euo pipefail
+          cargo test --locked \
+            --manifest-path experiments/storage-bond-ab/b-layertree/frost-proof/Cargo.toml
+          node --check experiments/storage-bond-ab/b-layertree/p2a-fee-child/pinning/probe_sibling.mjs
+          bash -n experiments/storage-bond-ab/b-layertree/p2a-fee-child/pinning/run_regtest.sh
+      - name: Fetch SHA256-verified Bitcoin Core 30.3 x86_64
+        env:
+          CORE_SHA256: 4753cd70416c629a2090503e8545a3c05e94a0f5037f8fb97b4c35c6e1afee0e
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/core"
+          cd "$RUNNER_TEMP/core"
+          curl --proto '=https' --tlsv1.2 -fsSLo bitcoin.tar.gz \
+            https://bitcoincore.org/bin/bitcoin-core-30.3/bitcoin-30.3-x86_64-linux-gnu.tar.gz
+          echo "$CORE_SHA256  bitcoin.tar.gz" | sha256sum -c -
+          tar -xzf bitcoin.tar.gz
+          test -x bitcoin-30.3/bin/bitcoind
+          test -x bitcoin-30.3/bin/bitcoin-cli
+
+      - name: Test hostile P2A incumbent child in mempool, sibling eviction and budget constraint
+        env:
+          BITCOIND_EXEC: ${{ runner.temp }}/core/bitcoin-30.3/bin/bitcoind
+          BITCOIN_CLI_EXEC: ${{ runner.temp }}/core/bitcoin-30.3/bin/bitcoin-cli
+          BSB_PINNING_RECEIPT_DIR: ${{ runner.temp }}/p2a-mempool-regtest-results
+        run: |
+          set -euo pipefail
+          bash experiments/storage-bond-ab/b-layertree/p2a-fee-child/pinning/run_regtest.sh
+
+      - name: Upload public Bitcoin Core receipts without frozen raw keys
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: FROST-P2A-local-mempool-sibling-policy-negative-controls
+          path: |
+            ${{ runner.temp }}/p2a-mempool-regtest-results/alice-first-low.json
+            ${{ runner.temp }}/p2a-mempool-regtest-results/bob-second-low.json
+            ${{ runner.temp }}/p2a-mempool-regtest-results/alice-first-high.json
+          if-no-files-found: error
+          retention-days: 7
