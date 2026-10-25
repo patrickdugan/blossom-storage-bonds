@@ -155,6 +155,28 @@ JS
     node -e 'let s="";process.stdin.on("data",x=>s+=x);process.stdin.on("end",()=>{
       const w=JSON.parse(s);if(w.length!==0)process.exit(1);
     })'
+  # Source FROST witness is frozen and its signer has exited. The separate
+  # Ed25519 delivery/ACK experiment retains each holder's identical full
+  # manifest, with an independently sealed checkpoint for each toy holder.
+  # This is a post-refresh transport rehearsal, not a Bitcoin refresh gate.
+  node experiments/storage-bond-ab/b-layertree/p2a-fee-child/delivery/check_signed_manifest.mjs \
+    --frozen-dir "$FROZEN" --sha256 "$PIN" \
+    --out "$BSB_P2P_RECEIPT_DIR/$CASE-delivery.json" \
+    >"$TMP/$CASE-delivery-check.json"
+  node - "$BSB_P2P_RECEIPT_DIR/$CASE-delivery.json" "$PIN" <<'JS'
+const fs=require('fs'),x=JSON.parse(fs.readFileSync(process.argv[2]));
+if(x.schema!=='bsb-p2a-frost-manifest-holder-delivery-test-v1' ||
+  x.network!=='disposable-regtest-only'||x.currentGeneration!==2||
+  x.independentlyPinnedManifestSha256!==process.argv[3]||
+  x.independentlySignedHolderAcks!==2||x.replaysRejected!==2||
+  !x.exactRealFrozenManifestBytesDelivered||
+  !x.twoDurableSeparateHolderCheckpoints||
+  !x.testProcessRestartReadbackPassed||
+  x.laterGenerationsPreacknowledgedBeforeOnchainRefresh!==false||
+  x.coLocatedDisposableAckKeysInTest!==true||
+  x.maliciousFrostQuorumCanStillSteal!==true)
+  throw Error('signed recovery delivery checkpoint disagrees with frozen signer');
+JS
   node experiments/storage-bond-ab/b-layertree/p2a-fee-child/p2p/probe_two_nodes.mjs \
     --bitcoin-cli "$BITCOIN_CLI_EXEC" \
     --origin-dir "$ORIGIN_DIR" --peer-dir "$RECEIVER_DIR" \
