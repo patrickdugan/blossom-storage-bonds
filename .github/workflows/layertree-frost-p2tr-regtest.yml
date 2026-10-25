@@ -1,0 +1,72 @@
+name: Funded B FROST BIP341 P2TR regtest
+
+# Real 2-of-3 FROST with Taproot tweak, Bitcoin Core-signed keypath input.
+# Not LayerTree MID or independent custody; the 2/3 quorum can steal.
+on:
+  push:
+    branches:
+      - research/layertree-storage-bond-overlay-2026-10-23
+    paths:
+      - "experiments/storage-bond-ab/b-layertree/frost-proof/**"
+      - ".github/workflows/layertree-frost-p2tr-regtest.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: real-p2tr-frost-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  real-frost-p2tr:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      CARGO_BUILD_JOBS: "2"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Report Rust compiler
+        run: |
+          rustc --version
+          cargo --version
+      - name: Fetch independently checksum-verified Bitcoin Core 30.3
+        env:
+          CORE_SHA: 4753cd70416c629a2090503e8545a3c05e94a0f5037f8fb97b4c35c6e1afee0e
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/core"
+          cd "$RUNNER_TEMP/core"
+          curl --proto '=https' --tlsv1.2 -fsSLo bitcoin.tar.gz \
+            https://bitcoincore.org/bin/bitcoin-core-30.3/bitcoin-30.3-x86_64-linux-gnu.tar.gz
+          echo "$CORE_SHA  bitcoin.tar.gz" | sha256sum -c -
+          tar -xzf bitcoin.tar.gz
+          test -x bitcoin-30.3/bin/bitcoind
+          test -x bitcoin-30.3/bin/bitcoin-cli
+      - name: Verify pinned FROST and rust-bitcoin dependencies
+        run: |
+          set -euo pipefail
+          test -s experiments/storage-bond-ab/b-layertree/frost-proof/Cargo.lock
+          cargo test --locked --manifest-path experiments/storage-bond-ab/b-layertree/frost-proof/Cargo.toml
+      - name: Exercise honest and malicious threshold BIP341 Bitcoin keypath transactions
+        env:
+          BITCOIND_EXEC: ${{ runner.temp }}/core/bitcoin-30.3/bin/bitcoind
+          BITCOIN_CLI_EXEC: ${{ runner.temp }}/core/bitcoin-30.3/bin/bitcoin-cli
+          BSB_B_FROST_RECEIPT_DIR: ${{ runner.temp }}/frost-p2tr-receipt
+        run: |
+          set -euo pipefail
+          bash -n experiments/storage-bond-ab/b-layertree/frost-proof/run_p2tr_regtest.sh
+          bash experiments/storage-bond-ab/b-layertree/frost-proof/run_p2tr_regtest.sh
+      - name: Retain sanitized public Bitcoin keypath proof, not shares or RPC credentials
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: real-frost-p2tr-bip341-regtest-not-sapio-mid
+          path: |
+            ${{ runner.temp }}/frost-p2tr-receipt/real-frost-p2tr-regtest.json
+            experiments/storage-bond-ab/b-layertree/frost-proof/Cargo.lock
+          if-no-files-found: error
+          retention-days: 7

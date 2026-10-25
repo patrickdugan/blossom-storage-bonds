@@ -1,0 +1,67 @@
+name: Matched-capital A Taproot sentinel regtest
+
+# Builds a source-preserving adapter for the original Rust Taproot harness.
+# Exercises 60k and 40k funded reference bonds, 42 total Core checks.
+on:
+  push:
+    branches:
+      - research/layertree-storage-bond-overlay-2026-10-23
+    paths:
+      - "experiments/storage-bond-ab/a-sentinel/regtest/matched/**"
+      - "experiments/storage-bond-ab/a-sentinel/regtest/run_matched.sh"
+      - ".github/workflows/layertree-sentinel-matched.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: matched-A-regtest-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  original-taproot-60k-and-40k:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      CARGO_BUILD_JOBS: "2"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Verify Rust toolchain
+        run: |
+          rustc --version
+          cargo --version
+
+      - name: Obtain pinned checksum-verified Bitcoin Core 30.3
+        env:
+          EXPECTED_SHA256: 4753cd70416c629a2090503e8545a3c05e94a0f5037f8fb97b4c35c6e1afee0e
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/core"
+          cd "$RUNNER_TEMP/core"
+          curl --proto '=https' --tlsv1.2 -fsSLo bitcoin.tar.gz \
+            https://bitcoincore.org/bin/bitcoin-core-30.3/bitcoin-30.3-x86_64-linux-gnu.tar.gz
+          echo "$EXPECTED_SHA256  bitcoin.tar.gz" | sha256sum -c -
+          tar -xzf bitcoin.tar.gz
+
+      - name: Execute independent A 60k and 40k on-chain histories
+        env:
+          BITCOIND_EXEC: ${{ runner.temp }}/core/bitcoin-30.3/bin/bitcoind
+          BITCOIN_CLI_EXEC: ${{ runner.temp }}/core/bitcoin-30.3/bin/bitcoin-cli
+          BSB_A_AB_RECEIPT_DIR: ${{ runner.temp }}/matched-A
+        run: |
+          set -euo pipefail
+          bash -n experiments/storage-bond-ab/a-sentinel/regtest/run_matched.sh
+          bash experiments/storage-bond-ab/a-sentinel/regtest/run_matched.sh
+
+      - name: Archive strictly test-only Taproot receipts and fee limits
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: funded-A-60k-plus-40k-original-Taproot-not-matched-epochs
+          path: ${{ runner.temp }}/matched-A/
+          if-no-files-found: error
+          retention-days: 7

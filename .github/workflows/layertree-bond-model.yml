@@ -1,0 +1,57 @@
+name: LayerTree storage-bond A/B research
+
+on:
+  push:
+    branches:
+      - research/layertree-storage-bond-overlay-2026-10-23
+    paths:
+      - "model/layertree_bond_overlay*"
+      - "experiments/storage-bond-ab/**"
+      - "docs/LAYERTREE_STORAGE_BOND_OVERLAY.md"
+      - ".github/workflows/layertree-bond-model.yml"
+  pull_request:
+    paths:
+      - "model/layertree_bond_overlay*"
+      - "experiments/storage-bond-ab/**"
+      - "docs/LAYERTREE_STORAGE_BOND_OVERLAY.md"
+      - ".github/workflows/layertree-bond-model.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  bond-comparison:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Run model and A/B protocol regression tests
+        run: |
+          node --check model/layertree_bond_overlay.mjs
+          node --check experiments/storage-bond-ab/run.mjs
+          node --check experiments/storage-bond-ab/testnet/observe.mjs
+          node --test model/layertree_bond_overlay.test.mjs \
+            experiments/storage-bond-ab/run.test.mjs \
+            experiments/storage-bond-ab/testnet/observe.test.mjs \
+            experiments/storage-bond-ab/compare-funded.test.mjs \
+            experiments/storage-bond-ab/shared/export_sentinels.test.mjs \
+            experiments/storage-bond-ab/compare-frost-funded.test.mjs \
+            experiments/storage-bond-ab/b-layertree/mid/verify_mid_vectors.test.mjs \
+            experiments/storage-bond-ab/b-layertree/mid/compare_mid_frost.test.mjs
+      - name: Produce reproducible scenario A/B receipts
+        run: |
+          node experiments/storage-bond-ab/run.mjs --out ab-results
+          test -s ab-results/comparison.csv
+      - name: Publish model-only comparison transcript
+        uses: actions/upload-artifact@v4
+        with:
+          name: layertree-sentinel-ab-model-only
+          path: ab-results/
+          if-no-files-found: error
+          retention-days: 14
+      - name: Verify clean whitespace
+        run: git diff --check
