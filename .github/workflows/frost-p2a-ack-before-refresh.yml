@@ -1,0 +1,83 @@
+name: FROST P2A holder ACK before actual Bitcoin refresh
+
+# Research-only: honest-coordinator gate over disposable Bitcoin Core 30.3.
+# No external network funds and no sharing of FROST/wallet private keys.
+on:
+  push:
+    branches:
+      - research/frost-p2a-ack-before-refresh-2026-10-25
+    paths:
+      - experiments/storage-bond-ab/b-layertree/frost-proof/src/bin/p2tr_frost_regtest/p2a_fee_independent.rs
+      - experiments/storage-bond-ab/b-layertree/p2a-fee-child/ack-before-refresh/**
+      - .github/workflows/frost-p2a-ack-before-refresh.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  holder-process-gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: All offline ACK/replay/rollback and separate-process checks
+        run: |
+          set -euo pipefail
+          DIR=experiments/storage-bond-ab/b-layertree/p2a-fee-child/ack-before-refresh
+          node --check "$DIR/holder_actor.mjs"
+          node --check "$DIR/holder_gate.mjs"
+          node --check "$DIR/holder_gate.test.mjs"
+          bash -n "$DIR/run_regtest.sh"
+          node --test "$DIR/holder_gate.test.mjs"
+
+  real-core-refresh-gate:
+    needs: holder-process-gate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      CARGO_BUILD_JOBS: "2"
+      CARGO_INCREMENTAL: "0"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Offline Rust FROST signer preflight
+        run: |
+          set -euo pipefail
+          cargo test --locked \
+            --manifest-path experiments/storage-bond-ab/b-layertree/frost-proof/Cargo.toml
+      - name: Install SHA256-verified Bitcoin Core 30.3
+        env:
+          CORE_SHA256: 4753cd70416c629a2090503e8545a3c05e94a0f5037f8fb97b4c35c6e1afee0e
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/core"
+          cd "$RUNNER_TEMP/core"
+          curl --proto '=https' --tlsv1.2 -fsSLo bitcoin.tar.gz \
+            https://bitcoincore.org/bin/bitcoin-core-30.3/bitcoin-30.3-x86_64-linux-gnu.tar.gz
+          echo "$CORE_SHA256  bitcoin.tar.gz" | sha256sum -c -
+          tar -xzf bitcoin.tar.gz
+          test -x bitcoin-30.3/bin/bitcoind
+          test -x bitcoin-30.3/bin/bitcoin-cli
+      - name: Actual Bitcoin Core gate precedes signed carrier invalidation
+        env:
+          BITCOIND_EXEC: ${{ runner.temp }}/core/bitcoin-30.3/bin/bitcoind
+          BITCOIN_CLI_EXEC: ${{ runner.temp }}/core/bitcoin-30.3/bin/bitcoin-cli
+          BSB_GATE_RECEIPT_DIR: ${{ runner.temp }}/frost-pre-refresh-holder-acks
+        run: |
+          set -euo pipefail
+          bash experiments/storage-bond-ab/b-layertree/p2a-fee-child/ack-before-refresh/run_regtest.sh
+      - name: Archive sanitized ACK and Bitcoin Core refusal/confirmation receipts
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frost-two-ack-before-bitcoin-refresh-physical-regtest
+          path: |
+            ${{ runner.temp }}/frost-pre-refresh-holder-acks/*.json
+          if-no-files-found: error
+          retention-days: 7

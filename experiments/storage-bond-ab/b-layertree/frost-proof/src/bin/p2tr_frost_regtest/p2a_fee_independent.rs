@@ -83,8 +83,69 @@ fn freeze_file(path:&Path,bytes:&[u8])->ResultX<()>{
     file.write_all(bytes)?;file.sync_all()?;
     Ok(())
 }
+
+fn build_branches(
+    generation:u32,carrier_point:OutPoint,carrier_output:&TxOut,
+    vault_script:ScriptBuf,alice_script:ScriptBuf,bob_script:ScriptBuf,
+    public:&frost::keys::PublicKeyPackage,packages:&Packages,
+    ids:&[frost::Identifier],tap:XOnlyPublicKey,rng:&mut OsRng,
+)->ResultX<serde_json::Map<String,Value>>{
+        let mut branch_rows=serde_json::Map::new();
+        for (first_name,second_name,first_sats,second_sats,
+             first_script,second_script) in [
+            ("alice","bob",60_000u64,40_000u64,
+                alice_script.clone(),bob_script.clone()),
+            ("bob","alice",40_000u64,60_000u64,
+                bob_script.clone(),alice_script.clone()),
+        ]{
+            let first=parent(carrier_point,vec![
+                TxOut{value:Amount::from_sat(second_sats),
+                    script_pubkey:vault_script.clone()},
+                TxOut{value:Amount::from_sat(first_sats),
+                    script_pubkey:first_script.clone()},
+            ]);
+            let signed_first=signed_parent(&public,&packages,&ids,tap,
+                first,carrier_output,rng)?;
+            let first_agreement=[
+                (vault_script.clone(),second_sats),
+                (first_script,first_sats),
+                (anchor(),0),
+            ];
+            let first_record=record(&signed_first,&first_agreement,
+                carrier_point,first_name,generation,"first")?;
+            let descendant=OutPoint::new(signed_first.compute_txid(),0);
+            let remaining=TxOut{
+                value:Amount::from_sat(second_sats),
+                script_pubkey:vault_script.clone(),
+            };
+            let second=parent(descendant,vec![TxOut{
+                value:Amount::from_sat(second_sats),
+                script_pubkey:second_script.clone(),
+            }]);
+            let signed_second=signed_parent(&public,&packages,&ids,tap,
+                second,&remaining,rng)?;
+            let second_agreement=[
+                (second_script,second_sats),
+                (anchor(),0),
+            ];
+            let second_record=record(&signed_second,&second_agreement,
+                descendant,second_name,generation,"second")?;
+            branch_rows.insert(first_name.into(),json!({
+                "first":first_record,
+                "second":second_record,
+                "firstReceivesSats":first_sats,
+                "secondReceivesSats":second_sats,
+                "otherOwner":second_name,
+                "descendantOutpoint":descendant.to_string(),
+                "noFeeInputsInEitherFrostSignature":true,
+            }));
+        }
+        Ok(branch_rows)
+}
+
 pub(super) fn prepare(args:Vec<String>)->ResultX<()> {
     let mut cli=None;let mut dir=None;let mut evidence=None;let mut out=None;
+    let mut gate_script=None;let mut gate_store=None;let mut gate_scenario=None;
     let mut args=args.into_iter();
     while let Some(flag)=args.next(){
         let val=args.next().ok_or("missing P2A preparation argument value")?;
@@ -93,6 +154,9 @@ pub(super) fn prepare(args:Vec<String>)->ResultX<()> {
             "--datadir"=>dir=Some(val),
             "--evidence-hash"=>evidence=Some(val),
             "--out-dir"=>out=Some(val),
+            "--gate-script"=>gate_script=Some(val),
+            "--gate-store"=>gate_store=Some(val),
+            "--gate-scenario"=>gate_scenario=Some(val),
             _=>return Err(format!("unknown offline P2A argument {flag}").into()),
         }
     }
@@ -107,6 +171,20 @@ pub(super) fn prepare(args:Vec<String>)->ResultX<()> {
     let outdir=PathBuf::from(out.ok_or("missing exclusive output directory")?);
     require(!outdir.join("p2a-frozen.json").exists(),
         "previous signed P2A parent exports must not be overwritten")?;
+    let gated=gate_script.is_some()||gate_store.is_some()||gate_scenario.is_some();
+    require(!gated||(gate_script.is_some()&&gate_store.is_some()&&gate_scenario.is_some()),
+        "FROST gate script, storage and scenario must be supplied together")?;
+    if let Some(script)=&gate_script{
+        require(Path::new(script).is_absolute(),"require absolute audited holder gate script")?;
+    }
+    if let Some(store)=&gate_store{
+        require(Path::new(store).is_absolute(),"require absolute private holder root")?;
+    }
+    fs::create_dir_all(&outdir)?;
+    #[cfg(unix)]{
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(&outdir,fs::Permissions::from_mode(0o700))?;
+    }
     let (shares,public)=frost::keys::generate_with_dealer(
         3,2,frost::keys::IdentifierList::Default,&mut OsRng)?;
     let mut packages=Packages::new();
@@ -149,57 +227,17 @@ pub(super) fn prepare(args:Vec<String>)->ResultX<()> {
     }
     let mut rng=OsRng;
     let mut generations=Vec::new();
+    let mut staged_next:Option<(OutPoint,serde_json::Map<String,Value>)>=None;
     for generation in 0..3u32{
-        let mut branch_rows=serde_json::Map::new();
-        for (first_name,second_name,first_sats,second_sats,
-             first_script,second_script) in [
-            ("alice","bob",60_000u64,40_000u64,
-                alice_script.clone(),bob_script.clone()),
-            ("bob","alice",40_000u64,60_000u64,
-                bob_script.clone(),alice_script.clone()),
-        ]{
-            let first=parent(carrier_point,vec![
-                TxOut{value:Amount::from_sat(second_sats),
-                    script_pubkey:vault_script.clone()},
-                TxOut{value:Amount::from_sat(first_sats),
-                    script_pubkey:first_script.clone()},
-            ]);
-            let signed_first=signed_parent(&public,&packages,&ids,tap,
-                first,&carrier_output,&mut rng)?;
-            let first_agreement=[
-                (vault_script.clone(),second_sats),
-                (first_script,first_sats),
-                (anchor(),0),
-            ];
-            let first_record=record(&signed_first,&first_agreement,
-                carrier_point,first_name,generation,"first")?;
-            let descendant=OutPoint::new(signed_first.compute_txid(),0);
-            let remaining=TxOut{
-                value:Amount::from_sat(second_sats),
-                script_pubkey:vault_script.clone(),
-            };
-            let second=parent(descendant,vec![TxOut{
-                value:Amount::from_sat(second_sats),
-                script_pubkey:second_script.clone(),
-            }]);
-            let signed_second=signed_parent(&public,&packages,&ids,tap,
-                second,&remaining,&mut rng)?;
-            let second_agreement=[
-                (second_script,second_sats),
-                (anchor(),0),
-            ];
-            let second_record=record(&signed_second,&second_agreement,
-                descendant,second_name,generation,"second")?;
-            branch_rows.insert(first_name.into(),json!({
-                "first":first_record,
-                "second":second_record,
-                "firstReceivesSats":first_sats,
-                "secondReceivesSats":second_sats,
-                "otherOwner":second_name,
-                "descendantOutpoint":descendant.to_string(),
-                "noFeeInputsInEitherFrostSignature":true,
-            }));
-        }
+        let branch_rows=if let Some((expected,rows))=staged_next.take(){
+            require(expected==carrier_point,
+                "staged carrier does not match actually confirmed refresh")?;
+            rows
+        }else{
+            build_branches(generation,carrier_point,&carrier_output,
+                vault_script.clone(),alice_script.clone(),bob_script.clone(),
+                &public,&packages,&ids,tap,&mut rng)?
+        };
         let refresh=if generation<2{
             // These are completed before signer disappearance, so the
             // static sponsor does not endanger post-outage owner exits.
@@ -217,6 +255,98 @@ pub(super) fn prepare(args:Vec<String>)->ResultX<()> {
             let signed=rpc.sign_sponsor(&frost)?;
             require(rpc.witness_authorization(&signed)?,
                 "completed preoutage refresh was not a real Bitcoin-valid spend")?;
+            if let (Some(script),Some(store),Some(scenario))=
+                (&gate_script,&gate_store,&gate_scenario){
+                // Sign all next-generation owner exits against the TXID of
+                // this FULLY signed, still UNBROADCAST Bitcoin refresh.
+                let next_point=OutPoint::new(signed.compute_txid(),0);
+                let next_output=TxOut{value:Amount::from_sat(PRINCIPAL),
+                    script_pubkey:vault_script.clone()};
+                let next_rows=build_branches(generation+1,next_point,&next_output,
+                    vault_script.clone(),alice_script.clone(),bob_script.clone(),
+                    &public,&packages,&ids,tap,&mut rng)?;
+                let signed_refresh=json!({
+                    "txid":signed.compute_txid().to_string(),
+                    "wtxid":signed.compute_wtxid().to_string(),
+                    "signedHex":serialize_hex(&signed),
+                    "staticSponsorInputBeforeOutage":fee_point.to_string(),
+                    "feeSats":EXTERNAL_FEE,"principalNextSats":PRINCIPAL,
+                });
+                let mut rows=generations.clone();
+                rows.push(json!({
+                    "generation":generation,
+                    "carrierBefore":carrier_point.to_string(),
+                    "carrierScriptPubkeyHex":hex(vault_script.as_bytes()),
+                    "branches":branch_rows.clone(),
+                    "refreshBroadcast":signed_refresh,
+                }));
+                rows.push(json!({
+                    "generation":generation+1,
+                    "carrierBefore":next_point.to_string(),
+                    "carrierScriptPubkeyHex":hex(vault_script.as_bytes()),
+                    "branches":next_rows.clone(),
+                    "refreshBroadcast":null,
+                }));
+                let candidate=json!({
+                    "schema":"bsb-frost-v3-p2a-frozen-v1",
+                    "network":"disposable-regtest-only",
+                    "principalSats":PRINCIPAL,
+                    "aliceSats":60_000,"bobSats":40_000,
+                    "feeIndependentSignedParents":true,
+                    "zeroValueAnchorScriptPubkeyHex":"51024e73",
+                    "beneficiaryScripts":{
+                        "alice":hex(alice_script.as_bytes()),
+                        "bob":hex(bob_script.as_bytes()),
+                    },
+                    "currentGeneration":generation+1,
+                    "generations":rows,
+                });
+                let bytes=serde_json::to_vec_pretty(&candidate)?;
+                let manifest_sha=hex(sha(&bytes));
+                let candidate_path=outdir.join(format!("prospective-g{}.json",generation+1));
+                freeze_file(&candidate_path,&bytes)?;
+                freeze_file(&outdir.join(format!("prospective-g{}.sha256",generation+1)),
+                    format!("{manifest_sha}\n").as_bytes())?;
+                let intent=json!({
+                    "schema":"bsb-frost-pre-refresh-intent-v1",
+                    "generationFrom":generation,
+                    "generationTo":generation+1,
+                    "currentCarrier":carrier_point.to_string(),
+                    "prospectiveCarrier":next_point.to_string(),
+                    "signedRefreshTxid":signed.compute_txid().to_string(),
+                    "signedRefreshWtxid":signed.compute_wtxid().to_string(),
+                    "futureManifestSha256":manifest_sha,
+                    "refreshBroadcastAtIntentWrite":false,
+                });
+                freeze_file(&outdir.join(format!("intent-g{}.json",generation)),
+                    &(serde_json::to_vec_pretty(&intent)?))?;
+                require(!rpc.call("gettxout",&[
+                        json!(carrier_point.txid.to_string()),
+                        json!(carrier_point.vout)],None)?.is_null(),
+                    "refresh gate attempted against already spent onchain carrier")?;
+                let receipt_path=outdir.join(format!("gate-g{}.json",generation+1));
+                let child=Command::new("node").arg(script)
+                    .arg("--candidate").arg(&candidate_path)
+                    .arg("--sha256").arg(&manifest_sha)
+                    .arg("--refresh-txid").arg(signed.compute_txid().to_string())
+                    .arg("--generation").arg((generation+1).to_string())
+                    .arg("--store").arg(store)
+                    .arg("--scenario").arg(scenario)
+                    .arg("--out").arg(&receipt_path).status()?;
+                require(child.success(),
+                    "prospective carrier refresh denied without both durable ACKs")?;
+                let receipt:Value=serde_json::from_slice(&fs::read(&receipt_path)?)?;
+                require(receipt["status"]=="approved"&&
+                    receipt["schema"]=="bsb-frost-p2a-pre-refresh-ack-gate-v1"&&
+                    receipt["generation"]==json!(generation+1)&&
+                    receipt["candidateManifestSha256"]==manifest_sha&&
+                    receipt["approvedRefreshTxid"]==signed.compute_txid().to_string()&&
+                    receipt["distinctHolderProcesses"]==2&&
+                    receipt["signedAcksVerifiedByCoordinator"]==2&&
+                    receipt["durablePerHolderCheckpointsReread"]==true,
+                    "gate failed to return source-bound holder ACK evidence")?;
+                staged_next=Some((next_point,next_rows));
+            }
             let txid=rpc.text("sendrawtransaction",&[json!(serialize_hex(&signed))],None)?;
             require(txid==signed.compute_txid().to_string(),"Bitcoin published wrong refresh")?;
             rpc.mine(1,&miner)?;
