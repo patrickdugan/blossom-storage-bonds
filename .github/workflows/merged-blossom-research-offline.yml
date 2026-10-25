@@ -1,0 +1,62 @@
+name: Merged Blossom research offline acceptance
+
+# Ensure the default branch and future research PRs retain the model/holder
+# invariants after the experimental FROST/P2A stack is merged.
+on:
+  push:
+    branches: [main]
+    paths:
+      - README.md
+      - docs/RESEARCH_SECURITY_STATUS.md
+      - experiments/storage-bond-ab/**
+      - model/layertree_bond_overlay*
+      - .github/workflows/merged-blossom-research-offline.yml
+  pull_request:
+    paths:
+      - README.md
+      - docs/RESEARCH_SECURITY_STATUS.md
+      - experiments/storage-bond-ab/**
+      - model/layertree_bond_overlay*
+      - .github/workflows/merged-blossom-research-offline.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  offline-model-and-holder:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Verify model, historical A/B controls and holder recovery gates
+        run: |
+          set -euo pipefail
+          node --check experiments/storage-bond-ab/b-layertree/p2a-fee-child/ack-before-refresh/holder_gate.mjs
+          node --check experiments/storage-bond-ab/b-layertree/p2a-fee-child/ack-before-refresh/holder_actor.mjs
+          bash -n experiments/storage-bond-ab/b-layertree/p2a-fee-child/ack-before-refresh/run_regtest.sh
+          node --test \
+            model/layertree_bond_overlay.test.mjs \
+            experiments/storage-bond-ab/run.test.mjs \
+            experiments/storage-bond-ab/compare-funded.test.mjs \
+            experiments/storage-bond-ab/compare-frost-funded.test.mjs \
+            experiments/storage-bond-ab/legacy-p2a-v1/compare-p2a-a.test.mjs \
+            experiments/storage-bond-ab/b-layertree/p2a-fee-child/delivery/holder_vault.test.mjs \
+            experiments/storage-bond-ab/b-layertree/p2a-fee-child/ack-before-refresh/holder_gate.test.mjs
+
+  pinned-frost-compile:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      CARGO_BUILD_JOBS: "2"
+      CARGO_INCREMENTAL: "0"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile and test pinned FROST/BIP341 regtest laboratory offline
+        run: |
+          set -euo pipefail
+          cargo test --locked --manifest-path \
+            experiments/storage-bond-ab/b-layertree/frost-proof/Cargo.toml

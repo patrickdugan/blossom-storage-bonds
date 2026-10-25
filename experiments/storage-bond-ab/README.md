@@ -10,9 +10,12 @@ is not restricted by Sapio MID. Genuine Filecoin consensus/fault evidence,
 holder recovery during a total oracle outage, and public signet trials
 remain unproven. The separate testnet observer is read-only.
 
-This work stays on the research branch and [draft PR #5](https://github.com/patrickdugan/blossom-storage-bonds/pull/5).
-The original Phase 1 sentinel regtest source under `regtest/` and the
-permissionless Binohash research PR #1 remain untouched.
+The experimental A/B work merged into `main` through
+[PR #5](https://github.com/patrickdugan/blossom-storage-bonds/pull/5)
+and its later stacked FROST/P2A research PRs. The original Phase 1 sentinel
+regtest source under `regtest/` remains independent. Permissionless
+Binohash admission stays blocked in [PR #1](https://github.com/patrickdugan/blossom-storage-bonds/pull/1).
+See [the current security boundary](../../docs/RESEARCH_SECURITY_STATUS.md).
 
 ## Implementation folders
 
