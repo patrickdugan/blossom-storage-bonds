@@ -1,0 +1,74 @@
+name: FROST owner-first branch recovery from a dead signer
+
+# Disposable Bitcoin Core only. Alice-first OR Bob-first from same 100k
+# carrier, pre-signed other-owner descendant recovery and 3 generations.
+# FROST signer goes away before Node-only relay. An active malicious quorum
+# can STILL spend keypath funds incorrectly; this is outage liveness only.
+on:
+  push:
+    branches:
+      - research/frost-owner-branch-recovery-2026-10-24
+    paths:
+      - experiments/storage-bond-ab/b-layertree/owner-paths/**
+      - experiments/storage-bond-ab/b-layertree/frost-proof/src/bin/p2tr-frost-regtest.rs
+      - experiments/storage-bond-ab/b-layertree/frost-proof/src/bin/p2tr_frost_regtest/owner_branch_preparation.rs
+      - .github/workflows/layertree-frost-owner-branch.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  both-owner-claim-orderings:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      CARGO_BUILD_JOBS: "2"
+      CARGO_INCREMENTAL: "0"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Pinned FROST Rust compile and separate no-signer runner syntax
+        run: |
+          set -euo pipefail
+          cargo test --locked \
+            --manifest-path experiments/storage-bond-ab/b-layertree/frost-proof/Cargo.toml
+          node --check experiments/storage-bond-ab/b-layertree/owner-paths/relay_owner_branch.mjs
+          bash -n experiments/storage-bond-ab/b-layertree/owner-paths/run_regtest.sh
+
+      - name: Download Bitcoin Core 30.3 with independent Guix checksum
+        env:
+          BITCOIN_CORE_SHA256: 4753cd70416c629a2090503e8545a3c05e94a0f5037f8fb97b4c35c6e1afee0e
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/bitcoin-core"
+          cd "$RUNNER_TEMP/bitcoin-core"
+          curl --proto '=https' --tlsv1.2 -fsSLo bitcoin.tar.gz \
+            https://bitcoincore.org/bin/bitcoin-core-30.3/bitcoin-30.3-x86_64-linux-gnu.tar.gz
+          echo "$BITCOIN_CORE_SHA256  bitcoin.tar.gz" | sha256sum -c -
+          tar -xzf bitcoin.tar.gz
+          test -x bitcoin-30.3/bin/bitcoind
+          test -x bitcoin-30.3/bin/bitcoin-cli
+
+      - name: Prove both first-exit orderings and second claimant recovery after FROST shutdown
+        env:
+          BITCOIND_EXEC: ${{ runner.temp }}/bitcoin-core/bitcoin-30.3/bin/bitcoind
+          BITCOIN_CLI_EXEC: ${{ runner.temp }}/bitcoin-core/bitcoin-30.3/bin/bitcoin-cli
+          BSB_OWNER_BRANCH_RECEIPT_DIR: ${{ runner.temp }}/owner-branch-proof
+        run: |
+          set -euo pipefail
+          bash experiments/storage-bond-ab/b-layertree/owner-paths/run_regtest.sh
+
+      - name: Archive sanitized nonsecret outcome receipts
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: actual-owner-first-two-orderings-NOT-malicious-quorum-safe
+          path: |
+            ${{ runner.temp }}/owner-branch-proof/alice-first.json
+            ${{ runner.temp }}/owner-branch-proof/bob-first.json
+          if-no-files-found: error
+          retention-days: 7
