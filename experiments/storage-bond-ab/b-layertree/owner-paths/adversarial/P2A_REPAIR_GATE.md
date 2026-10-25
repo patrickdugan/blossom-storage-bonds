@@ -1,5 +1,19 @@
 # Next experiment: fee-input-independent FROST owner exits with TRUC/P2A
 
+> **Implementation status:** The narrowly specified real Bitcoin Core
+> TRUC/P2A recovery prototype is now in
+> [child draft PR #10](https://github.com/patrickdugan/blossom-storage-bonds/pull/10).
+> [CI run #40110590203](https://github.com/patrickdugan/blossom-storage-bonds/actions/runs/40110590203)
+> passed with six confirmed v3 parent/child packages, two actual post-signer
+> fee-input substitutions, four stale-generation packages rejected even
+> with fresh fee children, and a standalone zero-fee parent policy refusal.
+> This validates fixed sponsor input independence **for the bounded
+> owner-first/second-exit graph**. The original preparatory refreshes
+> still require signing and fixed fee coins while signers are online;
+> this does not establish unattended monthly refresh, perpetual fee payer
+> availability or hostile-threshold keypath safety.
+
+
 Research handoff scoped to the proven [sponsor griefing CI](https://github.com/patrickdugan/blossom-storage-bonds/actions/runs/40094681704),
 not a claim of a working or safe replacement.
 
