@@ -171,6 +171,7 @@ if(x.schema!=='bsb-p2a-frost-manifest-holder-delivery-test-v1' ||
   x.independentlySignedHolderAcks!==2||x.replaysRejected!==2||
   !x.exactRealFrozenManifestBytesDelivered||
   !x.twoDurableSeparateHolderCheckpoints||
+  !x.bootstrapPinMatchedSignerSource||
   !x.testProcessRestartReadbackPassed||
   x.laterGenerationsPreacknowledgedBeforeOnchainRefresh!==false||
   x.coLocatedDisposableAckKeysInTest!==true||

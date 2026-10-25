@@ -177,7 +177,7 @@ export function refreshAcknowledged(acks,holderKeys,expected){
 }
 
 export async function receiveDelivery({packageDir,anchorDir,holder,signerPublicKey,
-  pinnedScript,holderPrivateKey,envelope}){
+  pinnedScript,holderPrivateKey,envelope,bootstrapPin}){
   ok(validHolder(holder),'invalid holder');
   const verified=authenticateDelivery(envelope,{holder,signerPublicKey,pinnedScript});
   await mkdir(anchorDir,{recursive:true,mode:0o700});
@@ -186,10 +186,19 @@ export async function receiveDelivery({packageDir,anchorDir,holder,signerPublicK
   try{
     const previous=await readHolderState({packageDir,anchorDir,holder,
       signerPublicKey,pinnedScript});
-    ok((previous===null&&verified.previousDeliveryDigest===null)||
-      (previous!==null&&verified.generation===previous.generation+1&&
-        verified.previousDeliveryDigest===previous.deliveryDigest),
-      'stale, skipped or equivocating delivery rejected');
+    // Initial bootstrap must have a separate holder-pinned source commitment.
+    // An old but validly signed envelope cannot initialize a fresh store.
+    if(previous===null){
+      ok(bootstrapPin&&bootstrapPin.generation===verified.generation&&
+        bootstrapPin.manifestSha256===verified.manifestSha256&&
+        bootstrapPin.carrierBefore===verified.carrierBefore&&
+        verified.previousDeliveryDigest===null,
+        'initial delivery lacks independent holder bootstrap pin');
+    }else{
+      ok(verified.generation===previous.generation+1&&
+        verified.previousDeliveryDigest===previous.deliveryDigest,
+        'stale, skipped or equivocating delivery rejected');
+    }
     await writeOnce(packageDir,fileName(verified.generation),envelope);
     await writeOnce(anchorDir,fileName(verified.generation),{
       schema:ANCHOR,holder,generation:verified.generation,

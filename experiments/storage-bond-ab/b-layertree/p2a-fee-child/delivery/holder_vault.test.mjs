@@ -8,6 +8,8 @@ import {issueDelivery,receiveDelivery,readHolderState,authenticateDelivery,
   refreshAcknowledged,inspectManifest,verifyAck} from './holder_vault.mjs';
 
 const hash=s=>createHash('sha256').update(s).digest('hex');
+const pin=m=>({generation:JSON.parse(m).currentGeneration,manifestSha256:hash(m),
+  carrierBefore:JSON.parse(m).generations.at(-1).carrierBefore});
 const scripts={alice:'0014'+'11'.repeat(20),bob:'0014'+'22'.repeat(20)};
 const V='5120'+'cd'.repeat(32);
 function parent(i,first,step,carrier,outputs){
@@ -53,7 +55,7 @@ async function fixture(t){
     holderPrivateKey:holders[h].privateKey});
   const issue=(h,manifest,prev=null)=>issueDelivery({holder:h,manifestBytes:manifest,
     previousDeliveryDigest:prev,signingKey:sender.privateKey,pinnedScript:scripts[h]});
-  const receive=(h,e)=>receiveDelivery({...opts(h),envelope:e});
+  const receive=(h,e,bootstrapPin)=>receiveDelivery({...opts(h),envelope:e,bootstrapPin});
   const state=h=>readHolderState(opts(h));
   const publicKeys={alice:holders.alice.publicKey,bob:holders.bob.publicKey};
   return {base,opts,issue,receive,state,publicKeys,holders,sender};
@@ -64,14 +66,23 @@ async function fixture(t){
 test('each holder durably acknowledges an identical signed generation',async t=>{
   const f=await fixture(t),m=toyManifest(2),expected={generation:2,
     manifestSha256:hash(m),carrierBefore:JSON.parse(m).generations[2].carrierBefore};
-  const a=await f.receive('alice',f.issue('alice',m));
-  const b=await f.receive('bob',f.issue('bob',m));
+  const a=await f.receive('alice',f.issue('alice',m),pin(m));
+  const b=await f.receive('bob',f.issue('bob',m),pin(m));
   assert.ok(refreshAcknowledged({alice:a,bob:b},f.publicKeys,expected));
   assert.equal((await f.state('alice')).generation,2);
   assert.equal((await f.state('bob')).manifestSha256,hash(m));
   assert.notEqual(a.payload.deliveryDigest,b.payload.deliveryDigest);
   const files=await readdir(f.opts('alice').anchorDir);
   assert.deepEqual(files,['g-00000002.json']);
+});
+
+test('a fresh empty vault requires an independently pinned initial carrier and hash',async t=>{
+  const f=await fixture(t),old=toyManifest(1),current=toyManifest(2);
+  const stale=f.issue('alice',old);
+  await assert.rejects(f.receive('alice',stale),/independent holder bootstrap pin/);
+  await assert.rejects(f.receive('alice',stale,pin(current)),/independent holder bootstrap pin/);
+  await f.receive('alice',f.issue('alice',current),pin(current));
+  assert.equal((await f.state('alice')).generation,2);
 });
 
 test('signed bytes, correct owner and pinned script are mandatory',async t=>{
@@ -103,7 +114,7 @@ test('signed bytes, correct owner and pinned script are mandatory',async t=>{
 test('restart, replay, equivocation, generation gaps and ancestry mismatch fail closed',async t=>{
   const f=await fixture(t),m2=toyManifest(2),m3=toyManifest(3),m4=toyManifest(4);
   const e2=f.issue('alice',m2);
-  await f.receive('alice',e2);
+  await f.receive('alice',e2,pin(m2));
   await assert.rejects(f.receive('alice',e2),/stale, skipped/);
   await assert.rejects(f.receive('alice',f.issue('alice',m3)),/stale, skipped/);
   await assert.rejects(f.receive('alice',f.issue('alice',m4,
@@ -121,7 +132,7 @@ test('restart, replay, equivocation, generation gaps and ancestry mismatch fail 
 
 test('disk rollback, tampering and partial write are caught using separate anchor',async t=>{
   const f=await fixture(t),m2=toyManifest(2),m3=toyManifest(3);
-  await f.receive('alice',f.issue('alice',m2));
+  await f.receive('alice',f.issue('alice',m2),pin(m2));
   const prior=await readFile(join(f.opts('alice').packageDir,'g-00000002.json'));
   await f.receive('alice',f.issue('alice',m3,(await f.state('alice')).deliveryDigest));
   await rm(join(f.opts('alice').packageDir,'g-00000003.json'));
@@ -137,8 +148,8 @@ test('disk rollback, tampering and partial write are caught using separate ancho
 
 test('holder ACK signature is independently authenticated and bound to same package',async t=>{
   const f=await fixture(t),m2=toyManifest(2),m3=toyManifest(3);
-  const a=await f.receive('alice',f.issue('alice',m2));
-  const b=await f.receive('bob',f.issue('bob',m2));
+  const a=await f.receive('alice',f.issue('alice',m2),pin(m2));
+  const b=await f.receive('bob',f.issue('bob',m2),pin(m2));
   const expected={generation:2,manifestSha256:hash(m2),
     carrierBefore:JSON.parse(m2).generations[2].carrierBefore};
   assert.ok(verifyAck(a,'alice',f.publicKeys.alice,expected));
@@ -156,7 +167,7 @@ test('holder ACK signature is independently authenticated and bound to same pack
 test('same source cannot record two competing updates under concurrent writers',async t=>{
   const f=await fixture(t),m2=toyManifest(2);
   const e=f.issue('alice',m2);
-  const results=await Promise.allSettled([f.receive('alice',e),f.receive('alice',e)]);
+  const results=await Promise.allSettled([f.receive('alice',e,pin(m2)),f.receive('alice',e,pin(m2))]);
   assert.equal(results.filter(x=>x.status==='fulfilled').length,1);
   assert.equal(results.filter(x=>x.status==='rejected').length,1);
   assert.equal((await f.state('alice')).generation,2);

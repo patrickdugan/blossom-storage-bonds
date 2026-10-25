@@ -14,6 +14,13 @@ network, generation, current carrier outpoint, pinned payout script,
 SHA256 of the entire frozen manifest, previous signed-delivery digest
 and the complete actual manifest bytes (base64). Each holder pins the
 separate delivery authority's Ed25519 public key **in advance**.
+For its first delivery, the holder must also pin the expected current
+generation, carrier outpoint and signed-manifest hash through an
+independent trusted bootstrap channel; otherwise an earlier properly
+signed generation could initialize an empty vault without detection.
+The regtest runner supplies this pin from the SHA256-sealed signer
+output in its single disposable process. This simulates the comparison
+and is **not** independent real-world holder onboarding.
 
 A holder verifies the signature and checks the signed recovery graph's
 structure. It stores one immutable package per generation in its

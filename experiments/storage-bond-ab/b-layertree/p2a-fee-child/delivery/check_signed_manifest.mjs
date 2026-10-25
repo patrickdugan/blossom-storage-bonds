@@ -35,7 +35,9 @@ async function main(args){
       pinnedScript:m.beneficiaryScripts[holder]};
     const envelope=issueDelivery({holder,manifestBytes,
       signingKey:source.privateKey,pinnedScript:opts.pinnedScript});
-    const ack=await receiveDelivery({...opts,holderPrivateKey:holders[holder].privateKey,envelope});
+    const ack=await receiveDelivery({...opts,holderPrivateKey:holders[holder].privateKey,
+      envelope,bootstrapPin:{generation:m.currentGeneration,
+        manifestSha256:a.sha,carrierBefore:m.generations[m.currentGeneration].carrierBefore}});
     const reopened=await readHolderState(opts);
     need(reopened?.generation===m.currentGeneration&&
       reopened.manifestSha256===a.sha&&
@@ -59,6 +61,7 @@ async function main(args){
     signerShutdownPrerequisiteProvidedByCallingRunner:true,
     independentlySignedHolderAcks:2,
     twoDurableSeparateHolderCheckpoints:true,
+    bootstrapPinMatchedSignerSource:true,
     testProcessRestartReadbackPassed:true,
     replaysRejected:2,
     generationRefreshPreventedByBitcoinConsensus:false,
