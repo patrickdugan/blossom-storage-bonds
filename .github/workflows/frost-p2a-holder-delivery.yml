@@ -1,0 +1,84 @@
+name: FROST P2A holder signed recovery delivery and rollback checks
+
+# Child of draft PR #12. Isolated disposable regtest, no public signing keys
+# or wallet material released in GitHub Actions artifacts.
+on:
+  push:
+    branches:
+      - research/frost-p2a-holder-delivery-2026-10-25
+    paths:
+      - experiments/storage-bond-ab/b-layertree/p2a-fee-child/delivery/**
+      - experiments/storage-bond-ab/b-layertree/p2a-fee-child/p2p/run_two_nodes.sh
+      - .github/workflows/frost-p2a-holder-delivery.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  offline-holder-rollback:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Structural, syntax and signer-domain checks
+        run: |
+          set -euo pipefail
+          node --check experiments/storage-bond-ab/b-layertree/p2a-fee-child/delivery/holder_vault.mjs
+          node --check experiments/storage-bond-ab/b-layertree/p2a-fee-child/delivery/check_signed_manifest.mjs
+          node --check experiments/storage-bond-ab/b-layertree/p2a-fee-child/delivery/holder_vault.test.mjs
+          bash -n experiments/storage-bond-ab/b-layertree/p2a-fee-child/p2p/run_two_nodes.sh
+          node --test experiments/storage-bond-ab/b-layertree/p2a-fee-child/delivery/holder_vault.test.mjs
+
+  frozen-frost-manifest-on-actual-bitcoin:
+    needs: offline-holder-rollback
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      CARGO_BUILD_JOBS: "2"
+      CARGO_INCREMENTAL: "0"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Rust signer locked-dependency preflight
+        run: |
+          set -euo pipefail
+          cargo test --locked --manifest-path experiments/storage-bond-ab/b-layertree/frost-proof/Cargo.toml
+      - name: Download SHA256-checked Bitcoin Core 30.3
+        env:
+          CORE_SHA256: 4753cd70416c629a2090503e8545a3c05e94a0f5037f8fb97b4c35c6e1afee0e
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/core"
+          cd "$RUNNER_TEMP/core"
+          curl --proto '=https' --tlsv1.2 -fsSLo bitcoin.tar.gz \
+            https://bitcoincore.org/bin/bitcoin-core-30.3/bitcoin-30.3-x86_64-linux-gnu.tar.gz
+          echo "$CORE_SHA256  bitcoin.tar.gz" | sha256sum -c -
+          tar -xzf bitcoin.tar.gz
+          test -x bitcoin-30.3/bin/bitcoind
+          test -x bitcoin-30.3/bin/bitcoin-cli
+      - name: Real signer-outage recovery with isolated holder receipt stores
+        env:
+          BITCOIND_EXEC: ${{ runner.temp }}/core/bitcoin-30.3/bin/bitcoind
+          BITCOIN_CLI_EXEC: ${{ runner.temp }}/core/bitcoin-30.3/bin/bitcoin-cli
+          BSB_P2P_RECEIPT_DIR: ${{ runner.temp }}/holder-delivery-and-two-node
+        run: |
+          set -euo pipefail
+          bash experiments/storage-bond-ab/b-layertree/p2a-fee-child/p2p/run_two_nodes.sh
+      - name: Publish sanitized delivery receipts plus P2P confirmation
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frost-p2a-real-manifest-holder-ack-and-peer-relay
+          path: |
+            ${{ runner.temp }}/holder-delivery-and-two-node/peer-low-delivery.json
+            ${{ runner.temp }}/holder-delivery-and-two-node/peer-high-delivery.json
+            ${{ runner.temp }}/holder-delivery-and-two-node/peer-low.json
+            ${{ runner.temp }}/holder-delivery-and-two-node/peer-high.json
+          if-no-files-found: error
+          retention-days: 7
