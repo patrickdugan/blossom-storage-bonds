@@ -1,0 +1,68 @@
+name: Two-node FROST P2A opportunistic package relay regtest
+
+# Real Bitcoin Core 30.3 P2P (not simulated node state).
+# Receivers use minrelaytxfee 2 vs 25 sat/vB and have no wallets.
+# The signer and original sponsor wallets are gone before package tests.
+# Document true P2P mempool delivery versus explicit receiver-side RPC fallback.
+on:
+  push:
+    branches:
+      - research/frost-p2a-two-node-relay-2026-10-25
+    paths:
+      - experiments/storage-bond-ab/b-layertree/p2a-fee-child/p2p/**
+      - .github/workflows/frost-p2a-two-node-relay.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  connected-bitcoin-peers:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      CARGO_BUILD_JOBS: "2"
+      CARGO_INCREMENTAL: "0"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Audit source syntax and pinned Rust cryptography
+        run: |
+          set -euo pipefail
+          cargo test --locked \
+            --manifest-path experiments/storage-bond-ab/b-layertree/frost-proof/Cargo.toml
+          node --check experiments/storage-bond-ab/b-layertree/p2a-fee-child/p2p/probe_two_nodes.mjs
+          bash -n experiments/storage-bond-ab/b-layertree/p2a-fee-child/p2p/run_two_nodes.sh
+      - name: Install checksum-pinned Bitcoin Core 30.3 binary
+        env:
+          CORE_SHA256: 4753cd70416c629a2090503e8545a3c05e94a0f5037f8fb97b4c35c6e1afee0e
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/core"
+          cd "$RUNNER_TEMP/core"
+          curl --proto '=https' --tlsv1.2 -fsSLo bitcoin.tar.gz \
+            https://bitcoincore.org/bin/bitcoin-core-30.3/bitcoin-30.3-x86_64-linux-gnu.tar.gz
+          echo "$CORE_SHA256  bitcoin.tar.gz" | sha256sum -c -
+          tar -xzf bitcoin.tar.gz
+          test -x bitcoin-30.3/bin/bitcoin-cli
+          test -x bitcoin-30.3/bin/bitcoind
+      - name: Connected Bitcoin Core peers with different mempool fee floors
+        env:
+          BITCOIND_EXEC: ${{ runner.temp }}/core/bitcoin-30.3/bin/bitcoind
+          BITCOIN_CLI_EXEC: ${{ runner.temp }}/core/bitcoin-30.3/bin/bitcoin-cli
+          BSB_P2P_RECEIPT_DIR: ${{ runner.temp }}/two-node-p2a
+        run: |
+          set -euo pipefail
+          bash experiments/storage-bond-ab/b-layertree/p2a-fee-child/p2p/run_two_nodes.sh
+      - name: Archive separate signed FROST source and physical P2P observation summary only
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frost-p2a-physical-two-node-p2p-relay-policy-evidence
+          path: |
+            ${{ runner.temp }}/two-node-p2a/peer-low.json
+            ${{ runner.temp }}/two-node-p2a/peer-high.json
+          if-no-files-found: error
+          retention-days: 7
