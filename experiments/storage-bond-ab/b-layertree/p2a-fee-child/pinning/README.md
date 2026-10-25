@@ -1,7 +1,12 @@
 # TRUC/P2A child occupancy and replacement: real Core regtest
 
-**Status:** experimental Bitcoin Core 30.3 policy probes. Neither
-fully generalized anti-pinning proof nor real network relay guarantee.
+**Status: three genuine funded Bitcoin Core 30.3 regtest trials passed.**
+[Passing head workflow #40146598690](https://github.com/patrickdugan/blossom-storage-bonds/actions/runs/40146598690) |
+[Sanitized evidence](https://github.com/patrickdugan/blossom-storage-bonds/actions/runs/40146598690/artifacts/12580997483).
+Two 1,200-sat hostile children were evicted by independently funded
+5,000-sat fee children; a 12,000-sat incumbent could not be replaced by
+the lower 5,000-sat budget, but confirmed and still paid the beneficiaries.
+Neither fully generalized anti-pinning safety nor P2P relay is proven.
 
 Base: [draft PR #10](https://github.com/patrickdugan/blossom-storage-bonds/pull/10).
 It already established that third-party fee sponsors can replace a spent
