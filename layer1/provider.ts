@@ -9,7 +9,7 @@
 //                           [--price <msat per chunk-epoch>] [--bond-max-sats N] [--min-term <blocks>] [--max-term <blocks>]
 //                           [--uploaders <pubkey,...>] [--no-auto-refund]
 //                           [--pay channel|ln|onchain] [--lnd <path>] [--ln-listen host:port] [--ln-external host:port]
-//                           [--zk --epoch-blocks 10 --zk-q 8 --zk-from <height> --zk-price <msat>]
+//                           [--zk --epoch-blocks 10 --zk-q 8 --zk-from <height> --zk-price <msat>] [--invoice-ttl <s>]
 //
 // With --pay channel (the default) the payee is the one-way Bitcoin channel (layer1/channel.ts). With
 // --pay ln this process starts its own lnd under <dir>/lnd, with its own wallet and macaroon, and bills
@@ -50,7 +50,7 @@ import type { NostrEvent } from "./nostr.ts";
 import { KIND_PAYMENT_RECEIPT, OnchainPayee, type PaymentReceipt } from "./onchain.ts";
 import { servePdpOverNostr } from "./nostr-pdp.ts";
 import { RelayPool } from "./relay.ts";
-import { startZkEpochs } from "./zk-provider.ts";
+import { startZkEpochs, zkInvoiceTtlSec } from "./zk-provider.ts";
 
 const opt = (name: string) => { const i = process.argv.indexOf(`--${name}`); return i > 0 ? process.argv[i + 1] : undefined; };
 const arg = (name: string, dflt?: string) => {
@@ -81,6 +81,7 @@ const AUTO_REFUND = !NET.canMine && !process.argv.includes("--no-auto-refund");
 const ZK = process.argv.includes("--zk");
 const ZK_EPOCH = Number(arg("epoch-blocks", "10")), ZK_Q = Number(arg("zk-q", "8")), ZK_FROM = Number(arg("zk-from", "0"));
 const ZK_PRICE = Number(arg("zk-price", "512000"));
+const INVOICE_TTL = zkInvoiceTtlSec(NET.name, opt("invoice-ttl"));
 
 const log = (ev: Record<string, unknown>) => process.stdout.write(JSON.stringify({ t: Date.now(), provider: NAME, ...ev }) + "\n");
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -148,7 +149,7 @@ const rc = await RelayPool.connect(RELAYS, log);
 servePdpOverNostr(rc, nostrKey, provider.pdpAnswer, log, provider.stash);
 if (ZK) {
   zk = startZkEpochs(provider, rc, nostrKey, payee, {
-    epochBlocks: ZK_EPOCH, q: ZK_Q, fromHeight: ZK_FROM, priceMsat: ZK_PRICE, rpcUrl: RPC, workDir: join(DIR, "zk"), log,
+    epochBlocks: ZK_EPOCH, q: ZK_Q, fromHeight: ZK_FROM, priceMsat: ZK_PRICE, invoiceTtlSec: INVOICE_TTL, rpcUrl: RPC, workDir: join(DIR, "zk"), log,
     confs: NET.confs, pollMs: NET.canMine ? 400 : NET.pollMs,
   });
 }

@@ -158,3 +158,12 @@ test("BIP94 validates minimum-difficulty recovery, retarget base and the time-wa
   append(nextBits, -600);
   assert.equal(chain.height, 4032);
 });
+
+test("epoch invoices outlive a public network's deadline and attestation (pilot run 1 regression)", async () => {
+  const { zkInvoiceTtlSec } = await import("./zk-provider.ts");
+  assert.equal(zkInvoiceTtlSec("regtest"), 3600);
+  // Run 1 on testnet4: issued at proof time, paid after a 9-block deadline plus attestation, over 1 h later.
+  for (const n of ["signet", "testnet4"]) assert.ok(zkInvoiceTtlSec(n) >= 86400, n);
+  assert.equal(zkInvoiceTtlSec("testnet4", "7200"), 7200);
+  for (const bad of ["0", "59", "1.5", "x"]) assert.throws(() => zkInvoiceTtlSec("testnet4", bad));
+});

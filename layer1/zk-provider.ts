@@ -38,7 +38,19 @@ export interface ZkOptions {
   confs?: number;
   /** How often to look at the chain tip (400 ms by default; seconds off regtest). */
   pollMs?: number;
+  /** Lifetime of an epoch invoice (zkInvoiceTtlSec). */
+  invoiceTtlSec?: number;
 }
+
+/** An epoch invoice is issued once per client and epoch, when the client has verified the proof, and
+ *  paid only after the deadline, the watchtower's attestation and any batching. On regtest that is
+ *  seconds; on a public network it is hours of block time (on testnet4, run 1 of the Phase 7C pilot
+ *  lost its payment to the old 1-hour expiry, 2026-10-26). Off regtest it lasts 7 days by default. */
+export const zkInvoiceTtlSec = (network: string, flag?: string): number => {
+  const v = flag !== undefined ? Number(flag) : network === "regtest" ? 3600 : 7 * 86400;
+  if (!Number.isSafeInteger(v) || v < 60) throw new Error("--invoice-ttl must be a whole number of seconds, at least 60");
+  return v;
+};
 
 export function startZkEpochs(p: Provider, relay: Relays, key: Key, payee: Payee, o: ZkOptions) {
   // Blob sha256s registered as deals, in order, the last boundary proved, and the invoices issued: kept
@@ -107,7 +119,7 @@ export function startZkEpochs(p: Provider, relay: Relays, key: Key, payee: Payee
       if (!/^[0-9a-f]{64}$/.test(client) || invoiced.has(k)) { fail(res, 409, "one invoice per client per epoch"); return true; }
       invoiced.add(k);
       save();
-      json(res, 200, await payee.createInvoice(o.priceMsat, `bsb zk epoch ${m[1]}`));
+      json(res, 200, await payee.createInvoice(o.priceMsat, `bsb zk epoch ${m[1]}`, o.invoiceTtlSec ?? 3600));
       return true;
     }
     return false;
