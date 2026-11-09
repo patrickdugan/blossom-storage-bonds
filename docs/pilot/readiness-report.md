@@ -59,7 +59,7 @@ is active on Bitcoin.
   Results:
   - Guest A's real proof (testnet4 heights 0–4) verifies through it.
   - 7 tests cover the pins, seeds, payment and wrap, with negative cases for each.
-  - CI's full-stack job runs `--nova-term` on the fixtures in `fixtures/nova-term`.
+  - CI's full-stack job runs `--nova-term` on the fixtures in `fixtures/nova-term`; both pay modes settle the term ([run 42601307548](https://github.com/patrickdugan/blossom-storage-bonds/actions/runs/42601307548), `1480ec7`, all 9 jobs green).
   - The M16 payment record is built from public data in M16's layout. M16 itself is unproven and
     its program key unpinned, so a PAY1 proof is refused until both land.
 - Starting parties and adding machines still wait for explicit approval. Mainnet value at risk stays **NO GO**
