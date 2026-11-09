@@ -24,9 +24,44 @@ is active on Bitcoin.
   CAPTCHA-gated, the pilot can now run on public testnet4 (`BSB_NETWORK=testnet4`, local Core 31.1 node,
   RPC 48332) with `--pay onchain` or `--pay channel`; Lightning is refused there until lnd's testnet4
   support is checked. `HeaderChain` gained the BIP94 rules, and all 157,409 testnet4 headers from the local
-  node validate through it (tip hash matches `getbestblockhash`). The only testnet4 wallet on this machine
-  (`utxoref-testnet`) holds 0 coins (scantxoutset over 1,000 addresses of all 8 descriptors), so funding
-  is again a person's step. CI on this branch is green on all 9 jobs ([run 39984745859](https://github.com/patrickdugan/blossom-storage-bonds/actions/runs/39984745859), `d7af4f6`). Funding: about 0.003 tBTC to `tb1p48njta6evz09zkx430f7p7x64txyj0cj9l8hgte60en4aleypxmsg6qnmk` (runbook, "Running the pilot on testnet4").
+  node validate through it (tip hash matches `getbestblockhash`). CI on this branch is green on all 9 jobs ([run 39984745859](https://github.com/patrickdugan/blossom-storage-bonds/actions/runs/39984745859), `d7af4f6`). Patrick funded `utxoref-testnet` with 0.003 tBTC; `scripts/run-testnet4-pilot.ps1` starts the client and pays each funding request from it.
+- **Testnet4 run 1 (2026-10-26):** three local providers, a watchtower and the client, over three public
+  relays (primal, snort, nostr.mom), `--pay onchain`, bond 20,000 sats, 3 confirmations. Setup and epoch-1
+  proofs completed on the public chain, through a bond confirmation that fell from 1 back to 0 in a reorg.
+  The epoch-1 payment then failed: the zk provider's epoch invoices expired after 1 hour, and on testnet4
+  a deadline plus 3 confirmations takes hours. Fixed in `12a1ad7` (7 days off regtest, `--invoice-ttl`,
+  regression test). The client's crash stopped the providers; the three bonds stay on chain and refund
+  from the seeds kept in `C:\BitcoinTestnet\pilot\run1-archive`.
+- **Testnet4 run 2 (2026-10-26 to 27, same party keys):**
+  - Setup: all three bonds live at 3 confirmations; public proofs from block 157704.
+  - Epoch 1 (boundary 157704): all three providers proved (11.3–11.6 MB, 47–107 s). Paid in
+    `78d1ac11…`: 3 invoices, 3 outputs, 240 vB, 482 sats fee, receipt 3,846 B.
+  - Epoch 2 (boundary 157716): "deletes 10%" and "outsources" could not prove; the honest provider
+    did (19 s). The watchtower attested both missing at 157716, and the client flagged both deals'
+    enforcement state. Only the honest provider was paid: `e29908f3…`, 1 invoice, 154 vB, 310 sats.
+  - A later client payment (`c362b98c…`) fell from 2 to 0 confirmations in a reorg and confirmed
+    again in another block. All three client transactions are now over 2,300 confirmations deep.
+  - The machine restarted at block ~157730 and the client did not come back. Its write-ahead state
+    survived: `enforce-deletes10.json` and `enforce-outsources.json` still held the flags.
+  - Thirteen days later (block 160090, past the bonds' 450-block term), all three bonds were still
+    unspent. `layer1/enforce.ts` resumed from the state files and broadcast sentinel challenge 0
+    against both cheaters (`96468a47…`, `a9f5f7c6…`). Forfeit follows 144 blocks without an answer.
+  - **Finding:** a client that is down past t_end leaves each flagged bond refundable by its
+    provider. Here the cheaters' processes were down too, so nobody refunded. Enforcement needs a
+    client, or a delegate holding its bond key, that is live through t_end (§7, condition 1).
+- **Nova term (nova-bitvm3 brief 4):** `layer1/nova-term.ts` settles a term against nova-bitvm3's
+  Nova header-chain statement, in place of phase 6's RISC Zero term guest. It checks:
+  - both pins: testnet4 genesis z0 and the k = 1 Nova key digest;
+  - every epoch seed linked by header hashes to the proven tip;
+  - an M16 PAY1 record matched to one of the run's payments;
+  - the SP1 wrap proof through `m13-verify`.
+
+  Results:
+  - Guest A's real proof (testnet4 heights 0–4) verifies through it.
+  - 7 tests cover the pins, seeds, payment and wrap, with negative cases for each.
+  - CI's full-stack job runs `--nova-term` on the fixtures in `fixtures/nova-term`.
+  - The M16 payment record is built from public data in M16's layout. M16 itself is unproven and
+    its program key unpinned, so a PAY1 proof is refused until both land.
 - Starting parties and adding machines still wait for explicit approval. Mainnet value at risk stays **NO GO**
   until the pilot has run.
 
@@ -57,6 +92,8 @@ executable test. The GO is conditional on the five pilot conditions in §7. Main
 | `f1875dd` | fixes for the second review's two new defects and three partials |
 | `df2edec` | signet pilot step 3: fresh pilot keys and fee addresses (faucets CAPTCHA-gated) |
 | `20347f8` | testnet4 as a pilot network; BIP94 header rules checked against the whole testnet4 chain |
+| `12a1ad7` | epoch invoices last 7 days off regtest (testnet4 run 1 finding) |
+| this commit | testnet4 run 2 results; `scripts/run-testnet4-pilot.ps1`; the Nova term (`layer1/nova-term.ts`, `full-stack.ts --nova-term`, `fixtures/nova-term`) |
 
 ## 2. Phase 1: signet recovered and verified
 

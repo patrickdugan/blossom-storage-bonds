@@ -54,6 +54,12 @@
 // providers refund their own bonds at the term's end and say so on Nostr, and the bonds of all flagged
 // providers are enforced at once rather than one after another. docs/signet-pilot.md is the runbook.
 //
+// --nova-term <dir> settles the term against a Nova header-chain proof (layer1/nova-term.ts, nova-bitvm3's
+// guest A or M16 statement) in place of phase 6's RISC Zero term guest: both pins, every epoch seed bound
+// to the proven tip, an M16 payment record matched to one of this run's payments, and the wrap proof
+// through m13-verify when BSB_M13_VERIFY is set. A term.json in <dir> replaces this run's own term (the
+// fixtures in fixtures/nova-term). A refused term fails the run.
+//
 // --providers <pubkey,...> uses providers already running elsewhere (each started by its operator with
 // layer1/provider.ts) instead of starting three here: they are found by their offers, nobody can make
 // them misbehave from here, and the client closes Lightning channels from its own node. --watchtower
@@ -61,7 +67,7 @@
 
 import { spawn, type ChildProcess } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -78,6 +84,7 @@ import { LndNode, LndPayer, assertLndNetwork, lndExe } from "./lnd.ts";
 import { advance, confirm, feeRate, partySeed, storageSecret, untilHeight, useNetwork, waitHeight } from "./net.ts";
 import { now, signEvent, type NostrEvent } from "./nostr.ts";
 import { KIND_PAYMENT_RECEIPT, OnchainPayer, batchVsize, buildReceipt, receiptTags, verifyReceipt, type BatchPayment, type OnchainInvoice, type PaymentReceipt } from "./onchain.ts";
+import { checkNovaTermDir, decodeStatement, type NovaTermResult, type TermPayment } from "./nova-term.ts";
 import { RelayPool, startRelay, type Relay } from "./relay.ts";
 import { defaultZk, statementFor, verifyProof, zkTree } from "./zk.ts";
 import { KIND_ATTESTATION, KIND_EPOCH_PROOF } from "./zk-provider.ts";
@@ -98,6 +105,7 @@ const PAY_EVERY = Number(arg("pay-every", "1")), FEE_RATE = Number(arg("fee-rate
 const LND = arg("lnd", lndExe());
 const OUT = arg("out", join(here, "..", "results", `full-stack${ONCHAIN ? "-onchain" : ""}${SLOW ? `-${NET.name}` : ""}.json`));
 const RPC = process.env.BSB_RPC!;
+const NOVA_TERM = arg("nova-term", "");
 const WALLET = "bsb-full-stack-client";
 const wallet = (m: string, p: unknown[] = []) => rpc(m, p, `${RPC}/wallet/${WALLET}`);
 const PRICE_MSAT = 512_000;       // per verified epoch, per provider
@@ -705,6 +713,22 @@ try {
     say(`  a third party's re-check from ${finalChain.height + 1} mirrored headers: ${finalChecks.filter((c) => c.ok).length}/${finalChecks.length} receipts verify`);
   }
 
+  let novaTerm: NovaTermResult | undefined;
+  if (NOVA_TERM) {
+    const seeds = [];
+    for (let e = 1; e <= EPOCHS; e++) { const b = FIRST + (e - 1) * EPOCH; seeds.push({ height: b, hash: String(await rpc("getblockhash", [b])) }); }
+    const payments: TermPayment[] = [];
+    for (const b of ONCHAIN ? batches : []) {
+      const tx = await rpc("getrawtransaction", [b.txid, true]);
+      for (const o of b.outputs) payments.push({ txid: b.txid, vout: o.vout, sats: o.sats, script: tx.vout[o.vout].scriptPubKey.hex });
+    }
+    // The tip is compared with this node's chainwork when the node has it.
+    const tipHash = decodeStatement(readFileSync(join(NOVA_TERM, "statement.bin"))).tipHash;
+    const known = await rpc("getblockheader", [tipHash]).then((h: { chainwork: string }) => BigInt("0x" + h.chainwork), () => undefined);
+    novaTerm = checkNovaTermDir(NOVA_TERM, { network: NET.name, seeds, payments, minConfs: NET.confs }, { knownChainwork: () => known });
+    say(`\nNova term (${novaTerm.term}): ${novaTerm.network} tip ${novaTerm.tip.height}, ${novaTerm.seedsBound} seed(s) bound, payment ${typeof novaTerm.payment === "string" ? novaTerm.payment : `${novaTerm.payment.txid.slice(0, 16)}…:${novaTerm.payment.vout} at ${novaTerm.payment.confirmations} conf`}, proof ${novaTerm.proof}`);
+  }
+
   const height1 = await rpc("getblockcount");
   mkdirSync(dirname(OUT), { recursive: true });
   writeFileSync(OUT, JSON.stringify({
@@ -722,6 +746,7 @@ try {
       final_check: { headers: finalChain.height + 1, total_work: "0x" + finalChain.totalWork.toString(16), receipts: finalChecks },
     } : {}),
     watchtower: tower ? tower.log.filter((ev) => ev.event === "attest") : attestations,
+    ...(novaTerm ? { novaTerm } : {}),
   }, null, 2) + "\n");
   say(`\n${NET.name} height ${height0} → ${height1}; wrote ${OUT}`);
   finished = true;

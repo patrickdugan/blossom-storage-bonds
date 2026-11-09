@@ -1,0 +1,10 @@
+{
+  "network": "testnet4",
+  "seeds": [
+    { "height": 2, "hash": "000000001fed1a914651afc36574003c5300cac5df738c3976f28d54f7096253" },
+    { "height": 3, "hash": "000000008ddb4258595f9d8079a0b83fdc2816c9e3511acc739c16f5bce14e56" },
+    { "height": 4, "hash": "000000008f5794caa45c418a0184303e848e9d6756e4d77234c9aada983b4265" }
+  ],
+  "payments": [],
+  "minConfs": 3
+}

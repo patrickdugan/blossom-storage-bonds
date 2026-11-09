@@ -1,0 +1,12 @@
+{
+  "network": "testnet4",
+  "seeds": [
+    { "height": 2, "hash": "000000001fed1a914651afc36574003c5300cac5df738c3976f28d54f7096253" },
+    { "height": 3, "hash": "000000008ddb4258595f9d8079a0b83fdc2816c9e3511acc739c16f5bce14e56" },
+    { "height": 4, "hash": "000000008f5794caa45c418a0184303e848e9d6756e4d77234c9aada983b4265" }
+  ],
+  "payments": [
+    { "txid": "619c9db8597dc8aaaa37569e25930efa04c9aef7b604b1b8a26bd4f086b2785c", "vout": 0, "sats": 5000000000, "script": "76a9140a59837ccd4df25adc31cdad39be6a8d97557ed688ac" }
+  ],
+  "minConfs": 3
+}

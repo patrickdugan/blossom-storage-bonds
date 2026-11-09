@@ -188,7 +188,15 @@ jobs:
           BSB_ZK_EXE: ${{ github.workspace }}/zkexe
         run: |
           chmod +x bins/* zkexe/bsb-zk
-          node layer1/full-stack.ts --pay ${{ matrix.pay }} --dir "$RUNNER_TEMP/fs-dir" --out "$RUNNER_TEMP/full-stack-${{ matrix.pay }}.json" 2>&1 | tee "$RUNNER_TEMP/full-stack.log"
+          node layer1/full-stack.ts --pay ${{ matrix.pay }} --dir "$RUNNER_TEMP/fs-dir" --nova-term fixtures/nova-term/testnet4-0-4-pay1 --out "$RUNNER_TEMP/full-stack-${{ matrix.pay }}.json" 2>&1 | tee "$RUNNER_TEMP/full-stack.log"
+      - name: The term settled against the Nova statement fixture (nova-bitvm3 guest A + M16 payment record)
+        run: |
+          node -e '
+            const r = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).novaTerm;
+            if (!r || r.term !== "fixture" || r.network !== "testnet4" || r.tip.height !== 4 || r.seedsBound !== 3) throw new Error("nova term: " + JSON.stringify(r));
+            if (r.payment.txid !== "619c9db8597dc8aaaa37569e25930efa04c9aef7b604b1b8a26bd4f086b2785c" || r.payment.confirmations !== 4) throw new Error("nova term payment: " + JSON.stringify(r.payment));
+            console.log("::notice title=nova term::" + JSON.stringify(r));
+          ' "$RUNNER_TEMP/full-stack-${{ matrix.pay }}.json"
       - name: Crash-safe enforcement state exists for every bond, flagged for the attested cheaters
         run: |
           node -e '
