@@ -45,7 +45,13 @@ is active on Bitcoin.
     survived: `enforce-deletes10.json` and `enforce-outsources.json` still held the flags.
   - Thirteen days later (block 160090, past the bonds' 450-block term), all three bonds were still
     unspent. `layer1/enforce.ts` resumed from the state files and broadcast sentinel challenge 0
-    against both cheaters (`96468a47…`, `a9f5f7c6…`). Forfeit follows 144 blocks without an answer.
+    against both cheaters (`96468a47…`, `a9f5f7c6…`, 187 vB each).
+  - Neither cheater answered within Δ = 144 blocks. Both bonds were forfeited to the client at the
+    first eligible block, at 2 sat/vB: `085804b8…` (deletes 10%) and `fdfd41cc…` (outsources), each
+    138 vB, 20,000 in and 19,724 out (276 sats fee). Both sit 11 confirmations deep at block 160251.
+  - The honest provider refunded its run-2 bond (`eb36d437…`). The three run-1 bonds were refunded too:
+    honest `a11f6924…`, deletes 10% `4d9a2622…` and outsources `b50ee005…`, each 138 vB and 276 sats.
+    All four sit 158 confirmations deep at block 160251, so no pilot bond is left unspent.
   - **Finding:** a client that is down past t_end leaves each flagged bond refundable by its
     provider. Here the cheaters' processes were down too, so nobody refunded. Enforcement needs a
     client, or a delegate holding its bond key, that is live through t_end (§7, condition 1).
@@ -93,7 +99,8 @@ executable test. The GO is conditional on the five pilot conditions in §7. Main
 | `df2edec` | signet pilot step 3: fresh pilot keys and fee addresses (faucets CAPTCHA-gated) |
 | `20347f8` | testnet4 as a pilot network; BIP94 header rules checked against the whole testnet4 chain |
 | `12a1ad7` | epoch invoices last 7 days off regtest (testnet4 run 1 finding) |
-| this commit | testnet4 run 2 results; `scripts/run-testnet4-pilot.ps1`; the Nova term (`layer1/nova-term.ts`, `full-stack.ts --nova-term`, `fixtures/nova-term`) |
+| this commit | testnet4 run 2 forfeits (both cheaters) and all refunds confirmed |
+| `1480ec7` | testnet4 run 2 results; `scripts/run-testnet4-pilot.ps1`; the Nova term (`layer1/nova-term.ts`, `full-stack.ts --nova-term`, `fixtures/nova-term`) |
 
 ## 2. Phase 1: signet recovered and verified
 
