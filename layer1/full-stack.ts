@@ -58,7 +58,10 @@
 // guest A or M16 statement) in place of phase 6's RISC Zero term guest: both pins, every epoch seed bound
 // to the proven tip, an M16 payment record matched to one of this run's payments, and the wrap proof
 // through m13-verify when BSB_M13_VERIFY is set. A term.json in <dir> replaces this run's own term (the
-// fixtures in fixtures/nova-term). A refused term fails the run.
+// fixtures in fixtures/nova-term). A refused term fails the run. A term.json with a "provider" entry
+// (fixtures/nova-term/mainnet-m16) is the M16 mode, "the client paid the provider on chain": it needs the
+// wrap proof and BSB_M13_VERIFY unless --nova-unverified is passed, which runs every other check and
+// reports the proof as not checked.
 //
 // --providers <pubkey,...> uses providers already running elsewhere (each started by its operator with
 // layer1/provider.ts) instead of starting three here: they are found by their offers, nobody can make
@@ -725,7 +728,7 @@ try {
     // The tip is compared with this node's chainwork when the node has it.
     const tipHash = decodeStatement(readFileSync(join(NOVA_TERM, "statement.bin"))).tipHash;
     const known = await rpc("getblockheader", [tipHash]).then((h: { chainwork: string }) => BigInt("0x" + h.chainwork), () => undefined);
-    novaTerm = checkNovaTermDir(NOVA_TERM, { network: NET.name, seeds, payments, minConfs: NET.confs }, { knownChainwork: () => known });
+    novaTerm = checkNovaTermDir(NOVA_TERM, { network: NET.name, seeds, payments, minConfs: NET.confs }, { knownChainwork: () => known, allowUnverified: process.argv.includes("--nova-unverified") });
     say(`\nNova term (${novaTerm.term}): ${novaTerm.network} tip ${novaTerm.tip.height}, ${novaTerm.seedsBound} seed(s) bound, payment ${typeof novaTerm.payment === "string" ? novaTerm.payment : `${novaTerm.payment.txid.slice(0, 16)}…:${novaTerm.payment.vout} at ${novaTerm.payment.confirmations} conf`}, proof ${novaTerm.proof}`);
   }
 

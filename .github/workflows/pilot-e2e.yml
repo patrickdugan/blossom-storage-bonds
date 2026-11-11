@@ -188,15 +188,23 @@ jobs:
           BSB_ZK_EXE: ${{ github.workspace }}/zkexe
         run: |
           chmod +x bins/* zkexe/bsb-zk
-          node layer1/full-stack.ts --pay ${{ matrix.pay }} --dir "$RUNNER_TEMP/fs-dir" --nova-term fixtures/nova-term/testnet4-0-4-pay1 --out "$RUNNER_TEMP/full-stack-${{ matrix.pay }}.json" 2>&1 | tee "$RUNNER_TEMP/full-stack.log"
-      - name: The term settled against the Nova statement fixture (nova-bitvm3 guest A + M16 payment record)
+          if [ "${{ matrix.pay }}" = onchain ]; then NOVA="fixtures/nova-term/testnet4-0-4-pay1"; else NOVA="fixtures/nova-term/mainnet-m16 --nova-unverified"; fi
+          node layer1/full-stack.ts --pay ${{ matrix.pay }} --dir "$RUNNER_TEMP/fs-dir" --nova-term $NOVA --out "$RUNNER_TEMP/full-stack-${{ matrix.pay }}.json" 2>&1 | tee "$RUNNER_TEMP/full-stack.log"
+      - name: The term settled against the Nova statement fixture (pay1 on testnet4 for onchain; M16 mainnet payment proof for ln)
         run: |
           node -e '
             const r = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).novaTerm;
-            if (!r || r.term !== "fixture" || r.network !== "testnet4" || r.tip.height !== 4 || r.seedsBound !== 3) throw new Error("nova term: " + JSON.stringify(r));
-            if (r.payment.txid !== "619c9db8597dc8aaaa37569e25930efa04c9aef7b604b1b8a26bd4f086b2785c" || r.payment.confirmations !== 4) throw new Error("nova term payment: " + JSON.stringify(r.payment));
+            const m16 = process.argv[2] === "ln";
+            if (!r || r.term !== "fixture") throw new Error("nova term: " + JSON.stringify(r));
+            if (m16) {
+              if (r.network !== "mainnet" || r.tip.height !== 975072 || r.payment.txid !== "a652ab0cf381413ae854a86bb7e4784811b2d4158a65f26ff64a69eb3eb20045" || r.payment.confirmations !== 6 || r.providerPaid.payment.sats !== "940000") throw new Error("nova m16 term: " + JSON.stringify(r));
+              if (!/^not checked/.test(r.proof)) throw new Error("nova m16 proof: " + r.proof);
+            } else {
+              if (r.network !== "testnet4" || r.tip.height !== 4 || r.seedsBound !== 3) throw new Error("nova term: " + JSON.stringify(r));
+              if (r.payment.txid !== "619c9db8597dc8aaaa37569e25930efa04c9aef7b604b1b8a26bd4f086b2785c" || r.payment.confirmations !== 4) throw new Error("nova term payment: " + JSON.stringify(r.payment));
+            }
             console.log("::notice title=nova term::" + JSON.stringify(r));
-          ' "$RUNNER_TEMP/full-stack-${{ matrix.pay }}.json"
+          ' "$RUNNER_TEMP/full-stack-${{ matrix.pay }}.json" "${{ matrix.pay }}"
       - name: Crash-safe enforcement state exists for every bond, flagged for the attested cheaters
         run: |
           node -e '

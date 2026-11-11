@@ -8,7 +8,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { GUEST_A_BYTES, NovaRefused, WRAP_PINS, bindSeeds, checkNovaTermDir, checkPins, decodeStatement, matchPayment, verifyWrap, type Term } from "./nova-term.ts";
+import { GUEST_A_BYTES, NovaRefused, WRAP_PINS, bindSeeds, checkNovaTermDir, checkProviderPaid, checkPins, decodeStatement, matchPayment, verifyWrap, type Term } from "./nova-term.ts";
 
 const fx = join(dirname(fileURLToPath(import.meta.url)), "..", "fixtures", "nova-term");
 const A = readFileSync(join(fx, "testnet4-0-4", "statement.bin"));
@@ -34,7 +34,7 @@ test("pins refuse another network, fold width, genesis, key or step count", () =
   assert.throws(() => checkPins(decodeStatement(A), "mainnet"), refused(/is for NHT4, not mainnet/));
   assert.throws(() => checkPins(decodeStatement(A), "signet"), refused(/no Nova pins/));
   const nhc1 = Buffer.from(A); nhc1.write("NHC1", 0, "latin1");
-  assert.throws(() => checkPins(decodeStatement(nhc1), "mainnet"), refused(/no genesis state pinned for mainnet/));
+  assert.throws(() => checkPins(decodeStatement(nhc1), "mainnet"), refused(/z0 is not mainnet's genesis state/));
   const k2 = Buffer.from(A); k2.writeUInt32LE(2, 4);
   assert.throws(() => checkPins(decodeStatement(k2), "testnet4"), refused(/fold width 2/));
   assert.throws(() => checkPins(decodeStatement(flip(A, 12 + 32)), "testnet4"), refused(/genesis state/));   // z0's tip hash
@@ -84,13 +84,14 @@ ${exit === 0 ? `console.log(JSON.stringify({ status: "verified" }));` : `console
   return { cmd: `${process.execPath} ${script}`, seen: () => JSON.parse(readFileSync(seen, "utf8")) };
 }
 
-test("the wrap check pins every expectation field and refuses a PAY1 proof until the M16 key is pinned", () => {
+test("the wrap check pins every expectation field and carry the M16 key for PAY1 statements", () => {
   const ok = fakeVerifier(0);
   assert.equal(verifyWrap(A, "wrap.bin", ok.cmd).status, "verified");
   assert.deepEqual(ok.seen(), { committed_values_sha256: createHash("sha256").update(A).digest("hex"), exit_code: 0, is_complete: 1,
     program_vk_digest: WRAP_PINS.programs.guestA, recursion_vk_root: WRAP_PINS.recursionVkRoot, wrap_vk_sha256: WRAP_PINS.wrapVkSha256 });
   assert.throws(() => verifyWrap(A, "wrap.bin", fakeVerifier(1).cmd), refused(/m13-verify refused: Error: refused: different committed statement/));
-  assert.throws(() => verifyWrap(M16, "wrap.bin", ok.cmd), refused(/no M16 program key pinned/));
+  assert.equal(verifyWrap(M16, "wrap.bin", ok.cmd).programKey, WRAP_PINS.programs.m16);
+  assert.equal(ok.seen().program_vk_digest, WRAP_PINS.programs.m16);
 });
 
 test("a term directory: fixture term replaces the run's own, and a run's tip must carry the node's chainwork", () => {
@@ -112,4 +113,71 @@ test("m13-verify accepts guest A's real wrap proof through the term check", { sk
   for (const f of ["headers.hex", "term.json"]) cpSync(join(fx, "testnet4-0-4", f), join(bad, f));
   writeFileSync(join(bad, "statement.bin"), (() => { const b = Buffer.from(A); b.writeUInt32LE(b.readUInt32LE(ZN + 32 * 5) ^ 1, ZN + 32 * 5); return b; })());   // zn's block time
   assert.throws(() => checkNovaTermDir(bad, { network: "testnet4", seeds: [], payments: [], minConfs: 1 }), refused(/m13-verify refused/));
+});
+
+// --- M16 mode: the real mainnet payment proof (nova-bitvm3 m16, tip 975,072, payment in block 975,067) ---
+const MD = join(fx, "mainnet-m16");
+const MB = readFileSync(join(MD, "statement.bin"));
+const MJ = JSON.parse(readFileSync(join(MD, "statement.json"), "utf8"));
+const MT = JSON.parse(readFileSync(join(MD, "term.json"), "utf8")) as Term;
+const REQ = MT.provider!;
+const MP = GUEST_A_BYTES;   // PAY1 record offset
+const WRAP = join(MD, "wrap.bin");
+const REAL = process.env.BSB_M13_VERIFY ? { cmd: process.env.BSB_M13_VERIFY, real: true } : undefined;
+/** The real m13-verify when BSB_M13_VERIFY is set, otherwise a stand-in that accepts (the refusals below
+ *  that depend on the proof itself then run only against the real verifier). */
+const verifierFor = () => REAL?.cmd ?? fakeVerifier(0).cmd;
+const paid = (bytes: Buffer, over: Partial<typeof REQ> = {}, net = "mainnet", sj: typeof MJ | undefined = undefined) =>
+  checkProviderPaid(bytes, WRAP, verifierFor(), net, { ...REQ, ...over }, sj);
+
+test("M16 statement: mainnet pins, the PAY1 record, and the program key", () => {
+  assert.equal(createHash("sha256").update(MB).digest("hex"), "cae6068f7ad8c4891cb3220702a88b0bc3df54013f45e65df11a9ced531bc869");
+  assert.equal(MJ.program_vk_digest, "dfc68a5d579b86244a60ba0baee7852348cf0d2a3bb13910ebb95a3e625fcb60");
+  assert.equal(WRAP_PINS.programs.m16, MJ.program_vk_digest);
+  const s = decodeStatement(MB);
+  assert.equal(s.magic, "NHC1"); assert.equal(s.tipHeight, 975072);
+  checkPins(s, "mainnet");
+  assert.deepEqual({ ...s.pay, value: String(s.pay!.value) }, { segments: s.pay!.segments, heightB: 975067, hashB: s.pay!.hashB, confirmations: 6,
+    txid: "a652ab0cf381413ae854a86bb7e4784811b2d4158a65f26ff64a69eb3eb20045", vout: 0, value: "940000", scriptLen: 22, scriptSha: REQ.scriptSha256 });
+});
+
+test("M16 accepts the real mainnet proof as 'the client paid the provider'", () => {
+  const r = paid(MB, {}, "mainnet", MJ);
+  assert.equal(r.proof, "verified"); assert.equal(r.payment.sats, "940000"); assert.equal(r.payment.confirmations, 6);
+  assert.equal(paid(MB, { owedSats: 1 }).proof, "verified");           // value above the amount owed
+  assert.equal(paid(MB, { minConfs: 1 }).proof, "verified");
+  const dir = checkNovaTermDir(MD, { network: "regtest", seeds: [], payments: [], minConfs: 1 }, { verifier: verifierFor() });
+  assert.equal(dir.proof, "verified"); assert.equal(dir.providerPaid?.payment.txid, "a652ab0cf381413ae854a86bb7e4784811b2d4158a65f26ff64a69eb3eb20045");
+});
+
+test("M16 refuses each of: tampered public bytes, wrong program key, wrong script, low value, few confirmations, wrong z0, testnet4 magic", () => {
+  // tampered public bytes: the statement file's digest no longer matches (and the real verifier refuses the proof)
+  const tampered = Buffer.from(MB); tampered[GUEST_A_BYTES - 1] ^= 1;            // proofs digest
+  assert.throws(() => paid(tampered, {}, "mainnet", MJ), refused(/do not match the statement's committed-values digest/));
+  if (REAL) assert.throws(() => paid(tampered), refused(/m13-verify refused/));
+  // wrong program key
+  assert.throws(() => paid(MB, {}, "mainnet", { ...MJ, program_vk_digest: WRAP_PINS.programs.guestA }), refused(/is not the pinned M16 key/));
+  const k = fakeVerifier(0); 
+  assert.equal(WRAP_PINS.programs.m16, MJ.program_vk_digest);
+  checkProviderPaid(MB, WRAP, k.cmd, "mainnet", REQ); assert.equal(k.seen().program_vk_digest, WRAP_PINS.programs.m16);
+  // wrong script
+  assert.throws(() => paid(MB, { scriptSha256: "00".repeat(32) }), refused(/not the provider's registered script/));
+  // value too low
+  assert.throws(() => paid(MB, { owedSats: 940001 }), refused(/below the 940001 owed/));
+  // too few confirmations
+  assert.throws(() => paid(MB, { minConfs: 7 }), refused(/6 confirmations, fewer than 7/));
+  // wrong z0
+  assert.throws(() => paid(flip(MB, 12 + 32)), refused(/z0 is not mainnet's genesis state/));
+  // testnet4 magic under mainnet pins
+  const t4 = Buffer.from(MB); t4.write("NHT4", 0, "latin1");
+  assert.throws(() => paid(t4), refused(/statement is for NHT4, not mainnet/));
+  // a guest A statement carries no payment
+  assert.throws(() => paid(MB.subarray(0, MP)), refused(/no payment record/));
+  // the term directory in M16 mode will not skip the proof unless told to
+  assert.throws(() => checkNovaTermDir(MD, { network: "regtest", seeds: [], payments: [], minConfs: 1 }, { verifier: "" }), refused(/needs a wrap proof and BSB_M13_VERIFY/));
+  assert.match(String(checkNovaTermDir(MD, { network: "regtest", seeds: [], payments: [], minConfs: 1 }, { verifier: "", allowUnverified: true }).proof), /^not checked/);
+});
+
+test("M16 proof check: a stand-in verifier that refuses stops an otherwise valid statement", () => {
+  assert.throws(() => checkProviderPaid(MB, WRAP, fakeVerifier(1).cmd, "mainnet", REQ), refused(/m13-verify refused/));
 });

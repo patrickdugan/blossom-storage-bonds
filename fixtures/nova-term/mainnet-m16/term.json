@@ -1,0 +1,11 @@
+{
+  "network": "mainnet",
+  "seeds": [],
+  "payments": [],
+  "minConfs": 6,
+  "provider": {
+    "scriptSha256": "58432f41ce2b63d9a8e65e9b5bed183cd2ed12a03fe2b6020cda00235c147283",
+    "owedSats": 940000,
+    "minConfs": 6
+  }
+}

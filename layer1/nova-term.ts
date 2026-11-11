@@ -50,19 +50,20 @@ const T4_Z0 = (() => {
   return z;
 })();
 
-/** Per network: the k = 1 Nova key digest (compressed encoding) and the genesis state. Mainnet's z0 is
- *  pinned when nova-bitvm3 publishes the mainnet statement; until then an NHC1 statement is refused. */
-export const NOVA_PINS: Record<string, { magic: string; k: number; vkSha: string; z0?: Buffer }> = {
+/** Per network: the k = 1 Nova key digest (compressed encoding) and the genesis state, as bytes (testnet4)
+ *  or as the SHA-256 of its 544 bytes (mainnet, from the published M16 statement). */
+export const NOVA_PINS: Record<string, { magic: string; k: number; vkSha: string; z0?: Buffer; z0Sha?: string }> = {
   testnet4: { magic: "NHT4", k: 1, vkSha: "6894f4903a9ff9713111bb1076b61663ac3592ad3d51b697d58125403fc5c12a", z0: T4_Z0 },
-  mainnet: { magic: "NHC1", k: 1, vkSha: "6aa50d09397c51d0b89d78b3a918d3fe0962251225c8b6ca91e83199a4e6da1d" },
+  mainnet: { magic: "NHC1", k: 1, vkSha: "6aa50d09397c51d0b89d78b3a918d3fe0962251225c8b6ca91e83199a4e6da1d",
+    z0Sha: "b6eeaf96639fecb456f742df89c6fb02f54bf94f2484d42c92da21be978bf045" },
 };
 
-/** The M13 final layer (nova-bitvm3/m13/pins.json) and the SP1 program key of each statement shape.
- *  The M16 key is pinned when its first proof is published; until then a PAY1 proof is refused. */
+/** The M13 final layer (nova-bitvm3/m13/pins.json) and the SP1 program key of each statement shape
+ *  (guest A: chain statement; M16: chain statement plus PAY1 record, proved on mainnet). */
 export const WRAP_PINS = {
   wrapVkSha256: "d42c63e3c873b35576b4c95fa8c41770a8c6b8a9f16ba74732c5b52a43b0b0d7",
   recursionVkRoot: "7487c2175bd3256619ca0118094b8150d6df0246a1b41979a081642e5253f257",
-  programs: { guestA: "5df3760fed1620671151183a73c9407d528b2239a5cd243b14cf5c7b4d4af46b", m16: undefined as string | undefined },
+  programs: { guestA: "5df3760fed1620671151183a73c9407d528b2239a5cd243b14cf5c7b4d4af46b", m16: "dfc68a5d579b86244a60ba0baee7852348cf0d2a3bb13910ebb95a3e625fcb60" as string | undefined },
 };
 
 export interface Pay1 { segments: number; heightB: number; hashB: string; confirmations: number; txid: string; vout: number; value: bigint; scriptLen: number; scriptSha: string }
@@ -104,8 +105,8 @@ export function checkPins(s: NovaStatement, network: string): void {
   const pin = NOVA_PINS[network] ?? refuse(`no Nova pins for network ${network}`);
   if (s.magic !== pin.magic) refuse(`statement is for ${s.magic}, not ${network} (${pin.magic})`);
   if (s.k !== pin.k) refuse(`fold width ${s.k} is not the pinned ${pin.k}`);
-  if (!pin.z0) refuse(`no genesis state pinned for ${network} yet`);
-  if (!s.z0.equals(pin.z0!)) refuse(`z0 is not ${network}'s genesis state`);
+  if (!pin.z0 && !pin.z0Sha) refuse(`no genesis state pinned for ${network}`);
+  if (pin.z0 ? !s.z0.equals(pin.z0) : sha256(s.z0).toString("hex") !== pin.z0Sha) refuse(`z0 is not ${network}'s genesis state`);
   if (s.vkSha !== pin.vkSha) refuse(`Nova key digest ${s.vkSha.slice(0, 8)}… is not the pinned ${pin.vkSha.slice(0, 8)}…`);
   if (s.steps !== s.tipHeight) refuse(`steps ${s.steps} differ from the tip height ${s.tipHeight} (k = 1 folds one header per step from genesis)`);
 }
@@ -153,7 +154,7 @@ export function matchPayment(s: NovaStatement, payments: TermPayment[], minConfs
 export function verifyWrap(statementBytes: Buffer, wrapPath: string, cmd: string): { status: "verified"; programKey: string } {
   const s = decodeStatement(statementBytes);
   const programKey = s.pay ? WRAP_PINS.programs.m16 : WRAP_PINS.programs.guestA;
-  if (!programKey) refuse("no M16 program key pinned yet, so no PAY1 proof can be checked");
+  if (!programKey) refuse("no program key pinned for this statement shape");
   const expect = {
     committed_values_sha256: sha256(statementBytes).toString("hex"), exit_code: 0, is_complete: 1,
     program_vk_digest: programKey, recursion_vk_root: WRAP_PINS.recursionVkRoot, wrap_vk_sha256: WRAP_PINS.wrapVkSha256,
@@ -171,18 +172,47 @@ export function verifyWrap(statementBytes: Buffer, wrapPath: string, cmd: string
   return { status: "verified", programKey: programKey! };
 }
 
-export interface Term { network: string; seeds: Seed[]; payments: TermPayment[]; minConfs: number }
+/** "The client paid the provider on chain", settled by a proved M16 statement. The provider is registered by
+ *  the SHA-256 of its scriptPubKey. */
+export interface ProviderPayment { scriptSha256: string; owedSats: number | string; minConfs: number }
+export interface PaidResult { network: string; statement: string; tip: { height: number; hash: string; chainwork: string };
+  payment: { txid: string; vout: number; sats: string; confirmations: number }; proof: "verified" | `not checked: ${string}` }
+
+/** Accepts only if the wrap verifies for exactly these public bytes under the pinned M16 program key, the
+ *  statement file (when given) agrees, the network/k/z0/Nova-key pins hold, and the PAY1 record pays the
+ *  provider's script at least `owedSats` with at least `minConfs` confirmations ending at the proven tip. */
+export function checkProviderPaid(publicBytes: Buffer, wrapPath: string, verifier: string, network: string, req: ProviderPayment,
+  statementJson?: { committed_values_sha256: string; program_vk_digest: string }, skipProof?: string): PaidResult {
+  const s = decodeStatement(publicBytes);
+  const p = s.pay ?? refuse("statement has no payment record (guest A, not M16)");
+  checkPins(s, network);
+  const m16 = WRAP_PINS.programs.m16 ?? refuse("no M16 program key pinned");
+  if (statementJson) {
+    if (statementJson.program_vk_digest !== m16) refuse(`program key ${statementJson.program_vk_digest.slice(0, 8)}… is not the pinned M16 key ${m16!.slice(0, 8)}…`);
+    if (statementJson.committed_values_sha256 !== sha256(publicBytes).toString("hex")) refuse("public bytes do not match the statement's committed-values digest");
+  }
+  if (p.segments < 1) refuse("payment record has no segments");
+  if (p.confirmations < 1 || p.heightB + p.confirmations - 1 !== s.tipHeight) refuse("payment height and confirmations do not end at the proven tip");
+  if (p.confirmations < req.minConfs) refuse(`payment has ${p.confirmations} confirmations, fewer than ${req.minConfs}`);
+  if (p.scriptSha !== req.scriptSha256) refuse("proven scriptPubKey is not the provider's registered script");
+  if (p.value < BigInt(req.owedSats)) refuse(`proven value ${p.value} is below the ${req.owedSats} owed`);
+  if (!skipProof) verifyWrap(publicBytes, wrapPath, verifier);
+  return { network, statement: sha256(publicBytes).toString("hex"), tip: { height: s.tipHeight, hash: s.tipHash, chainwork: "0x" + s.chainwork.toString(16) },
+    payment: { txid: p.txid, vout: p.vout, sats: String(p.value), confirmations: p.confirmations }, proof: skipProof ? `not checked: ${skipProof}` : "verified" };
+}
+
+export interface Term { network: string; seeds: Seed[]; payments: TermPayment[]; minConfs: number; provider?: ProviderPayment }
 export interface NovaTermResult {
   term: "fixture" | "run"; network: string; statement: string; tip: { height: number; hash: string; chainwork: string };
   chainwork: "equal to the node's" | "not compared"; seedsBound: number;
   payment: { txid: string; vout: number; confirmations: number } | "no PAY1 record";
-  proof: "verified" | `not checked: ${string}`;
+  proof: "verified" | `not checked: ${string}`; providerPaid?: PaidResult;
 }
 
 /** Everything above, from a directory: statement.bin (required), headers.hex (one header per line, ending
  *  at the proven tip), wrap.bin (or BSB_NOVA_WRAP), and term.json, which replaces the caller's own term
  *  when present (a fixture shaped like a run's term). Throws NovaRefused on the first failed check. */
-export function checkNovaTermDir(dir: string, own: Term, opts: { verifier?: string; knownChainwork?: (tipHash: string) => bigint | undefined } = {}): NovaTermResult {
+export function checkNovaTermDir(dir: string, own: Term, opts: { verifier?: string; allowUnverified?: boolean; knownChainwork?: (tipHash: string) => bigint | undefined } = {}): NovaTermResult {
   const bytes = readFileSync(join(dir, "statement.bin"));
   const fixture = existsSync(join(dir, "term.json"));
   const term: Term = fixture ? JSON.parse(readFileSync(join(dir, "term.json"), "utf8")) : own;
@@ -193,9 +223,16 @@ export function checkNovaTermDir(dir: string, own: Term, opts: { verifier?: stri
   const hp = join(dir, "headers.hex");
   const headers = existsSync(hp) ? readFileSync(hp, "utf8").split(/\s+/).filter(Boolean).map((h) => Buffer.from(h, "hex")) : [];
   const seedsBound = bindSeeds(s, headers, term.seeds);
-  const paid = s.pay ? matchPayment(s, term.payments, term.minConfs) : undefined;
   const wrap = existsSync(join(dir, "wrap.bin")) ? join(dir, "wrap.bin") : process.env.BSB_NOVA_WRAP;
   const verifier = opts.verifier ?? process.env.BSB_M13_VERIFY;
+  if (term.provider) {   // "the client paid the provider on chain": the M16 verifier, no payment list
+    const sj = existsSync(join(dir, "statement.json")) ? JSON.parse(readFileSync(join(dir, "statement.json"), "utf8")) : undefined;
+    const skip = wrap && verifier ? undefined : opts.allowUnverified ? "no wrap proof or BSB_M13_VERIFY" : refuse("the M16 term needs a wrap proof and BSB_M13_VERIFY");
+    const r = checkProviderPaid(bytes, wrap ?? "", verifier ?? "", term.network, term.provider, sj, skip);
+    return { term: fixture ? "fixture" : "run", network: term.network, statement: r.statement, tip: r.tip, chainwork: "not compared", seedsBound,
+      payment: { txid: r.payment.txid, vout: r.payment.vout, confirmations: r.payment.confirmations }, proof: r.proof, providerPaid: r };
+  }
+  const paid = s.pay ? matchPayment(s, term.payments, term.minConfs) : undefined;
   let proof: NovaTermResult["proof"];
   if (!wrap) proof = "not checked: no wrap proof given";
   else if (!verifier) proof = "not checked: BSB_M13_VERIFY unset";
